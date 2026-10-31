@@ -28,6 +28,19 @@ Parameter sweep (`npm run sweep:overgrazing`, brain, plants on, seeds 1–3, 2,0
 
 Deviations: config keys are flat (`overgrazingEnabled`, ...), per `WORLD_RULES.md`, not `world.overgrazing = {...}`. Health is held per cell, not per patch, so it survives a plant dying and re-seeding. Windfall food does not damage cells. Plant upkeep is not scaled by health (only growth). No new sensor inputs or actions.
 
+## Core engine: memory (2026-10-31; `npm run core:memtask`, `npm run core:smoke`)
+
+Standalone delayed-cue task (no world): a cue of +1 or -1 for one tick, silence, then the net must score EAT above or below STAY. Mutate-and-select, population 100, keep 20, seeds 1 to 4, memory on vs memory wiped every tick (the control).
+
+| Task | Memory on | Memory wiped |
+|---|---|---|
+| No clutter, delay 6, 30 or 80 | **Solved at generation 0 on 4/4 seeds**: a random net already carries the cue | best fitness 0.00 (chance) on 4/4 |
+| Random distractor input during the delay (noise 1), delay 30, 150 generations | Best fitness 0.04, 0.07, 0.17, 0.50; **never fully solved** | 0.00 on 4/4 |
+
+Reading: the control sits at exactly chance, so memory is necessary and used. The easy task says little about whether mutation can find a memory solution (random nets already have one). On the harder task mutation finds partial solutions on 4/4 seeds but, at this budget, none reaches a full solution. One search budget, four seeds, a task I wrote: this is a capability check of the architecture, not a result about evolution in the world.
+
+World baseline with the new brain (10 hidden, 69 sensed inputs + 4 memory, 16 outputs; seeds 1 to 4, 3,000 ticks, `core:smoke`): memory on, final populations 309, 263, 260, 204; memory off, 274, 238, 305, 223. Both persist on 4/4. The differences are within what one run per seed can show; nothing is claimed.
+
 ## Findings so far (8 seeds × 10,000 ticks unless noted)
 
 | Question | Result |
@@ -75,6 +88,7 @@ Values chosen or changed with a behaviour in mind (AGENTS.md, Engineering rules;
 
 | Date | Parameter | Value | Why | Tuned to make a behaviour appear? |
 |---|---|---|---|---|
+| 2026-10-30 | Core engine `founderEatBias`, `founderReproduceBias` (`src/core/`, docs/rules-catalog.md) | 0 → **2**, 0 → **2** | Untuned random founders went extinct by tick ~500 on 4 of 4 seeds (`npm run core:smoke`). Cause 1 was a rule, not a number: EAT was legal on any food above zero, so a founder with an eat bias sat on a depleted cell nibbling the trickle (43 moves in 300 ticks across 200 organisms, 9,100 food untouched). Fixed by rule 18 (`minBite` 1: EAT is legal only where a bite is worth it). With that rule, biases of 2 on both actions sustained a population on 4 of 4 seeds at 3,000 ticks (final 37 to 347); biases of 1 lost 2 of 4 seeds; with no bias, 3 of 4 persisted at 7 to 12. Biases are founder values only; every weight evolves. World numbers (upkeep 0.15, regrowth 0.08) were not changed. | **Yes**: set so the founders do not die before anything can evolve. One 3,000-tick run per seed, seeds 1 to 4, no control arm. |
 | 2026-10-29 | `speciesThreshold` (docs/specs/species.md) | 0.15 → **0.2** | Observer-only display parameter. At 0.15 the species list churned (13 species by tick 2000, 53 ids by tick 3000 on seed 2, mostly short-lived clusters from neutral brain-weight and hue drift); 0.2 gave 8 by tick 2000, 0.25 gave 4. Chosen to keep the list readable, one seed only. Cannot change any fingerprint. | No (reading aid, not a behaviour). |
 | 2026-10-25 | Brain head start `isAttack` | −2 → **−0.5**, plus `attackKillChance` 0 → **1** | At −2 no organism ever attacked in probe runs (seeds 1–3), so predation could not be selected for or against at all. Eased so attacks happen occasionally, more when the odds are good. | **Yes**: changed after seeing no attacks. The hunting waves in seed 3 (findings) came after this change. `attackAlike` stayed 0, so which colour to attack was not tuned. |
 | 2026-10-28 | Hybrid incompatibility `hybridTolerance`, `hybridFull`, `hybridMaxInviability` (`docs/specs/speciation.md`) | 0.15, 0.35, 0.8 | Set from the phase 0 diagnostic (`npm run genome-distance`, seeds 1–4, 5,000 ticks, cost off): pairs that actually mate stay at mean genome distance 0.06 → ~0.11 throughout, while random pairs drift from median 0.22 to 0.37–0.39 (hue and genome distance correlate 0.3–0.7). Tolerance sits just above the mating-pair spread and full incompatibility below the random-pair median, so only crosses between distant lineages are hit. 0.8 (not 1) leaves rare hybrid escapes. Population-wide distance keeps growing with mutation drift, so a fixed tolerance may start to catch within-lineage crosses in very long runs; revisit if the experiment shows matings collapsing. | No: calibrated to the measured distribution, not to make isolation or species appear. |

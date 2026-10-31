@@ -1,5 +1,5 @@
 {
-  "name": "artificial-life",
+  "name": "neolithic-engine",
   "private": true,
   "version": "0.2.0",
   "type": "module",
@@ -14,6 +14,8 @@
     "fingerprint": "vite-node scripts/fingerprint.ts",
     "sweep:overgrazing": "vite-node scripts/overgrazing-sweep.ts",
     "perf": "vite-node scripts/perf.ts",
+    "core:smoke": "vite-node scripts/core-smoke.ts --",
+    "core:memtask": "vite-node scripts/core-memtask.ts --",
     "genome-distance": "vite-node scripts/genome-distance.ts --",
     "census": "vite-node scripts/census.ts --",
     "ablation": "vite-node scripts/ablation.ts --",
