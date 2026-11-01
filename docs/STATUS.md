@@ -1,24 +1,24 @@
 # Neolithic Engine — Status
 
 ## Current State
-Phase 1 (Life) complete on branch `phase-1-life`.
-- **People Core (`src/sim/people.ts`)**: Columnar typed arrays (`Float32Array`, `Uint32Array`, `Uint16Array`, `Uint8Array`, `Int16Array`), alive flag, free list, slot-plus-generation IDs (20-bit slot, 12-bit generation), dynamic doubling, save and restore roundtrip.
-- **Land & Geography (`src/sim/land.ts`)**: 256×256 wrapped grid with coordinate wrap helpers (`wrapDiff`, `distSqWrap`), plant food per cell, logistic regrowth curve with grazing floor (`landGrazingFloor`), elevation/riparian soil fertility integration.
-- **Spatial Index (`src/sim/spatial.ts`)**: Counting-sort neighbor lookup with prefix sums (`cellStarts` of size 65537, `cellPeople`, `cellCounts`), wrapping neighbor iteration, zero per-tick allocations.
-- **Life Pipeline (`src/sim/life.ts`)**: Daily metabolism upkeep leak, starvation death, old age death, grazing above floor, wandering with water avoidance, mating search with kin avoidance (parent-child and full/half siblings), gestation, childbirth with energy transfer.
-- **Energy Ledger (`src/sim/ledger.ts`)**: Fully wired energy accounting across birth, foraging, metabolism, movement, and death with zero violations.
-- **Determinism & Invariants (`tests/mechanics.test.ts`, `tests/snapshot.test.ts`)**: 29 automated tests verifying ledger balance, slot reuse generation bumping, strict 0..255 coordinate wrapping, exact save/restore stateHash reproducibility, and identical seed fingerprints.
-- **200-Year Multi-Seed Stability**: Verified across seeds 1, 2, 3, 4, 5 (72,000 ticks each). All seeds settle into a steady carrying capacity band between 8,291 and 9,972 people without dying out or exploding.
+Phase 2 (Window) implemented on branch `phase-2-window`.
+- **Fast Base64 Engine (`src/sim/base64.ts`)**: Lookup-table-accelerated cross-platform binary base64 encode/decode (~0.05 ms encode, ~0.5 ms decode for 50,000 bytes).
+- **Packed Frame Protocol (`src/sim/protocol.ts`)**: 5-byte packed records per alive person (`slot` Uint16, `x` Uint8, `y` Uint8, `look` Uint8 bitfield) encoded into base64 over SSE.
+- **Look Byte Encoding**: Bitfields capturing sex (bit 0), gestation/pregnancy (bit 1), life stage child/adult/elder (bits 2..3), and quantized energy levels (bits 4..7).
+- **Person Details Inspection (`src/sim/world.ts`, `src/sim/protocol.ts`)**: Full person card details (`PersonDetail`) retrieved on request by slot or 32-bit ID without wire bloat during normal streaming.
+- **Offscreen Cached Terrain Background (`src/render/renderer.ts`)**: Single 256×256 offscreen composite canvas caching terrain, elevation, and relief shading with zero redraw cost per frame.
+- **WorldBox Art Style (`src/render/renderer.ts`)**: Crisp colored dots when zoomed out; vibrant WorldBox miniature pixel figures when zoomed in (head, hair, sex-colored tunic, pregnant belly bump, walking bob animation, and bouncing selection indicator).
+- **Wrap-Aware Motion Smoothing (`src/render/renderer.ts`)**: Continuous lerp between frames using shortest modular difference across wrapping boundaries, eliminating wrap-edge streaking.
+- **30 FPS Render Cap & Mobile Gestures**: Frame-rate capped render loop saving battery on Galaxy S21; pinch-to-zoom, mouse wheel, drag-to-pan, tap-to-select, and camera follow.
+- **Person Card & HUD (`src/ui/inspector.ts`, `src/ui/controls.ts`, `src/style.css`)**: Compact WorldBox-style card with life stage badge, gestation progress, energy bar, parent navigation, and follow button; TPS readout on playback pill.
+- **Phone Setup (`scripts/termux-boot.sh`)**: Script updated to stop `artificial-life` service to dedicate full CPU headroom on Galaxy S21 to Neolithic Engine.
+- **Automated Tests (`tests/protocol.test.ts`, `tests/server.test.ts`, `tests/mechanics.test.ts`, etc.)**: 35 automated tests passing with zero failures.
 - **Performance Benchmark (`npm run perf`)**:
   - Average population: 11,062
-  - Tick duration: 3.022 ms / tick
-  - **Perf: 0.273 µs / person / tick** on desktop (budget: <= 15.0 µs; 55× faster than budget).
-- Phase 1 checklist verified and ticked in `docs/ROADMAP.md`.
+  - Tick duration: 2.801 ms / tick
+  - **Perf: 0.253 µs / person / tick** on desktop (budget: <= 15.0 µs; 59× faster than budget).
 
 ## Next Steps
-1. Merge `phase-1-life` into `main`.
-2. Begin Phase 2 (Window):
-   - Adapt renderer (`src/render/renderer.ts`) to draw 10,000 stick figures up close, dots and colored regions zoomed out.
-   - Replace old organism card with compact person card.
-   - Frame packing format in `protocol.ts` and SSE transport.
-   - Long-running stability check on Galaxy S21 phone / desktop viewer.
+1. Verify S21 checks (8 hours unattended run, reboot resumption, and <= 30 µs/person/tick).
+2. Merge `phase-2-window` into `main` after verification.
+3. Begin Phase 3 (People): food and danger scent fields, climb/copy/touch rules, genes and habits.

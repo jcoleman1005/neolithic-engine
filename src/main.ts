@@ -101,7 +101,6 @@ $('.notice-close')?.addEventListener('click', () => {
 });
 
 let isRunning = false;
-let selectedCell: { x: number; y: number } | null = null;
 
 const sim: SimulationClient = new SimulationClient({
   beforeFrame: () => renderer.frameStart(),
@@ -127,8 +126,29 @@ const sim: SimulationClient = new SimulationClient({
 
 const renderer = new CanvasRenderer(canvas, sim);
 const metricsView = new MetricsView($('#metrics-container'));
-const inspectorView = new InspectorView($('#inspector-container'));
+const inspectorView = new InspectorView($('#inspector-container'), {
+  onSelectPerson: (id) => {
+    renderer.selectedSlot = id !== null ? (id > 65535 ? id >> 12 : id) : null;
+    sim.select(id);
+    refreshPanels();
+  },
+  onToggleFollow: () => {
+    renderer.followSelected = !renderer.followSelected;
+    refreshPanels();
+  },
+  isFollowing: () => renderer.followSelected,
+});
 const historyView = new HistoryView($('#history-container'));
+
+renderer.onSelect = (slot) => {
+  if (slot !== null) {
+    sim.select(slot);
+    sheet.show('inspector');
+  } else {
+    sim.select(null);
+  }
+  refreshPanels();
+};
 
 const pill = new PlaybackPill($('#playback'), {
   onPlayPause: () => {
@@ -199,14 +219,6 @@ new SettingsView($('#settings-container'), {
   },
 }, sim.config);
 
-canvas.addEventListener('click', (e) => {
-  const cell = renderer.worldToCell(e.clientX, e.clientY);
-  if (cell) {
-    selectedCell = cell;
-    refreshPanels();
-  }
-});
-
 function onFrame(): void {
   isRunning = sim.running;
   pill.update(sim.running, sim.ticksPerSecond);
@@ -223,7 +235,7 @@ function refreshPanels(): void {
   const m = sim.getMetrics();
   if (m) metricsView.render(m);
   eventsContainer.innerHTML = `<ul class="event-list">${eventListHTML(sim.worldEvents)}</ul>`;
-  inspectorView.render(sim.config, selectedCell ? `${selectedCell.x},${selectedCell.y}` : null);
+  inspectorView.render(sim.config, sim.selectedPerson, renderer.selectedSlot);
   historyView.render(sim.getHistorySamples());
 }
 

@@ -18,6 +18,7 @@ export class PlaybackPill {
   private readonly playBtn: HTMLButtonElement;
   private readonly stepBtn: HTMLButtonElement;
   private readonly speedSelect: HTMLSelectElement;
+  private readonly tpsBadge: HTMLElement;
 
   constructor(container: HTMLElement, callbacks: PlaybackCallbacks) {
     container.innerHTML = `
@@ -30,12 +31,14 @@ export class PlaybackPill {
           <option value="3">3×</option>
           <option value="10">10×</option>
         </select>
+        <span id="pill-tps" class="pill-tps">0 tps</span>
       </div>
     `;
 
     this.playBtn = container.querySelector('#btn-play')!;
     this.stepBtn = container.querySelector('#btn-step')!;
     this.speedSelect = container.querySelector('#select-speed')!;
+    this.tpsBadge = container.querySelector('#pill-tps')!;
 
     this.playBtn.addEventListener('click', () => callbacks.onPlayPause());
     this.stepBtn.addEventListener('click', () => callbacks.onStep());
@@ -44,9 +47,10 @@ export class PlaybackPill {
     });
   }
 
-  public update(running: boolean, _tps: number): void {
+  public update(running: boolean, tps: number): void {
     this.playBtn.textContent = running ? 'Pause' : 'Play';
     this.stepBtn.disabled = running;
+    this.tpsBadge.textContent = `${tps} tps`;
   }
 }
 

@@ -19,7 +19,7 @@ export interface HostEnvironment {
 
 interface Viewer {
   readonly post: (message: FromWorker) => void;
-  selectedId: string | null;
+  selectedId: number | string | null;
   wantsHistory: boolean;
 }
 
@@ -236,9 +236,12 @@ export class SimulationHost {
     const { world } = this;
     const now = this.env.now();
     while (this.tickTimes.length > 0 && now - this.tickTimes[0] > 1000) this.tickTimes.shift();
+    const packed = world.packPeopleFrame();
     return {
       kind: 'frame',
       tick: world.tick,
+      packedPeople: packed.base64,
+      peopleCount: packed.count,
       organisms: [],
       foodPatches: [],
       carrion: [],
@@ -261,9 +264,12 @@ export class SimulationHost {
     metrics: WorldMetrics | null
   ): FromWorker {
     if (!metrics) return base;
+    const selectedPerson = viewer.selectedId !== null ? this.world.getPersonRecord(viewer.selectedId) : null;
     const panels: PanelData = {
       metrics,
-      selected: viewer.selectedId ? (this.world.getOrganism(viewer.selectedId) ?? null) : null,
+      selected: null,
+      selectedPerson,
+      selectedId: viewer.selectedId,
       ...(viewer.wantsHistory ? { history: this.world.history.getSamples() } : {}),
     };
     return { ...base, panels };
