@@ -3,11 +3,13 @@ import type { HistorySample } from '../sim/history';
 import { TerrainField } from '../sim/terrain';
 import { ElevationField } from '../sim/elevation';
 import { EVENT_LOG_SIZE, type WorldEvent } from '../sim/events';
+import { fastBase64Decode } from '../sim/base64';
 import type {
   EggView,
   FromWorker,
   OrganismView,
   PanelData,
+  PersonDetail,
   SavedWorld,
   ToWorker,
   WorldView,
@@ -62,6 +64,9 @@ async function probeServer(): Promise<ServerInfo | null> {
 export class SimulationClient implements WorldView {
   public config: SimulationConfig = { ...DEFAULT_CONFIG };
   public tick = 0;
+  public peopleCount = 0;
+  public packedPeopleBuffer: Uint8Array = new Uint8Array(0);
+  public selectedPerson: PersonDetail | null = null;
   public organisms = new Map<string, OrganismView>();
   public foodPatches = new Map<string, FoodPatch>();
   public carrion = new Map<string, CarrionPatch>();
@@ -181,10 +186,13 @@ export class SimulationClient implements WorldView {
         this.events.beforeFrame();
         this.tick = message.tick;
         if (message.terrain) this.terrain = TerrainField.forView(message.terrain, this.terrain?.originalFields());
-        this.organisms = new Map(message.organisms.map((o) => [o.id, o]));
-        this.foodPatches = new Map(message.foodPatches.map((p) => [`${p.x},${p.y}`, p]));
-        this.carrion = new Map((message.carrion ?? []).map((c) => [`${c.x},${c.y}`, c]));
-        this.eggs = new Map((message.eggs ?? []).map((e) => [e.id, e]));
+        this.peopleCount = message.peopleCount;
+        if (message.packedPeople) {
+          this.packedPeopleBuffer = fastBase64Decode(message.packedPeople);
+        }
+        if (message.organisms) {
+          this.organisms = new Map(message.organisms.map((o) => [o.id, o]));
+        }
         this.ticksPerSecond = message.ticksPerSecond;
         this.running = message.running;
         this.targetTicksPerSecond = message.targetTicksPerSecond;
@@ -218,6 +226,11 @@ export class SimulationClient implements WorldView {
   private applyPanels(panels: PanelData): void {
     this.metrics = panels.metrics;
     if (panels.history) this.history = panels.history;
+    if (panels.selectedPerson !== undefined) {
+      this.selectedPerson = panels.selectedPerson;
+    } else if (panels.selectedId === null) {
+      this.selectedPerson = null;
+    }
   }
 
   public play(): void {
@@ -234,14 +247,16 @@ export class SimulationClient implements WorldView {
   }
   public reset(seed: string | number, config?: Partial<SimulationConfig>): void {
     this.selectedId = null;
+    this.selectedPerson = null;
     this.send({ kind: 'reset', seed, config });
   }
   public setConfig(config: Partial<SimulationConfig>): void {
     Object.assign(this.config, config);
     this.send({ kind: 'config', config });
   }
-  public select(id: string | null): void {
-    this.selectedId = id;
+  public select(id: number | string | null): void {
+    this.selectedId = id !== null ? String(id) : null;
+    if (id === null) this.selectedPerson = null;
     this.send({ kind: 'select', id });
   }
   public setWantsHistory(wants: boolean): void {

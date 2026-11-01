@@ -200,7 +200,7 @@ export class AlifeServer {
     const watchOnly = this.isWatchOnly(req, url, fromControlPort);
     if (url.pathname === '/api/info' && req.method === 'GET') {
       sendJson(res, 200, {
-        app: 'alife-server',
+        app: 'neolithic-server',
         version: 1,
         buildId: this.readBuildId(),
         frameIntervalMs: this.options.frameIntervalMs,
@@ -217,7 +217,7 @@ export class AlifeServer {
       const saved = this.host.save();
       res.writeHead(200, {
         'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="alife-world-tick-${saved.world.tick}.json"`,
+        'Content-Disposition': `attachment; filename="neolithic-world-tick-${saved.world.tick}.json"`,
       });
       res.end(JSON.stringify(saved));
     } else if (url.pathname.startsWith('/api/')) {

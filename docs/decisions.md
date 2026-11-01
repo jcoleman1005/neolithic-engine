@@ -22,3 +22,5 @@ Eighteen decisions are settled; change one only on purpose, record why here, and
 | Resources | Food, wood, stone and gold, carried one at a time | Like Age of Empires II villagers |
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
 | Viewer | Watch only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out |
+| Phone Host | Neolithic Engine takes over S21 exclusively | Stop `artificial-life` service while Neolithic runs to claim full CPU headroom |
+| Art Style | WorldBox game style art | Vibrant pixel palette, stylized miniature pixel figures up close, crisp colored dots zoomed out |

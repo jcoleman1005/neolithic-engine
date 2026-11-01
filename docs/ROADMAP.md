@@ -269,8 +269,8 @@ Goal: the phone runs worlds for weeks unattended.
 
 Seven calls are still yours to make; each is needed by the phase in brackets. The agent should ask when it reaches one.
 
-- [ ] Does `artificial-life` keep running on the S21, or does Neolithic take the phone over? Two servers can share it, but they split one CPU core's worth of headroom. (Phase 2)
-- [ ] Art direction: palette, sprite size, and how the zoomed-out view looks. (Phase 2)
+- [x] Does `artificial-life` keep running on the S21, or does Neolithic take the phone over? Two servers can share it, but they split one CPU core's worth of headroom. (Phase 2) — *Neolithic Engine takes over exclusively; artificial-life stopped.*
+- [x] Art direction: palette, sprite size, and how the zoomed-out view looks. (Phase 2) — *WorldBox game style art: vibrant terrain, miniature pixel figures up close, crisp dots zoomed out.*
 - [ ] Final trait list: keep the six, or add something like cruelty or wisdom, up to eight. (Phase 3)
 - [ ] What mostly makes people follow someone: food, strength, kin or charisma? All four will count; pick the one weighted most. (Phase 3)
 - [ ] What the auto-camera treats as interesting: battles, foundings, deaths of leaders, migrations? (Phase 4)

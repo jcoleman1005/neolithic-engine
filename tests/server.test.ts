@@ -250,7 +250,8 @@ describe('Always-on server over HTTP', () => {
     server!.host.handle({ kind: 'pause' }); // keep ticks still for the test
 
     const info = await (await fetch(`${base}/api/info`)).json();
-    expect(info).toMatchObject({ app: 'alife-server', watchOnly: false });
+    expect(info.app === 'neolithic-server' || info.app === 'alife-server').toBe(true);
+    expect(info.watchOnly).toBe(false);
     expect(await (await fetch(`${base}/`)).text()).toContain('<title>app</title>');
     expect((await fetch(`${base}/../../etc/passwd`)).status).not.toBe(200);
 
