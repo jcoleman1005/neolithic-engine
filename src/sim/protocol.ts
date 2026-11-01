@@ -63,7 +63,7 @@ export interface PersonDetail {
   readonly ageYears: number;
   readonly pregnant: boolean;
   readonly pregnancyTicks: number;
-  readonly mateSlot: number;
+  readonly mateId: number;
   readonly motherId: number;
   readonly fatherId: number;
 }

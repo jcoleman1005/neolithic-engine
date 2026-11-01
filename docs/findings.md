@@ -28,3 +28,14 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-01 | `matingRadius` | 0 | 2 | Phase 1 mate search radius in wrapped cells |
 
 ## Experiment Log
+
+### 2026-11-01: Post-Bugfix 5-Seed 200-Year Multi-Seed Stability Check
+Following the fix of `mateId` (preserving mother's `fatherId`), full state-hash expansion, and closure-free spatial neighbor loops:
+- **Seed 1**: Population 9,549 (72,000 ticks in 340.7s) — StateHash: `734bb28da2d592c6`
+- **Seed 2**: Population 9,022 (72,000 ticks in 332.0s) — StateHash: `2638f035b5254f8e`
+- **Seed 3**: Population 8,403 (72,000 ticks in 318.4s) — StateHash: `002d25a0e93505d9`
+- **Seed 4**: Population 9,038 (72,000 ticks in 333.3s) — StateHash: `c449feb435a2d755`
+- **Seed 5**: Population 9,050 (72,000 ticks in 333.2s) — StateHash: `04efc1d276b1b5ca`
+
+All 5 seeds remain in a steady carrying band between 8,403 and 9,549 people over 200 continuous years.
+- **Desktop Benchmark (`npm run perf`)**: 0.246 µs / person / tick at 11,062 people (improved by 2.8% due to zero-allocation spatial loops).

@@ -3,7 +3,7 @@ import { type ElevationField, type ElevationState } from './elevation';
 import { type TerrainField, type TerrainState } from './terrain';
 import { HistoryTracker } from './history';
 import { PRNG } from './prng';
-import { hashString } from './state-hash';
+import { StateHasher } from './state-hash';
 import { Land, type LandState } from './land';
 import {
   People,
@@ -224,27 +224,62 @@ export class World {
       ageYears: Math.floor(people.age[slot] / ticksPerYear),
       pregnant: people.pregnant[slot] >= 0,
       pregnancyTicks: Math.max(0, people.pregnant[slot]),
-      mateSlot: people.mateSlot[slot],
+      mateId: people.mateId[slot],
       motherId: people.motherId[slot],
       fatherId: people.fatherId[slot],
     };
   }
 
   public stateHash(): string {
-    let personSample = 0;
-    const alive = this.people.alive;
-    const px = this.people.x;
-    const py = this.people.y;
-    const cap = this.people.capacity;
+    const h = new StateHasher();
+
+    // 1. Tick, seed, PRNG internal state, and alive count
+    h.updateInt(this.tick);
+    h.updateInt(this.seed);
+    h.updateInt(this.prng.getState());
+    h.updateInt(this.people.count);
+
+    // 2. Every per-person array for living people
+    const people = this.people;
+    const cap = people.capacity;
+    const alive = people.alive;
+    const px = people.x;
+    const py = people.y;
+    const energy = people.energy;
+    const sex = people.sex;
+    const age = people.age;
+    const gen = people.generation;
+    const preg = people.pregnant;
+    const mateId = people.mateId;
+    const mom = people.motherId;
+    const dad = people.fatherId;
+    const slotGen = people.slotGenerations;
 
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 1) {
-        personSample = (personSample * 31 + ((py[slot] << 8) | px[slot])) | 0;
+        h.updateInt(slot);
+        h.updateInt(slotGen[slot]);
+        h.updateInt(px[slot]);
+        h.updateInt(py[slot]);
+        h.updateFloat(energy[slot]);
+        h.updateInt(sex[slot]);
+        h.updateInt(age[slot]);
+        h.updateInt(gen[slot]);
+        h.updateInt(preg[slot]);
+        h.updateInt(mateId[slot]);
+        h.updateInt(mom[slot]);
+        h.updateInt(dad[slot]);
       }
     }
 
-    const raw = `${this.tick}:${this.seed}:${this.population}:${personSample}:${this.people.totalEnergy().toFixed(1)}:${this.land.totalPlantFood().toFixed(1)}`;
-    return hashString(raw);
+    // 3. Every land array
+    const land = this.land;
+    h.updateFloatArray(land.food);
+    h.updateFloatArray(land.maxFood);
+    h.updateFloatArray(land.fertility);
+    h.updateIntArray(land.isWater);
+
+    return h.digest();
   }
 
   public exportState(): WorldState {

@@ -101,4 +101,95 @@ describe('Phase 1 Invariants & Mechanics', () => {
     expect(w1.stateHash()).toBe(w2.stateHash());
     expect(w1.population).toBe(w2.population);
   });
+
+  it('a woman fatherId is unchanged after mating and childbirth, and child receives mateId', () => {
+    const world = new World({ initialPopulation: 0 }, 555);
+    const people = world.people;
+
+    // Woman with her own father ID 99999
+    const womanId = people.spawn(100, 100, 80, 0, 1, 88888, 99999);
+    const womanSlot = womanId >>> 12;
+    people.age[womanSlot] = 6000; // adult
+
+    // Eligible male
+    const manId = people.spawn(100, 100, 80, 1, 1, 77777, 66666);
+    const manSlot = manId >>> 12;
+    people.age[manSlot] = 6000; // adult
+
+    expect(people.fatherId[womanSlot]).toBe(99999);
+
+    // Run until woman mates
+    world.step();
+    expect(people.pregnant[womanSlot]).toBeGreaterThanOrEqual(0);
+    expect(people.mateId[womanSlot]).toBe(manId);
+    expect(people.fatherId[womanSlot]).toBe(99999); // Must NOT be overwritten with manId!
+
+    // Run through gestation to birth
+    const initialCount = people.count;
+    while (people.count === initialCount) {
+      // Keep energy fed so birth succeeds
+      people.energy[womanSlot] = 80;
+      people.energy[manSlot] = 80;
+      world.step();
+    }
+
+    // Woman's fatherId must still be her original father
+    expect(people.fatherId[womanSlot]).toBe(99999);
+
+    // Find newborn child
+    let childSlot = -1;
+    for (let s = 0; s < people.capacity; s++) {
+      if (s !== womanSlot && s !== manSlot && people.alive[s] === 1) {
+        childSlot = s;
+        break;
+      }
+    }
+
+    expect(childSlot).toBeGreaterThanOrEqual(0);
+    expect(people.motherId[childSlot]).toBe(womanId);
+    expect(people.fatherId[childSlot]).toBe(manId); // Child's father is the mother's mate!
+  });
+
+  it('stateHash changes when any living person array or land array changes', () => {
+    const world = new World({ initialPopulation: 20 }, 321);
+    const baseHash = world.stateHash();
+
+    // Find a living person
+    let slot = -1;
+    for (let s = 0; s < world.people.capacity; s++) {
+      if (world.people.alive[s] === 1) {
+        slot = s;
+        break;
+      }
+    }
+    expect(slot).toBeGreaterThanOrEqual(0);
+
+    // 1. Changing age changes hash
+    world.people.age[slot] += 1;
+    const hashAgeChanged = world.stateHash();
+    expect(hashAgeChanged).not.toBe(baseHash);
+    world.people.age[slot] -= 1;
+    expect(world.stateHash()).toBe(baseHash);
+
+    // 2. Changing fatherId changes hash
+    world.people.fatherId[slot] += 100;
+    const hashDadChanged = world.stateHash();
+    expect(hashDadChanged).not.toBe(baseHash);
+    world.people.fatherId[slot] -= 100;
+    expect(world.stateHash()).toBe(baseHash);
+
+    // 3. Changing pregnant changes hash
+    world.people.pregnant[slot] = 10;
+    const hashPregChanged = world.stateHash();
+    expect(hashPregChanged).not.toBe(baseHash);
+    world.people.pregnant[slot] = -1;
+    expect(world.stateHash()).toBe(baseHash);
+
+    // 4. Changing land plantFood changes hash
+    world.land.food[0] += 0.5;
+    const hashLandChanged = world.stateHash();
+    expect(hashLandChanged).not.toBe(baseHash);
+    world.land.food[0] -= 0.5;
+    expect(world.stateHash()).toBe(baseHash);
+  });
 });

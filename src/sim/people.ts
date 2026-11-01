@@ -23,7 +23,7 @@ export interface PackedPerson {
   readonly age: number;
   readonly generation: number;
   readonly pregnant: number;
-  readonly mateSlot: number;
+  readonly mateId: number;
   readonly motherId: number;
   readonly fatherId: number;
 }
@@ -48,7 +48,7 @@ export class People {
   public age: Uint32Array;
   public generation: Uint16Array;
   public pregnant: Int16Array; // -1 = none, >= 0 = ticks elapsed
-  public mateSlot: Int32Array;
+  public mateId: Uint32Array;
   public motherId: Uint32Array;
   public fatherId: Uint32Array;
 
@@ -66,7 +66,7 @@ export class People {
     this.age = new Uint32Array(this.capacity);
     this.generation = new Uint16Array(this.capacity);
     this.pregnant = new Int16Array(this.capacity);
-    this.mateSlot = new Int32Array(this.capacity);
+    this.mateId = new Uint32Array(this.capacity);
     this.motherId = new Uint32Array(this.capacity);
     this.fatherId = new Uint32Array(this.capacity);
 
@@ -78,7 +78,7 @@ export class People {
     for (let i = start; i < end; i++) {
       this.freeList[this.freeCount++] = i;
       this.pregnant[i] = -1;
-      this.mateSlot[i] = -1;
+      this.mateId[i] = 0;
     }
   }
 
@@ -106,11 +106,6 @@ export class People {
       n.set(old);
       return n;
     };
-    const copyI32 = (old: Int32Array) => {
-      const n = new Int32Array(newCap);
-      n.set(old);
-      return n;
-    };
     const copyF32 = (old: Float32Array) => {
       const n = new Float32Array(newCap);
       n.set(old);
@@ -126,7 +121,7 @@ export class People {
     this.age = copyU32(this.age);
     this.generation = copyU16(this.generation);
     this.pregnant = copyI16(this.pregnant);
-    this.mateSlot = copyI32(this.mateSlot);
+    this.mateId = copyU32(this.mateId);
     this.motherId = copyU32(this.motherId);
     this.fatherId = copyU32(this.fatherId);
 
@@ -163,7 +158,7 @@ export class People {
     this.age[slot] = 0;
     this.generation[slot] = generation;
     this.pregnant[slot] = -1;
-    this.mateSlot[slot] = -1;
+    this.mateId[slot] = 0;
     this.motherId[slot] = motherId;
     this.fatherId[slot] = fatherId;
 
@@ -211,7 +206,7 @@ export class People {
           age: this.age[slot],
           generation: this.generation[slot],
           pregnant: this.pregnant[slot],
-          mateSlot: this.mateSlot[slot],
+          mateId: this.mateId[slot],
           motherId: this.motherId[slot],
           fatherId: this.fatherId[slot],
         });
@@ -256,7 +251,7 @@ export class People {
       this.age[slot] = p.age;
       this.generation[slot] = p.generation;
       this.pregnant[slot] = p.pregnant;
-      this.mateSlot[slot] = p.mateSlot;
+      this.mateId[slot] = p.mateId ?? (p as any).mateSlot ?? 0;
       this.motherId[slot] = p.motherId;
       this.fatherId[slot] = p.fatherId;
       occupied.add(slot);
@@ -268,7 +263,7 @@ export class People {
       if (!occupied.has(i)) {
         this.freeList[this.freeCount++] = i;
         this.pregnant[i] = -1;
-        this.mateSlot[i] = -1;
+        this.mateId[i] = 0;
       }
     }
   }
