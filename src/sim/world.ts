@@ -1,23 +1,28 @@
 import { normalizeConfig } from './config';
-import { generateElevation, ElevationField, type ElevationState } from './elevation';
-import { generateTerrain, TerrainField, type TerrainState } from './terrain';
+import { type ElevationField, type ElevationState } from './elevation';
+import { type TerrainField, type TerrainState } from './terrain';
 import { HistoryTracker } from './history';
 import { PRNG } from './prng';
 import { hashString } from './state-hash';
+import { Land, type LandState } from './land';
+import { People, type PeopleState } from './people';
+import { SpatialIndex } from './spatial';
+import { LifeSystem } from './life';
+import { EnergyLedger } from './ledger';
 import type { FoodPatch, FoodRegion, SimulationConfig, WorldMetrics } from './types';
 
 export interface WorldState {
   readonly formatVersion: 1;
   readonly tick: number;
   readonly seed: number;
+  readonly prngState?: number;
   readonly config: SimulationConfig;
+  readonly land?: LandState;
+  readonly people?: PeopleState;
   readonly terrain?: TerrainState | null;
   readonly elevation?: ElevationState | null;
 }
 
-/**
- * World stub for Phase 0: 256x256 land grid with no people.
- */
 export class World {
   public config: SimulationConfig;
   public tick = 0;
@@ -26,10 +31,12 @@ export class World {
   public prng: PRNG;
   public history: HistoryTracker;
 
-  public terrain: TerrainField | null = null;
-  public elevation: ElevationField | null = null;
+  public land: Land;
+  public people: People;
+  public spatial: SpatialIndex;
+  public ledger: EnergyLedger;
 
-  // Stubs for protocol/viewer compatibility
+  // Stubs for protocol compatibility
   public readonly obstacles = new Set<string>();
   public readonly foodRegions: readonly FoodRegion[] = [];
   public readonly organisms = new Map<string, never>();
@@ -48,22 +55,28 @@ export class World {
     }
     this.prng = new PRNG(this.seed);
     this.history = new HistoryTracker();
-    this.initLand();
+    this.land = new Land(this.config);
+    this.people = new People();
+    this.spatial = new SpatialIndex();
+    this.ledger = new EnergyLedger();
+
+    this.init();
   }
 
-  private initLand(): void {
-    if (this.config.terrainEnabled) {
-      this.terrain = generateTerrain(this.config);
-    }
-    if (this.config.elevationEnabled) {
-      this.elevation = generateElevation(this.config);
-    }
+  private init(): void {
+    LifeSystem.seedFounders(this.people, this.land, this.ledger, this.config, this.prng);
+    this.population = this.people.count;
+    this.ledger.begin(this.people.totalEnergy(), this.tick);
   }
 
   public step(): void {
+    LifeSystem.step(this.people, this.land, this.spatial, this.ledger, this.config, this.prng);
+    this.population = this.people.count;
     this.tick++;
+
     if (this.tick % 10 === 0) {
       this.history.record(this.getMetrics());
+      this.ledger.check(this.people.totalEnergy(), this.tick);
     }
   }
 
@@ -73,10 +86,14 @@ export class World {
       this.config.seed = this.seed;
     }
     this.tick = 0;
-    this.population = 0;
     this.prng = new PRNG(this.seed);
     this.history.clear();
-    this.initLand();
+    this.land = new Land(this.config);
+    this.people = new People();
+    this.spatial = new SpatialIndex();
+    this.ledger.reset();
+
+    this.init();
   }
 
   public getMetrics(): WorldMetrics {
@@ -89,11 +106,11 @@ export class World {
   }
 
   public getTerrain(): TerrainField | null {
-    return this.terrain;
+    return this.land.terrain;
   }
 
   public getElevation(): ElevationField | null {
-    return this.elevation;
+    return this.land.elevation;
   }
 
   public getOrganism(_id: string): undefined {
@@ -113,7 +130,19 @@ export class World {
   }
 
   public stateHash(): string {
-    const raw = `${this.tick}:${this.seed}:${this.population}:${this.config.worldWidth}x${this.config.worldHeight}`;
+    let personSample = 0;
+    const alive = this.people.alive;
+    const px = this.people.x;
+    const py = this.people.y;
+    const cap = this.people.capacity;
+
+    for (let slot = 0; slot < cap; slot++) {
+      if (alive[slot] === 1) {
+        personSample = (personSample * 31 + ((py[slot] << 8) | px[slot])) | 0;
+      }
+    }
+
+    const raw = `${this.tick}:${this.seed}:${this.population}:${personSample}:${this.people.totalEnergy().toFixed(1)}:${this.land.totalPlantFood().toFixed(1)}`;
     return hashString(raw);
   }
 
@@ -122,9 +151,12 @@ export class World {
       formatVersion: 1,
       tick: this.tick,
       seed: this.seed,
+      prngState: this.prng.getState(),
       config: { ...this.config },
-      terrain: this.terrain ? this.terrain.exportState(true) : null,
-      elevation: this.elevation ? this.elevation.exportView() : null,
+      land: this.land.exportState(),
+      people: this.people.exportState(),
+      terrain: this.land.terrain ? this.land.terrain.exportState(true) : null,
+      elevation: this.land.elevation ? this.land.elevation.exportView() : null,
     };
   }
 
@@ -134,12 +166,18 @@ export class World {
     }
     const world = new World(state.config, state.seed);
     world.tick = state.tick;
-    if (state.terrain) {
-      world.terrain = TerrainField.fromState(state.terrain, world.config);
+    if (state.prngState !== undefined) {
+      world.prng.setState(state.prngState);
     }
-    if (state.elevation) {
-      world.elevation = ElevationField.forView(state.elevation);
+    if (state.land) {
+      world.land.importState(state.land);
     }
+    if (state.people) {
+      world.people.importState(state.people);
+      world.population = world.people.count;
+    }
+    world.ledger.reset();
+    world.ledger.begin(world.people.totalEnergy(), world.tick);
     return world;
   }
 }

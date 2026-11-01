@@ -155,7 +155,7 @@ export class PRNG {
   }
 
   public getState(): number {
-    return this.state;
+    return this.state >>> 0;
   }
 
   public setState(state: number): void {

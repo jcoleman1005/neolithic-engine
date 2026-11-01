@@ -1,11 +1,30 @@
 import { World } from '../src/sim/world';
 
-const w = new World({}, 42);
-const start = performance.now();
-const ticks = 3000;
-for (let t = 0; t < ticks; t++) {
-  w.step();
+console.log('Benchmarking Neolithic Engine at ~10,000 people...');
+
+// Initialize world with 10,000 people
+const world = new World({ initialPopulation: 10000 }, 42);
+
+// Warm-up 20 ticks
+for (let t = 0; t < 20; t++) {
+  world.step();
 }
+
+const ticks = 500;
+const start = performance.now();
+let totalPersonTicks = 0;
+
+for (let t = 0; t < ticks; t++) {
+  world.step();
+  totalPersonTicks += world.population;
+}
+
 const elapsedMs = performance.now() - start;
-const avgMs = elapsedMs / ticks;
-console.log(`Phase 0 perf (empty world): ${avgMs.toFixed(3)} ms/tick avg over ${ticks} ticks`);
+const avgPopulation = Math.round(totalPersonTicks / ticks);
+const msPerTick = elapsedMs / ticks;
+const usPerPersonPerTick = (elapsedMs * 1000) / totalPersonTicks;
+
+console.log(`Average population: ${avgPopulation}`);
+console.log(`Elapsed time: ${elapsedMs.toFixed(1)} ms for ${ticks} ticks`);
+console.log(`Tick duration: ${msPerTick.toFixed(3)} ms/tick`);
+console.log(`Perf budget: ${usPerPersonPerTick.toFixed(3)} µs / person / tick (budget: <= 15.0 µs)`);

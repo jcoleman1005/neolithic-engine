@@ -51,6 +51,24 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   touchEnabled: true,
   farmingEnabled: true,
   ritualEnabled: true,
+
+  // Life & Demographics (Phase 1)
+  initialPopulation: 1000,
+  initialEnergy: 50.0,
+  maxEnergy: 100.0,
+  metabolismCost: 0.25,
+  moveCost: 0.05,
+  forageBite: 1.0,
+  landFoodMax: 25.0,
+  landRegrowthRate: 0.05,
+  landGrazingFloor: 1.0,
+  adultAge: 5760, // 16 years * 360 ticks
+  maxAge: 21600, // 60 years * 360 ticks
+  reproductionThreshold: 65.0,
+  childEnergy: 30.0,
+  birthTax: 5.0,
+  gestationTicks: 270, // 9 months
+  matingRadius: 2,
 };
 
 export const WORLD_SIZES = [

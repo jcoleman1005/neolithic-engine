@@ -173,9 +173,9 @@ Goal: a population that neither dies out nor explodes, within the speed budget.
 - `src/sim/life.ts`: energy leak each tick, forage, wander, mate with a nearby fed adult of the other sex who isn't close kin, pregnancy, birth, death by starvation or old age.
 - Wire `ledger.ts` so every unit of energy is booked.
 
-* [ ] Population stays in a steady band for 200 years on 5 seeds.
-* [ ] The ledger balances, and the same seed gives the same fingerprint.
-* [ ] At most 15 µs per person per tick on desktop at 10,000 people.
+* [x] Population stays in a steady band for 200 years on 5 seeds.
+* [x] The ledger balances, and the same seed gives the same fingerprint.
+* [x] At most 15 µs per person per tick on desktop at 10,000 people.
 
 Watch out: this is the hardest tuning in the project, and every later phase inherits it. Log every tuned number.
 
