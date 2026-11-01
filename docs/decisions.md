@@ -23,4 +23,4 @@ Eighteen decisions are settled; change one only on purpose, record why here, and
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
 | Viewer | Watch only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out |
 | Phone Host | Neolithic Engine takes over S21 exclusively | Stop `artificial-life` service while Neolithic runs to claim full CPU headroom |
-| Art Style | WorldBox game style art | Vibrant pixel palette, stylized miniature pixel figures up close, crisp colored dots zoomed out |
+| Art Style | WorldBox pixel art (procedural atlas) | Procedural sprite atlas in code, crisp pixels (smoothing off, integer zoom steps 1x, 2x, 3x...), 1 px/cell terrain offscreen cache with elevation shading and dirty redraws, small tree sprites on forest cells zoomed in, direct ImageData blit zoomed out, stick-figure sprites with deterministic ID offsets zoomed in, 30 FPS cap |

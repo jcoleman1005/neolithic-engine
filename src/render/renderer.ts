@@ -1,8 +1,4 @@
 import type { WorldView } from '../sim/protocol';
-import { type TerrainField } from '../sim/terrain';
-import { type ElevationField } from '../sim/elevation';
-import { paintTerrain } from './terrain-paint';
-import { paintElevation } from './elevation-paint';
 import {
   PERSON_FRAME_BYTES,
   LOOK_SEX_MASK,
@@ -12,6 +8,12 @@ import {
   LOOK_STAGE_ELDER,
   LOOK_ENERGY_MASK,
 } from '../sim/protocol';
+import {
+  createWorldBoxSpriteAtlas,
+  hexToABGR,
+  type SpriteAtlas,
+  type SpriteKey,
+} from './sprites';
 
 export type MotionStyle = 'smooth' | 'fluid';
 export type ColorMode = 'tag' | 'lineage';
@@ -24,6 +26,29 @@ export interface ViewInsets {
   right: number;
 }
 
+// Whole-number integer zoom scales
+const ZOOM_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32] as const;
+const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
+
+// WorldBox Terrain 32-bit ABGR Palette
+const COLOR_DEEP_WATER = hexToABGR('#154273');
+const COLOR_SHALLOWS   = hexToABGR('#277da1');
+const COLOR_SAND       = hexToABGR('#e9c46a');
+const COLOR_GRASS_LUSH = hexToABGR('#489a5b');
+const COLOR_GRASS_MID  = hexToABGR('#57cc99');
+const COLOR_FOREST     = hexToABGR('#2d6a4f');
+const COLOR_HILLS      = hexToABGR('#8a817c');
+const COLOR_MOUNTAIN   = hexToABGR('#bcb8b1');
+const COLOR_SNOW       = hexToABGR('#f8f9fa');
+
+// People Look ABGR Colors for direct pixel writes
+const COLOR_PEOPLE_STARVING = hexToABGR('#ef4444');
+const COLOR_PEOPLE_PREGNANT = hexToABGR('#f43f5e');
+const COLOR_PEOPLE_CHILD    = hexToABGR('#f59e0b');
+const COLOR_PEOPLE_ELDER    = hexToABGR('#cbd5e1');
+const COLOR_PEOPLE_FEMALE   = hexToABGR('#fb7185');
+const COLOR_PEOPLE_MALE     = hexToABGR('#38bdf8');
+
 export class CanvasRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -35,18 +60,31 @@ export class CanvasRenderer {
   };
   private insets: ViewInsets = { top: 0, bottom: 0, left: 0, right: 0 };
 
+  // Integer scale zoom and pan
+  private zoomIndex = 2; // Default scale: ZOOM_STEPS[2] = 3
+  public cellSize: number = ZOOM_STEPS[2];
   private panX = 0;
   private panY = 0;
-  private zoom = 1;
-  private baseCell = 4;
-  public cellSize = 4;
 
-  // Cached 256x256 composite background
-  private cachedBackground: HTMLCanvasElement | null = null;
-  private terrainLayerFor: TerrainField | null = null;
-  private elevationLayerFor: ElevationField | null = null;
+  // Procedural Sprite Atlas
+  private readonly atlas: SpriteAtlas;
 
-  // People motion smoothing state (up to 65536 slots)
+  // Offscreen 1px/cell (256x256) cached terrain canvas
+  private readonly terrainCanvas: HTMLCanvasElement;
+  private readonly terrainCtx: CanvasRenderingContext2D;
+  private readonly terrainImgData: ImageData;
+  private readonly terrainData32: Uint32Array;
+  private readonly isForest = new Uint8Array(65536);
+  private terrainGenerated = false;
+  private lastTerrainVersion = -1;
+
+  // Zoomed-out people blit overlay canvas
+  private readonly peopleCanvas: HTMLCanvasElement;
+  private readonly peopleCtx: CanvasRenderingContext2D;
+  private peopleImgData: ImageData;
+  private peopleData32: Uint32Array;
+
+  // Motion smoothing state (up to 65536 slots)
   private readonly activeSlots = new Int32Array(65536);
   private activeCount = 0;
   private readonly activeMask = new Uint8Array(65536);
@@ -76,7 +114,7 @@ export class CanvasRenderer {
   private dragStartPanX = 0;
   private dragStartPanY = 0;
   private pinchStartDist = 0;
-  private pinchStartZoom = 1;
+  private pinchStartZoomIndex = 2;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -91,6 +129,25 @@ export class CanvasRenderer {
     this.ctx = canvas.getContext('2d')!;
     this.world = world;
 
+    // Generate procedural sprite atlas once
+    this.atlas = createWorldBoxSpriteAtlas();
+
+    // Initialize 256x256 1 px/cell terrain canvas
+    this.terrainCanvas = document.createElement('canvas');
+    this.terrainCanvas.width = 256;
+    this.terrainCanvas.height = 256;
+    this.terrainCtx = this.terrainCanvas.getContext('2d')!;
+    this.terrainCtx.imageSmoothingEnabled = false;
+    this.terrainImgData = this.terrainCtx.createImageData(256, 256);
+    this.terrainData32 = new Uint32Array(this.terrainImgData.data.buffer);
+
+    // Initialize overlay canvas for direct ImageData blitting
+    this.peopleCanvas = document.createElement('canvas');
+    this.peopleCtx = this.peopleCanvas.getContext('2d')!;
+    this.peopleCtx.imageSmoothingEnabled = false;
+    this.peopleImgData = this.peopleCtx.createImageData(1, 1);
+    this.peopleData32 = new Uint32Array(0);
+
     this.setupEvents();
     this.resize();
     this.startLoop();
@@ -104,22 +161,32 @@ export class CanvasRenderer {
   public resize(): void {
     const rect = this.canvas.parentElement?.getBoundingClientRect() ?? { width: 360, height: 360 };
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = Math.floor(rect.width * dpr);
-    this.canvas.height = Math.floor(rect.height * dpr);
-    this.canvas.style.width = `${rect.width}px`;
-    this.canvas.style.height = `${rect.height}px`;
+    const w = Math.floor(rect.width * dpr);
+    const h = Math.floor(rect.height * dpr);
 
-    const w = this.world.config.worldWidth || 256;
-    const h = this.world.config.worldHeight || 256;
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+      this.canvas.style.width = `${rect.width}px`;
+      this.canvas.style.height = `${rect.height}px`;
+
+      // Resize overlay canvas to match screen
+      this.peopleCanvas.width = w;
+      this.peopleCanvas.height = h;
+      this.peopleCtx.imageSmoothingEnabled = false;
+      this.peopleImgData = this.peopleCtx.createImageData(w, h);
+      this.peopleData32 = new Uint32Array(this.peopleImgData.data.buffer);
+    }
+
+    const worldW = this.world.config.worldWidth || 256;
+    const worldH = this.world.config.worldHeight || 256;
     const availW = Math.max(100, rect.width - this.insets.left - this.insets.right);
     const availH = Math.max(100, rect.height - this.insets.top - this.insets.bottom);
-    this.baseCell = Math.min(availW / w, availH / h);
-    this.cellSize = this.baseCell * this.zoom;
 
     // Center world initially if not panned
     if (this.panX === 0 && this.panY === 0) {
-      this.panX = (rect.width - w * this.cellSize) / 2;
-      this.panY = (rect.height - h * this.cellSize) / 2;
+      this.panX = Math.round(this.insets.left + (availW - worldW * this.cellSize) / 2);
+      this.panY = Math.round(this.insets.top + (availH - worldH * this.cellSize) / 2);
     }
   }
 
@@ -161,29 +228,30 @@ export class CanvasRenderer {
   public setSpeciesLookup(_fn: ((id: string) => number) | null): void {}
 
   private setupEvents(): void {
+    // Crisp whole-number wheel zoom
     this.canvas.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
-        const zoomFactor = e.deltaY < 0 ? 1.2 : 0.83;
-        const newZoom = Math.max(0.5, Math.min(32, this.zoom * zoomFactor));
-
-        // Zoom centered around mouse cursor
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        const currentCell = this.baseCell * this.zoom;
-        const nextCell = this.baseCell * newZoom;
+        const oldCellSize = this.cellSize;
+        const worldX = (mouseX - this.panX) / oldCellSize;
+        const worldY = (mouseY - this.panY) / oldCellSize;
 
-        const worldX = (mouseX - this.panX) / currentCell;
-        const worldY = (mouseY - this.panY) / nextCell;
+        if (e.deltaY < 0) {
+          // Zoom in
+          this.zoomIndex = Math.min(ZOOM_STEPS.length - 1, this.zoomIndex + 1);
+        } else {
+          // Zoom out
+          this.zoomIndex = Math.max(0, this.zoomIndex - 1);
+        }
 
-        this.zoom = newZoom;
-        this.cellSize = nextCell;
-
-        this.panX = mouseX - worldX * nextCell;
-        this.panY = mouseY - worldY * nextCell;
+        this.cellSize = ZOOM_STEPS[this.zoomIndex];
+        this.panX = Math.round(mouseX - worldX * this.cellSize);
+        this.panY = Math.round(mouseY - worldY * this.cellSize);
       },
       { passive: false }
     );
@@ -203,10 +271,10 @@ export class CanvasRenderer {
       if (!this.isDragging) return;
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
-      this.panX = this.dragStartPanX + dx;
-      this.panY = this.dragStartPanY + dy;
+      this.panX = Math.round(this.dragStartPanX + dx);
+      this.panY = Math.round(this.dragStartPanY + dy);
       if (Math.hypot(dx, dy) > 5) {
-        this.followSelected = false; // user panned manually
+        this.followSelected = false; // Manual pan stops auto-follow
       }
     });
 
@@ -218,7 +286,6 @@ export class CanvasRenderer {
           this.canvas.releasePointerCapture(e.pointerId);
         } catch {}
 
-        // If it was a quick tap/click without drag, handle selection
         if (moved < 5) {
           this.handleTap(e.clientX, e.clientY);
         }
@@ -227,13 +294,13 @@ export class CanvasRenderer {
     this.canvas.addEventListener('pointerup', pointerUp);
     this.canvas.addEventListener('pointercancel', pointerUp);
 
-    // Mobile Pinch-to-zoom
+    // Mobile Pinch-to-zoom snapped to whole numbers
     this.canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         this.pinchStartDist = Math.hypot(dx, dy);
-        this.pinchStartZoom = this.zoom;
+        this.pinchStartZoomIndex = this.zoomIndex;
       }
     });
 
@@ -245,9 +312,34 @@ export class CanvasRenderer {
           const dx = e.touches[0].clientX - e.touches[1].clientX;
           const dy = e.touches[0].clientY - e.touches[1].clientY;
           const dist = Math.hypot(dx, dy);
-          const factor = dist / this.pinchStartDist;
-          this.zoom = Math.max(0.5, Math.min(32, this.pinchStartZoom * factor));
-          this.cellSize = this.baseCell * this.zoom;
+          const ratio = dist / this.pinchStartDist;
+
+          // Midpoint of pinch
+          const rect = this.canvas.getBoundingClientRect();
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) * 0.5 - rect.left;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) * 0.5 - rect.top;
+
+          const oldCellSize = this.cellSize;
+          const worldX = (midX - this.panX) / oldCellSize;
+          const worldY = (midY - this.panY) / oldCellSize;
+
+          const targetSize = ZOOM_STEPS[this.pinchStartZoomIndex] * ratio;
+          let bestIndex = 0;
+          let minDiff = Math.abs(ZOOM_STEPS[0] - targetSize);
+          for (let i = 1; i < ZOOM_STEPS.length; i++) {
+            const diff = Math.abs(ZOOM_STEPS[i] - targetSize);
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestIndex = i;
+            }
+          }
+
+          if (bestIndex !== this.zoomIndex) {
+            this.zoomIndex = bestIndex;
+            this.cellSize = ZOOM_STEPS[this.zoomIndex];
+            this.panX = Math.round(midX - worldX * this.cellSize);
+            this.panY = Math.round(midY - worldY * this.cellSize);
+          }
         }
       },
       { passive: false }
@@ -355,11 +447,9 @@ export class CanvasRenderer {
       if (slot >= 65536) continue;
 
       if (this.activeMask[slot] === 0) {
-        // Newborn / first time seen: snap previous position to current
         this.prevX[slot] = x;
         this.prevY[slot] = y;
       } else {
-        // Person already active: slide previous to where they just were
         this.prevX[slot] = this.currX[slot];
         this.prevY[slot] = this.currY[slot];
       }
@@ -382,8 +472,9 @@ export class CanvasRenderer {
 
     this.ctx.save();
     this.ctx.scale(dpr, dpr);
+    this.ctx.imageSmoothingEnabled = false;
 
-    // Deep void background
+    // Void background
     this.ctx.fillStyle = '#0b0f19';
     this.ctx.fillRect(0, 0, width, height);
 
@@ -392,7 +483,7 @@ export class CanvasRenderer {
     const worldPxW = w * this.cellSize;
     const worldPxH = h * this.cellSize;
 
-    // Camera follow if tracking a selected person
+    // Follow camera if tracking a person
     if (
       this.followSelected &&
       this.selectedSlot !== null &&
@@ -400,239 +491,375 @@ export class CanvasRenderer {
     ) {
       const sx = this.currX[this.selectedSlot] * this.cellSize;
       const sy = this.currY[this.selectedSlot] * this.cellSize;
-      this.panX = width / 2 - sx;
-      this.panY = height / 2 - sy;
+      this.panX = Math.round(width / 2 - sx);
+      this.panY = Math.round(height / 2 - sy);
     }
 
-    this.ctx.save();
-    this.ctx.translate(this.panX, this.panY);
+    // 1. Ensure terrain cache is up to date
+    this.updateTerrainCache();
 
-    // 1. Draw cached 256x256 composite terrain background
-    this.updateBackgroundCache();
-    if (this.cachedBackground) {
-      this.ctx.imageSmoothingEnabled = false;
-      this.ctx.drawImage(this.cachedBackground, 0, 0, worldPxW, worldPxH);
-    }
+    // 2. Draw scaled terrain directly from 256x256 offscreen canvas with nearest neighbor
+    this.ctx.drawImage(
+      this.terrainCanvas,
+      0,
+      0,
+      256,
+      256,
+      this.panX,
+      this.panY,
+      worldPxW,
+      worldPxH
+    );
 
-    // 2. World Border
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    // 3. World Border
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(0, 0, worldPxW, worldPxH);
+    this.ctx.strokeRect(this.panX, this.panY, worldPxW, worldPxH);
 
-    // 3. Render People with wrap-aware smoothing
-    this.renderPeople(w, h);
+    // 4. Render Forest Trees when zoomed in
+    const isZoomedIn = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
+    if (isZoomedIn) {
+      this.renderTrees(width, height, w, h);
+    }
 
-    this.ctx.restore();
+    // 5. Render People (Direct ImageData blit zoomed out; Stick-figure sprites zoomed in)
+    this.renderPeople(width, height, w, h, isZoomedIn);
+
     this.ctx.restore();
   }
 
-  private updateBackgroundCache(): void {
-    const terrain = this.world.terrain;
+  /**
+   * Generates or updates the 256x256 1 px/cell terrain canvas.
+   * Renders elevation hillshading and terrain colors once; redraws only changing cells.
+   */
+  private updateTerrainCache(): void {
     const elevation = this.world.elevation;
+    const terrain = this.world.terrain;
 
-    if (!terrain && !elevation) return;
-    if (terrain === this.terrainLayerFor && elevation === this.elevationLayerFor && this.cachedBackground) {
+    if (!elevation && !terrain) {
+      if (!this.terrainGenerated) {
+        this.terrainCtx.fillStyle = '#489a5b';
+        this.terrainCtx.fillRect(0, 0, 256, 256);
+        this.terrainGenerated = true;
+      }
       return;
     }
 
-    const w = this.world.config.worldWidth || 256;
-    const h = this.world.config.worldHeight || 256;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d')!;
-
-    // Base ground: default lush grassland
-    ctx.fillStyle = '#489a5b';
-    ctx.fillRect(0, 0, w, h);
-
-    if (terrain) {
-      const tPix = paintTerrain(terrain, 1, false, elevation?.water);
-      const imgData = new ImageData(tPix.data, tPix.width, tPix.height);
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = tPix.width;
-      tempCanvas.height = tPix.height;
-      tempCanvas.getContext('2d')!.putImageData(imgData, 0, 0);
-      ctx.drawImage(tempCanvas, 0, 0, w, h);
+    // Redraw only when not yet generated or when terrain changes
+    const curTerrainVer = terrain ? terrain.version : 0;
+    if (this.terrainGenerated && curTerrainVer === this.lastTerrainVersion) {
+      return;
     }
 
-    if (elevation) {
-      const ePix = paintElevation(
-        {
-          width: elevation.width,
-          height: elevation.height,
-          elevation: elevation.elevation,
-          water: elevation.water,
-          seaLevel: elevation.seaLevel,
-          deepThreshold: this.world.config.elevationDeepThreshold ?? 0.2,
-        },
-        1
-      );
-      const imgData = new ImageData(ePix.data, ePix.width, ePix.height);
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = ePix.width;
-      tempCanvas.height = ePix.height;
-      tempCanvas.getContext('2d')!.putImageData(imgData, 0, 0);
-      ctx.drawImage(tempCanvas, 0, 0, w, h);
+    const elevArr = elevation?.elevation;
+    const waterArr = elevation?.water;
+    const coverArr = terrain?.cover;
+    const deepThreshold = Math.floor((this.world.config.elevationDeepThreshold ?? 0.2) * 255);
+
+    for (let y = 0; y < 256; y++) {
+      const yPrev = (y - 1) & 255;
+      const yNext = (y + 1) & 255;
+      const rowOffset = y * 256;
+      const rowPrev = yPrev * 256;
+      const rowNext = yNext * 256;
+
+      for (let x = 0; x < 256; x++) {
+        const idx = rowOffset + x;
+        const xPrev = (x - 1) & 255;
+        const xNext = (x + 1) & 255;
+
+        const isWater = waterArr ? waterArr[idx] > 0 : false;
+        let baseColor = COLOR_GRASS_LUSH;
+        let forestCell = false;
+
+        if (isWater) {
+          const depth = waterArr![idx];
+          baseColor = depth >= deepThreshold ? COLOR_DEEP_WATER : COLOR_SHALLOWS;
+        } else if (elevArr) {
+          const h = elevArr[idx] / 65535;
+
+          // Shore check: near water
+          const nearWater =
+            (waterArr &&
+              (waterArr[rowOffset + xPrev] > 0 ||
+                waterArr[rowOffset + xNext] > 0 ||
+                waterArr[rowPrev + x] > 0 ||
+                waterArr[rowNext + x] > 0)) ||
+            (elevation && h < elevation.seaLevel + 0.015);
+
+          if (nearWater) {
+            baseColor = COLOR_SAND;
+          } else if (h >= 0.82) {
+            baseColor = COLOR_SNOW;
+          } else if (h >= 0.70) {
+            baseColor = COLOR_MOUNTAIN;
+          } else if (h >= 0.56) {
+            baseColor = COLOR_HILLS;
+          } else {
+            // Plains & Lowlands: check cover
+            const cover = coverArr ? coverArr[idx] / 65535 : 0.4;
+            if (cover >= 0.50) {
+              baseColor = COLOR_FOREST;
+              forestCell = true;
+            } else if (cover >= 0.30) {
+              baseColor = COLOR_GRASS_LUSH;
+            } else {
+              baseColor = COLOR_GRASS_MID;
+            }
+          }
+        }
+
+        this.isForest[idx] = forestCell ? 1 : 0;
+
+        // Light elevation hillshading (north-west light: -1, -1)
+        if (elevArr && !isWater) {
+          const elevL = elevArr[rowOffset + xPrev];
+          const elevR = elevArr[rowOffset + xNext];
+          const elevU = elevArr[rowPrev + x];
+          const elevD = elevArr[rowNext + x];
+
+          const slope = ((elevL - elevR) + (elevU - elevD)) / 65535;
+          const shade = Math.max(0.82, Math.min(1.18, 1.0 + slope * 1.5));
+
+          const r = Math.min(255, Math.max(0, Math.round((baseColor & 0xff) * shade)));
+          const g = Math.min(255, Math.max(0, Math.round(((baseColor >> 8) & 0xff) * shade)));
+          const b = Math.min(255, Math.max(0, Math.round(((baseColor >> 16) & 0xff) * shade)));
+          this.terrainData32[idx] = ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+        } else {
+          this.terrainData32[idx] = baseColor;
+        }
+      }
     }
 
-    this.cachedBackground = canvas;
-    this.terrainLayerFor = terrain ?? null;
-    this.elevationLayerFor = elevation ?? null;
+    this.terrainCtx.putImageData(this.terrainImgData, 0, 0);
+    this.terrainGenerated = true;
+    this.lastTerrainVersion = curTerrainVer;
   }
 
-  private renderPeople(worldW: number, worldH: number): void {
+  /**
+   * Draws small tree sprites on visible forest cells when zoomed in.
+   */
+  private renderTrees(
+    screenWidth: number,
+    screenHeight: number,
+    worldW: number,
+    worldH: number
+  ): void {
+    const cellSize = this.cellSize;
+    const minCellX = Math.floor(-this.panX / cellSize) - 1;
+    const maxCellX = Math.ceil((screenWidth - this.panX) / cellSize) + 1;
+    const minCellY = Math.floor(-this.panY / cellSize) - 1;
+    const maxCellY = Math.ceil((screenHeight - this.panY) / cellSize) + 1;
+
+    const scale = Math.max(1, Math.floor(cellSize / 10));
+
+    for (let cy = minCellY; cy <= maxCellY; cy++) {
+      const wy = ((cy % worldH) + worldH) % worldH;
+      const rowOffset = wy * worldW;
+
+      for (let cx = minCellX; cx <= maxCellX; cx++) {
+        const wx = ((cx % worldW) + worldW) % worldW;
+        if (this.isForest[rowOffset + wx] === 1) {
+          // Deterministic tree variant by coordinate
+          const variant = (wx * 37 + wy * 89) % 3;
+          const key: SpriteKey =
+            variant === 0 ? 'tree_oak' : variant === 1 ? 'tree_pine' : 'tree_fruit';
+          const spr = this.atlas.getSprite(key);
+
+          const screenX = cx * cellSize + Math.floor(cellSize * 0.5);
+          const screenY = cy * cellSize + cellSize;
+          const dw = spr.w * scale;
+          const dh = spr.h * scale;
+          const dx = Math.round(screenX - spr.anchorX * scale + this.panX);
+          const dy = Math.round(screenY - spr.anchorY * scale + this.panY);
+
+          this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
+        }
+      }
+    }
+  }
+
+  /**
+   * People rendering:
+   * - Zoomed out: writes colored pixels straight into ImageData buffer.
+   * - Zoomed in: draws stick-figure sprites on screen with deterministic cell offsets.
+   */
+  private renderPeople(
+    screenWidth: number,
+    screenHeight: number,
+    worldW: number,
+    worldH: number,
+    isZoomedIn: boolean
+  ): void {
     if (this.activeCount === 0) return;
 
     const now = performance.now();
-    const t = this.world.running === false ? 1.0 : Math.min(1.0, (now - this.lastFrameTime) / this.frameInterval);
+    const t =
+      this.world.running === false
+        ? 1.0
+        : Math.min(1.0, (now - this.lastFrameTime) / this.frameInterval);
     const cellSize = this.cellSize;
-    const isZoomedIn = cellSize >= 8;
 
     let selectedRenderX = -1;
     let selectedRenderY = -1;
     let hasSelected = false;
 
-    for (let i = 0; i < this.activeCount; i++) {
-      const slot = this.activeSlots[i];
-      const p0x = this.prevX[slot];
-      const p1x = this.currX[slot];
-      const p0y = this.prevY[slot];
-      const p1y = this.currY[slot];
+    if (!isZoomedIn) {
+      // Zoomed out: Write colored pixels straight into ImageData
+      const dpr = window.devicePixelRatio || 1;
+      const canvasW = this.canvas.width;
+      const canvasH = this.canvas.height;
+      this.peopleData32.fill(0); // clear transparent overlay
 
-      // Shortest modular difference across wrapping boundaries
-      let dx = p1x - p0x;
-      if (dx > worldW / 2) dx -= worldW;
-      else if (dx < -worldW / 2) dx += worldW;
+      const blockSize = Math.max(1, Math.min(cellSize, 3));
 
-      let dy = p1y - p0y;
-      if (dy > worldH / 2) dy -= worldH;
-      else if (dy < -worldH / 2) dy += worldH;
+      for (let i = 0; i < this.activeCount; i++) {
+        const slot = this.activeSlots[i];
+        const p0x = this.prevX[slot];
+        const p1x = this.currX[slot];
+        const p0y = this.prevY[slot];
+        const p1y = this.currY[slot];
 
-      let rx = p0x + dx * t;
-      if (rx < 0) rx += worldW;
-      else if (rx >= worldW) rx -= worldW;
+        let dx = p1x - p0x;
+        if (dx > worldW / 2) dx -= worldW;
+        else if (dx < -worldW / 2) dx += worldW;
 
-      let ry = p0y + dy * t;
-      if (ry < 0) ry += worldH;
-      else if (ry >= worldH) ry -= worldH;
+        let dy = p1y - p0y;
+        if (dy > worldH / 2) dy -= worldH;
+        else if (dy < -worldH / 2) dy += worldH;
 
-      const screenX = rx * cellSize;
-      const screenY = ry * cellSize;
+        let rx = p0x + dx * t;
+        if (rx < 0) rx += worldW;
+        else if (rx >= worldW) rx -= worldW;
 
-      const look = this.lookBytes[slot];
-      const isSelected = slot === this.selectedSlot;
+        let ry = p0y + dy * t;
+        if (ry < 0) ry += worldH;
+        else if (ry >= worldH) ry -= worldH;
 
-      if (isSelected) {
-        selectedRenderX = screenX;
-        selectedRenderY = screenY;
-        hasSelected = true;
+        const sx = Math.floor(rx * cellSize + this.panX);
+        const sy = Math.floor(ry * cellSize + this.panY);
+
+        if (slot === this.selectedSlot) {
+          selectedRenderX = sx;
+          selectedRenderY = sy;
+          hasSelected = true;
+        }
+
+        const px = Math.floor(sx * dpr);
+        const py = Math.floor(sy * dpr);
+
+        if (px >= 0 && px < canvasW && py >= 0 && py < canvasH) {
+          const look = this.lookBytes[slot];
+          const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
+          const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
+          const stage = (look & LOOK_STAGE_MASK) >> 2;
+          const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
+
+          let colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
+          if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
+          else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
+          else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
+          else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
+
+          for (let by = 0; by < blockSize; by++) {
+            const row = (py + by) * canvasW;
+            if (py + by >= canvasH) break;
+            for (let bx = 0; bx < blockSize; bx++) {
+              if (px + bx < canvasW) {
+                this.peopleData32[row + (px + bx)] = colorABGR;
+              }
+            }
+          }
+        }
       }
 
-      if (isZoomedIn) {
-        this.drawWorldboxFigure(screenX, screenY, look, cellSize, rx, ry);
-      } else {
-        this.drawWorldboxDot(screenX, screenY, look, cellSize);
+      this.peopleCtx.putImageData(this.peopleImgData, 0, 0);
+      this.ctx.drawImage(this.peopleCanvas, 0, 0, screenWidth, screenHeight);
+    } else {
+      // Zoomed in: Draw stick-figure sprites for on-screen people with deterministic ID offsets
+      const scale = Math.max(1, Math.floor(cellSize / 8));
+
+      for (let i = 0; i < this.activeCount; i++) {
+        const slot = this.activeSlots[i];
+        const p0x = this.prevX[slot];
+        const p1x = this.currX[slot];
+        const p0y = this.prevY[slot];
+        const p1y = this.currY[slot];
+
+        let dx = p1x - p0x;
+        if (dx > worldW / 2) dx -= worldW;
+        else if (dx < -worldW / 2) dx += worldW;
+
+        let dy = p1y - p0y;
+        if (dy > worldH / 2) dy -= worldH;
+        else if (dy < -worldH / 2) dy += worldH;
+
+        let rx = p0x + dx * t;
+        if (rx < 0) rx += worldW;
+        else if (rx >= worldW) rx -= worldW;
+
+        let ry = p0y + dy * t;
+        if (ry < 0) ry += worldH;
+        else if (ry >= worldH) ry -= worldH;
+
+        // Deterministic sub-pixel offset from slot ID so people sharing a cell don't stack
+        const hVal = (slot * 2654435761) >>> 0;
+        const offX = ((hVal & 7) - 3.5) / 10;
+        const offY = (((hVal >>> 3) & 7) - 3.5) / 10;
+
+        const screenX = Math.round((rx + offX) * cellSize + this.panX);
+        const screenY = Math.round((ry + offY) * cellSize + this.panY);
+
+        if (slot === this.selectedSlot) {
+          selectedRenderX = screenX;
+          selectedRenderY = screenY;
+          hasSelected = true;
+        }
+
+        // View frustum culling: skip people outside visible screen bounds
+        if (
+          screenX < -cellSize ||
+          screenX > screenWidth + cellSize ||
+          screenY < -cellSize ||
+          screenY > screenHeight + cellSize
+        ) {
+          continue;
+        }
+
+        const look = this.lookBytes[slot];
+        const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
+        const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
+        const stage = (look & LOOK_STAGE_MASK) >> 2;
+        const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
+
+        // Walking animation frame
+        const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+        const walkFrame = isMoving
+          ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 'walk_0' : 'walk_1')
+          : 'idle';
+
+        let typeStr: string = sex;
+        if (energyLevel <= 1) typeStr = 'starving';
+        else if (pregnant) typeStr = 'pregnant';
+        else if (stage === LOOK_STAGE_CHILD) typeStr = 'child';
+        else if (stage === LOOK_STAGE_ELDER) typeStr = 'elder';
+
+        const spriteKey = `person_${typeStr}_${walkFrame}` as SpriteKey;
+        const spr = this.atlas.getSprite(spriteKey);
+
+        const dw = spr.w * scale;
+        const dh = spr.h * scale;
+        const sprX = Math.round(screenX - spr.anchorX * scale);
+        const sprY = Math.round(screenY - spr.anchorY * scale);
+
+        this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, sprX, sprY, dw, dh);
       }
     }
 
-    // Draw prominent selection ring and bounce indicator above selected person
+    // Draw selection indicator if person selected
     if (hasSelected) {
       this.drawSelectionIndicator(selectedRenderX, selectedRenderY, cellSize, now);
     }
-  }
-
-  /**
-   * Zoomed-out representation: crisp WorldBox colored dot.
-   */
-  private drawWorldboxDot(x: number, y: number, look: number, cellSize: number): void {
-    const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
-    const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
-    const stage = (look & LOOK_STAGE_MASK) >> 2;
-    const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
-
-    const ctx = this.ctx;
-    const radius = Math.max(1.2, Math.min(3.5, cellSize * 0.45));
-
-    let color: string;
-    if (energyLevel <= 1) {
-      color = '#ef4444'; // Red for starving
-    } else if (pregnant) {
-      color = '#f43f5e'; // Vibrant rose for pregnant
-    } else if (stage === LOOK_STAGE_CHILD) {
-      color = '#f59e0b'; // Amber for children
-    } else if (stage === LOOK_STAGE_ELDER) {
-      color = '#cbd5e1'; // Silver/grey for elders
-    } else {
-      color = sex === 'female' ? '#fb7185' : '#38bdf8'; // Soft coral / vibrant sky blue
-    }
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x + cellSize * 0.5, y + cellSize * 0.5, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  /**
-   * Zoomed-in representation: WorldBox miniature pixel stick figure.
-   */
-  private drawWorldboxFigure(
-    x: number,
-    y: number,
-    look: number,
-    cellSize: number,
-    rx: number,
-    ry: number
-  ): void {
-    const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
-    const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
-    const stage = (look & LOOK_STAGE_MASK) >> 2;
-    const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
-
-    const ctx = this.ctx;
-    const cx = Math.floor(x + cellSize * 0.5);
-    const cy = Math.floor(y + cellSize * 0.5);
-
-    // Scale unit per pixel
-    const s = Math.max(1, Math.floor(cellSize / 8));
-    const isChild = stage === LOOK_STAGE_CHILD;
-    const isElder = stage === LOOK_STAGE_ELDER;
-
-    // Palette
-    const skinColor = '#e0ac69';
-    const hairColor = isElder ? '#e2e8f0' : '#451a03';
-    let tunicColor = sex === 'female' ? '#e11d48' : '#0284c7';
-    if (energyLevel <= 1) tunicColor = '#7f1d1d'; // starving dark red
-
-    // Walking animation bob based on position
-    const stepBob = (Math.floor(rx * 2 + ry * 2) & 1) * s;
-
-    // 1. Head (2x2)
-    ctx.fillStyle = skinColor;
-    const headY = cy - 3 * s + (isChild ? s : 0);
-    ctx.fillRect(cx - s, headY, 2 * s, 2 * s);
-
-    // Hair cap (1x2 top)
-    ctx.fillStyle = hairColor;
-    ctx.fillRect(cx - s, headY, 2 * s, s);
-
-    // 2. Torso (2x2)
-    ctx.fillStyle = tunicColor;
-    const torsoY = headY + 2 * s;
-    ctx.fillRect(cx - s, torsoY, 2 * s, 2 * s);
-
-    // Pregnant belly bump
-    if (pregnant) {
-      ctx.fillStyle = '#f43f5e';
-      ctx.fillRect(cx + s, torsoY + s, s, s);
-    }
-
-    // 3. Legs (two 1x2 pixel legs with subtle walking offset)
-    ctx.fillStyle = '#1e293b';
-    const legY = torsoY + 2 * s;
-    ctx.fillRect(cx - s, legY + stepBob, s, 2 * s - stepBob);
-    ctx.fillRect(cx, legY + (s - stepBob), s, s + stepBob);
   }
 
   /**
@@ -640,29 +867,28 @@ export class CanvasRenderer {
    */
   private drawSelectionIndicator(x: number, y: number, cellSize: number, now: number): void {
     const ctx = this.ctx;
-    const cx = x + cellSize * 0.5;
-    const cy = y + cellSize * 0.5;
+    const cx = x;
+    const cy = y;
 
     const pulse = Math.sin(now * 0.008);
-    const ringRadius = Math.max(6, cellSize * 0.7) + pulse * 2;
+    const ringRadius = Math.max(8, cellSize * 0.6) + pulse * 2;
 
-    // Selection ring
+    // Glowing selection ring
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Bouncing chevron arrow above head
+    // Bouncing chevron sprite
+    const spr = this.atlas.getSprite('selector_chevron');
     const bounce = Math.abs(Math.sin(now * 0.006)) * 6;
-    const arrowY = cy - ringRadius - 6 - bounce;
+    const scale = Math.max(1, Math.floor(cellSize / 12));
+    const dw = spr.w * scale;
+    const dh = spr.h * scale;
+    const dx = Math.round(cx - spr.anchorX * scale);
+    const dy = Math.round(cy - ringRadius - 8 - bounce - spr.anchorY * scale);
 
-    ctx.fillStyle = '#facc15';
-    ctx.beginPath();
-    ctx.moveTo(cx, arrowY + 5);
-    ctx.lineTo(cx - 5, arrowY);
-    ctx.lineTo(cx + 5, arrowY);
-    ctx.closePath();
-    ctx.fill();
+    ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
   }
 }
