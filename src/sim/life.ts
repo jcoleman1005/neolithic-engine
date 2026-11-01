@@ -164,7 +164,68 @@ export class LifeSystem {
     // 6. Spatial indexing based on updated positions
     spatial.build(people);
 
-    // 7. Social Decision / Copy rule (staggered by ID)
+    // Refresh a slice of the root leader cache each tick
+    const rootSlices = config.rootLeaderSliceCount ?? 8;
+    people.refreshRootLeadersSlice(tick % rootSlices, rootSlices);
+
+    // 7. Mating Search (zero closures/allocations)
+    const cellStarts = spatial.cellStarts;
+    const cellPeople = spatial.cellPeople;
+    const rSq = matingRadius * matingRadius;
+
+    for (let slot = 0; slot < cap; slot++) {
+      if (alive[slot] === 0 || sex[slot] !== 0) continue; // Unmated females initiate
+      if (pregnant[slot] !== -1) continue;
+
+      if (age[slot] >= adultAge && energy[slot] >= reproThreshold) {
+        const femaleX = px[slot];
+        const femaleY = py[slot];
+        const femaleId = people.idOf(slot);
+        const femaleMom = motherId[slot];
+        const femaleDad = fatherId[slot];
+
+        let foundMateSlot = -1;
+
+        searchMate:
+        for (let dy = -matingRadius; dy <= matingRadius; dy++) {
+          const y = (femaleY + dy) & 255;
+          const row = y << 8;
+          for (let dx = -matingRadius; dx <= matingRadius; dx++) {
+            if (dx * dx + dy * dy > rSq) continue;
+            const x = (femaleX + dx) & 255;
+            const cell = row | x;
+            const start = cellStarts[cell];
+            const end = cellStarts[cell + 1];
+            for (let idx = start; idx < end; idx++) {
+              const otherSlot = cellPeople[idx];
+              if (otherSlot === slot || alive[otherSlot] === 0) continue;
+              if (sex[otherSlot] !== 1) continue; // Males only
+              if (age[otherSlot] < adultAge || energy[otherSlot] < reproThreshold) continue;
+
+              const maleId = people.idOf(otherSlot);
+              const maleMom = motherId[otherSlot];
+              const maleDad = fatherId[otherSlot];
+
+              // Kin avoidance: parent-child or full/half siblings
+              if (maleId === femaleDad) continue;
+              if (maleMom === femaleId) continue;
+              if (femaleMom > 0 && femaleMom === maleMom) continue;
+              if (femaleDad > 0 && femaleDad === maleDad) continue;
+
+              foundMateSlot = otherSlot;
+              break searchMate;
+            }
+          }
+        }
+
+        if (foundMateSlot !== -1) {
+          pregnant[slot] = 0;
+          mateId[slot] = people.idOf(foundMateSlot);
+        }
+      }
+    }
+
+    // 8. Social Decision / Copy rule (staggered by ID)
     if (config.copyEnabled ?? true) {
       const stagger = config.decisionStaggerInterval ?? 8;
       for (let slot = 0; slot < cap; slot++) {
@@ -174,7 +235,7 @@ export class LifeSystem {
       }
     }
 
-    // 8. Physical Contact / Touch rule (co-located people)
+    // 9. Physical Contact / Touch rule (co-located people)
     if (config.touchEnabled ?? true) {
       const cellStarts = spatial.cellStarts;
       const cellPeople = spatial.cellPeople;
@@ -182,15 +243,19 @@ export class LifeSystem {
         const start = cellStarts[c];
         const count = cellStarts[c + 1] - start;
         if (count >= 2) {
-          const slotA = cellPeople[start];
-          const slotB = cellPeople[start + 1];
-          Rules.touch(slotA, slotB, people, land, fields, ledger, config, prng);
-
-          if (count >= 4) {
-            const slotC = cellPeople[start + 2];
-            const slotD = cellPeople[start + 3];
-            Rules.touch(slotC, slotD, people, land, fields, ledger, config, prng);
-          }
+          Rules.touchCell(
+            start,
+            count,
+            cellPeople,
+            people,
+            land,
+            fields,
+            spatial,
+            ledger,
+            config,
+            prng,
+            tick
+          );
         }
       }
     }
@@ -263,63 +328,6 @@ export class LifeSystem {
             );
           }
           mateId[slot] = 0;
-        }
-      }
-    }
-
-    // 10. Mating Search (zero closures/allocations)
-    const cellStarts = spatial.cellStarts;
-    const cellPeople = spatial.cellPeople;
-    const rSq = matingRadius * matingRadius;
-
-    for (let slot = 0; slot < cap; slot++) {
-      if (alive[slot] === 0 || sex[slot] !== 0) continue; // Unmated females initiate
-      if (pregnant[slot] !== -1) continue;
-
-      if (age[slot] >= adultAge && energy[slot] >= reproThreshold) {
-        const femaleX = px[slot];
-        const femaleY = py[slot];
-        const femaleId = people.idOf(slot);
-        const femaleMom = motherId[slot];
-        const femaleDad = fatherId[slot];
-
-        let foundMateSlot = -1;
-
-        searchMate:
-        for (let dy = -matingRadius; dy <= matingRadius; dy++) {
-          const y = (femaleY + dy) & 255;
-          const row = y << 8;
-          for (let dx = -matingRadius; dx <= matingRadius; dx++) {
-            if (dx * dx + dy * dy > rSq) continue;
-            const x = (femaleX + dx) & 255;
-            const cell = row | x;
-            const start = cellStarts[cell];
-            const end = cellStarts[cell + 1];
-            for (let idx = start; idx < end; idx++) {
-              const otherSlot = cellPeople[idx];
-              if (otherSlot === slot || alive[otherSlot] === 0) continue;
-              if (sex[otherSlot] !== 1) continue; // Males only
-              if (age[otherSlot] < adultAge || energy[otherSlot] < reproThreshold) continue;
-
-              const maleId = people.idOf(otherSlot);
-              const maleMom = motherId[otherSlot];
-              const maleDad = fatherId[otherSlot];
-
-              // Kin avoidance: parent-child or full/half siblings
-              if (maleId === femaleDad) continue;
-              if (maleMom === femaleId) continue;
-              if (femaleMom > 0 && femaleMom === maleMom) continue;
-              if (femaleDad > 0 && femaleDad === maleDad) continue;
-
-              foundMateSlot = otherSlot;
-              break searchMate;
-            }
-          }
-        }
-
-        if (foundMateSlot !== -1) {
-          pregnant[slot] = 0;
-          mateId[slot] = people.idOf(foundMateSlot);
         }
       }
     }

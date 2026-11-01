@@ -16,7 +16,7 @@ import {
 } from './sprites';
 
 export type MotionStyle = 'smooth' | 'fluid';
-export type ColorMode = 'tag' | 'lineage';
+export type ColorMode = 'status' | 'bands';
 export type OverlayMode = 'none' | 'terrain';
 
 export interface ViewInsets {
@@ -48,6 +48,41 @@ const COLOR_PEOPLE_CHILD    = hexToABGR('#f59e0b');
 const COLOR_PEOPLE_ELDER    = hexToABGR('#cbd5e1');
 const COLOR_PEOPLE_FEMALE   = hexToABGR('#fb7185');
 const COLOR_PEOPLE_MALE     = hexToABGR('#38bdf8');
+const COLOR_PEOPLE_LONER    = hexToABGR('#888888');
+
+function hashRootLeaderToABGR(rootId: number): number {
+  let h = rootId >>> 0;
+  h = ((h >> 16) ^ h) * 0x45d9f3b;
+  h = ((h >> 16) ^ h) * 0x45d9f3b;
+  h = (h >> 16) ^ h;
+  const hue = ((h % 360) + 360) % 360;
+
+  const s = 0.85;
+  const l = 0.55;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (hue < 60) { r = c; g = x; }
+  else if (hue < 120) { r = x; g = c; }
+  else if (hue < 180) { g = c; b = x; }
+  else if (hue < 240) { g = x; b = c; }
+  else if (hue < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const R = Math.round((r + m) * 255);
+  const G = Math.round((g + m) * 255);
+  const B = Math.round((b + m) * 255);
+  return (0xff << 24) | (B << 16) | (G << 8) | R;
+}
+
+function hashRootLeaderToHex(rootId: number): string {
+  let h = rootId >>> 0;
+  h = ((h >> 16) ^ h) * 0x45d9f3b;
+  h = ((h >> 16) ^ h) * 0x45d9f3b;
+  h = (h >> 16) ^ h;
+  const hue = ((h % 360) + 360) % 360;
+  return `hsl(${hue}, 85%, 55%)`;
+}
 
 export class CanvasRenderer {
   private readonly canvas: HTMLCanvasElement;
@@ -94,6 +129,9 @@ export class CanvasRenderer {
   private readonly currY = new Float32Array(65536);
   private readonly lookBytes = new Uint8Array(65536);
   private readonly slotGenerations = new Uint8Array(65536);
+  private readonly rootLeaderIds = new Uint32Array(65536);
+  private readonly bandSizes = new Map<number, number>();
+  public colorMode: ColorMode = 'status';
 
   private lastFrameTime = 0;
   private frameInterval = 333; // ms between sim frames
@@ -433,12 +471,15 @@ export class CanvasRenderer {
     const newMask = new Uint8Array(65536);
 
     let offset = 0;
+    this.bandSizes.clear();
     for (let i = 0; i < count; i++) {
       const slot = buf[offset] | (buf[offset + 1] << 8);
       const x = buf[offset + 2];
       const y = buf[offset + 3];
       const look = buf[offset + 4];
       const gen = buf[offset + 5];
+      const rId =
+        (buf[offset + 6] | (buf[offset + 7] << 8) | (buf[offset + 8] << 16) | (buf[offset + 9] << 24)) >>> 0;
       offset += PERSON_FRAME_BYTES;
 
       if (slot >= 65536) continue;
@@ -456,6 +497,8 @@ export class CanvasRenderer {
       this.currX[slot] = x;
       this.currY[slot] = y;
       this.lookBytes[slot] = look;
+      this.rootLeaderIds[slot] = rId;
+      this.bandSizes.set(rId, (this.bandSizes.get(rId) ?? 0) + 1);
       newMask[slot] = 1;
       this.activeSlots[i] = slot;
     }
@@ -739,17 +782,24 @@ export class CanvasRenderer {
           hasSelected = true;
         }
 
-        const look = this.lookBytes[slot];
-        const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
-        const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
-        const stage = (look & LOOK_STAGE_MASK) >> 2;
-        const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
+        let colorABGR = 0;
+        if (this.colorMode === 'bands') {
+          const rId = this.rootLeaderIds[slot];
+          const bandSize = this.bandSizes.get(rId) ?? 0;
+          colorABGR = bandSize <= 1 ? COLOR_PEOPLE_LONER : hashRootLeaderToABGR(rId);
+        } else {
+          const look = this.lookBytes[slot];
+          const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
+          const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
+          const stage = (look & LOOK_STAGE_MASK) >> 2;
+          const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
 
-        let colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
-        if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
-        else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
-        else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
-        else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
+          colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
+          if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
+          else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
+          else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
+          else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
+        }
 
         this.peopleData32[cellY * 256 + cellX] = colorABGR;
       }
@@ -844,6 +894,15 @@ export class CanvasRenderer {
         const dh = spr.h * scale;
         const sprX = Math.round(screenX - spr.anchorX * scale);
         const sprY = Math.round(screenY - spr.anchorY * scale);
+
+        if (this.colorMode === 'bands') {
+          const rId = this.rootLeaderIds[slot];
+          const bandSize = this.bandSizes.get(rId) ?? 0;
+          this.ctx.fillStyle = bandSize <= 1 ? '#888888' : hashRootLeaderToHex(rId);
+          this.ctx.beginPath();
+          this.ctx.arc(screenX, screenY + spr.h * scale * 0.45, Math.max(3, 3 * scale), 0, Math.PI * 2);
+          this.ctx.fill();
+        }
 
         this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, sprX, sprY, dw, dh);
       }

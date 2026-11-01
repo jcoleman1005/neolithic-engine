@@ -89,6 +89,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   leaderWeightBravery: 1.0,
   leaderSearchRadius: 6,
   clashEnergyCost: 1.0,
+  clashLossShare: 0.25,
+  clashLootEfficiency: 0.8,
+  incumbencyBonus: 0.35,
+  rootLeaderSliceCount: 8,
   shareEnergyMinSurplus: 15.0,
   shareEnergyAmount: 5.0,
 };

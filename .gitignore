@@ -12,3 +12,4 @@ coverage/
 dist-server/
 data/
 .worktrees/
+scratch/

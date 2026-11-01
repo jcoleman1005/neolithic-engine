@@ -145,10 +145,33 @@ export class World {
 
   public getMetrics(): WorldMetrics {
     const ticksPerYear = this.config.ticksPerYear || 360;
+    const people = this.people;
+    const cap = people.capacity;
+    const alive = people.alive;
+    const rootLeaderId = people.rootLeaderId;
+
+    const bandSizes = new Map<number, number>();
+    for (let slot = 0; slot < cap; slot++) {
+      if (alive[slot] === 1) {
+        let rId = rootLeaderId[slot];
+        if (rId === 0) rId = people.idOf(slot);
+        bandSizes.set(rId, (bandSizes.get(rId) ?? 0) + 1);
+      }
+    }
+
+    let bandCount = 0;
+    let largestBand = 0;
+    for (const size of bandSizes.values()) {
+      if (size >= 2) bandCount++;
+      if (size > largestBand) largestBand = size;
+    }
+
     return {
       tick: this.tick,
       year: Math.floor(this.tick / ticksPerYear),
       population: this.population,
+      bandCount,
+      largestBand,
     };
   }
 
@@ -214,6 +237,12 @@ export class World {
         const pregnant = ppreg[slot] >= 0;
         buf[offset++] = encodeLookByte(psex[slot], pregnant, stage, pener[slot], maxEnergy);
         buf[offset++] = pslotgen[slot] & 0xff;
+
+        const rId = people.rootLeaderId[slot] || people.idOf(slot);
+        buf[offset++] = rId & 0xff;
+        buf[offset++] = (rId >> 8) & 0xff;
+        buf[offset++] = (rId >> 16) & 0xff;
+        buf[offset++] = (rId >>> 24) & 0xff;
       }
     }
 
@@ -264,6 +293,7 @@ export class World {
       motherId: people.motherId[slot],
       fatherId: people.fatherId[slot],
       leaderId: people.leaderId[slot],
+      rootLeaderId: people.rootLeaderId[slot],
       genes: {
         strength: people.genes[gOff + GENE_STRENGTH],
         bravery: people.genes[gOff + GENE_BRAVERY],
@@ -330,6 +360,7 @@ export class World {
         h.updateInt(mom[slot]);
         h.updateInt(dad[slot]);
         h.updateInt(leaderId[slot]);
+        h.updateInt(people.rootLeaderId[slot]);
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;

@@ -132,6 +132,10 @@ export interface SimulationConfig {
   leaderWeightBravery: number;
   leaderSearchRadius: number;
   clashEnergyCost: number;
+  clashLossShare: number;
+  clashLootEfficiency: number;
+  incumbencyBonus: number;
+  rootLeaderSliceCount: number;
   shareEnergyMinSurplus: number;
   shareEnergyAmount: number;
 }
@@ -140,6 +144,8 @@ export interface WorldMetrics {
   tick: number;
   year: number;
   population: number;
+  bandCount?: number;
+  largestBand?: number;
 }
 
 export interface LandView {

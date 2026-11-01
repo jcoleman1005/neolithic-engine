@@ -171,4 +171,152 @@ describe('Phase 3 Rules & Invariants', () => {
 
     expect(world2.stateHash()).toBe(world1.stateHash());
   });
+
+  it('allies in touch: isAllied identifies direct leader, shared root, mates, siblings, and parent-child', () => {
+    const people = new People(20);
+    const idA = people.spawn(10, 10, 50, 0); // slot 0
+    const idB = people.spawn(10, 10, 50, 1); // slot 1
+    const idC = people.spawn(10, 10, 50, 0); // slot 2
+    const idD = people.spawn(10, 10, 50, 1); // slot 3
+
+    const sA = slotFromId(idA);
+    const sB = slotFromId(idB);
+    const sC = slotFromId(idC);
+    const sD = slotFromId(idD);
+
+    // Initial state: strangers
+    expect(Rules.isAllied(sA, sB, people)).toBe(false);
+
+    // 1. Direct leader: A follows B
+    people.leaderId[sA] = idB;
+    expect(Rules.isAllied(sA, sB, people)).toBe(true);
+    expect(Rules.isAllied(sB, sA, people)).toBe(true);
+    people.leaderId[sA] = 0;
+
+    // 2. Shared root leader
+    people.rootLeaderId[sA] = 999;
+    people.rootLeaderId[sC] = 999;
+    expect(Rules.isAllied(sA, sC, people)).toBe(true);
+    people.rootLeaderId[sA] = idA;
+    people.rootLeaderId[sC] = idC;
+
+    // 3. Mates
+    people.mateId[sA] = idB;
+    people.mateId[sB] = idA;
+    expect(Rules.isAllied(sA, sB, people)).toBe(true);
+    expect(Rules.isAllied(sB, sA, people)).toBe(true);
+    people.mateId[sA] = 0;
+    people.mateId[sB] = 0;
+
+    // 4. Maternal siblings (same mother)
+    people.motherId[sA] = 888;
+    people.motherId[sD] = 888;
+    expect(Rules.isAllied(sA, sD, people)).toBe(true);
+    people.motherId[sA] = 0;
+    people.motherId[sD] = 0;
+
+    // 5. Parent-child
+    people.motherId[sA] = idC;
+    expect(Rules.isAllied(sA, sC, people)).toBe(true);
+    expect(Rules.isAllied(sC, sA, people)).toBe(true);
+  });
+
+  it('clashes have a decisive winner, loot transfer, and correct ledger accounting', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      elevationEnabled: false,
+      terrainEnabled: false,
+      clashLossShare: 0.25,
+      clashLootEfficiency: 0.8,
+    };
+    const people = new People(10);
+    const land = new Land(config);
+    const fields = new ScentFields();
+    const spatial = new SpatialIndex();
+    const ledger = new EnergyLedger();
+    const prng = new PRNG(12345);
+
+    // Strong fighter at (20, 20)
+    const strongGenes = new Uint8Array(GENE_COUNT).fill(128);
+    strongGenes[0] = 250; // Max strength
+    strongGenes[7] = 200; // Cruelty
+    const strongHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    strongHabits[3] = 220; // Belligerence
+    const idStrong = people.spawn(20, 20, 80, 1, 0, 0, 0, strongGenes, strongHabits, 0);
+    const slotStrong = slotFromId(idStrong);
+
+    // Weak fighter at (20, 20)
+    const weakGenes = new Uint8Array(GENE_COUNT).fill(128);
+    weakGenes[0] = 10; // Low strength
+    weakGenes[7] = 180; // Cruelty
+    const weakHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    weakHabits[3] = 200; // Belligerence
+    const idWeak = people.spawn(20, 20, 40, 0, 0, 0, 0, weakGenes, weakHabits, 0);
+    const slotWeak = slotFromId(idWeak);
+
+    spatial.build(people);
+
+    const prevEnergyStrong = people.energy[slotStrong];
+    const prevEnergyWeak = people.energy[slotWeak];
+    const prevAttackLedger = ledger.attack;
+
+    // Execute touch
+    Rules.touch(slotStrong, slotWeak, people, land, fields, spatial, ledger, config, prng);
+
+    // Weak participant should have lost energy, strong should have gained looted portion
+    const expectedLoss = prevEnergyWeak * 0.25;
+    const expectedLoot = expectedLoss * 0.8;
+    const expectedWaste = expectedLoss - expectedLoot;
+
+    expect(people.energy[slotWeak]).toBeCloseTo(prevEnergyWeak - expectedLoss, 2);
+    expect(people.energy[slotStrong]).toBeCloseTo(prevEnergyStrong + expectedLoot, 2);
+    expect(ledger.attack).toBeCloseTo(prevAttackLedger + expectedWaste, 2);
+
+    // Loser should have retreated away from (20, 20) if alive
+    if (people.alive[slotWeak] === 1) {
+      const moved = people.x[slotWeak] !== 20 || people.y[slotWeak] !== 20;
+      expect(moved).toBe(true);
+    }
+  });
+
+  it('incumbency bonus protects current leader against marginal competitors', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      elevationEnabled: false,
+      terrainEnabled: false,
+      incumbencyBonus: 0.35,
+      leaderSearchRadius: 6,
+    };
+    const people = new People(10);
+    const prng = new PRNG(777);
+
+    // Incumbent leader at (30, 30): good utility
+    const incGenes = new Uint8Array(GENE_COUNT).fill(128);
+    incGenes[4] = 180; // Charisma
+    const incHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    const idInc = people.spawn(30, 30, 70, 1, 0, 0, 0, incGenes, incHabits, 0);
+    people.age[slotFromId(idInc)] = config.adultAge + 100;
+
+    // Challenger leader at (31, 30): slightly higher charisma (+5%), but not enough to beat 35% incumbency
+    const chalGenes = new Uint8Array(GENE_COUNT).fill(128);
+    chalGenes[4] = 190;
+    const chalHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    const idChal = people.spawn(31, 30, 70, 1, 0, 0, 0, chalGenes, chalHabits, 0);
+    people.age[slotFromId(idChal)] = config.adultAge + 100;
+
+    // Follower at (30, 31) currently following idInc
+    const folGenes = new Uint8Array(GENE_COUNT).fill(100);
+    const folHabits = new Uint8Array(HABIT_COUNT).fill(100);
+    const idFol = people.spawn(30, 31, 50, 0, 0, 0, 0, folGenes, folHabits, idInc);
+    const slotFol = slotFromId(idFol);
+    people.age[slotFol] = config.adultAge + 100;
+
+    const spatial = new SpatialIndex();
+    spatial.build(people);
+
+    Rules.copy(slotFol, people, spatial, config, prng);
+
+    // Follower must retain incumbent leader because challenger did not beat 35% incumbency
+    expect(people.leaderId[slotFol]).toBe(idInc);
+  });
 });

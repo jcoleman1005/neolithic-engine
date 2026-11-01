@@ -57,7 +57,7 @@ describe('Look Byte Encoding & Decoding', () => {
 });
 
 describe('Phase 2 Frame Packing and Person Details', () => {
-  it('packs alive people into compact 6-byte records', () => {
+  it('packs alive people into compact 10-byte records', () => {
     const world = new World({ seed: 42, initialPopulation: 50 });
     const { base64, count } = world.packPeopleFrame();
     expect(count).toBe(world.people.count);
@@ -71,12 +71,15 @@ describe('Phase 2 Frame Packing and Person Details', () => {
     const y0 = decoded[3];
     const look0 = decoded[4];
     const gen0 = decoded[5];
+    const rId0 = (decoded[6] | (decoded[7] << 8) | (decoded[8] << 16) | (decoded[9] << 24)) >>> 0;
 
     expect(world.people.alive[slot0]).toBe(1);
     expect(world.people.x[slot0]).toBe(x0);
     expect(world.people.y[slot0]).toBe(y0);
     expect(look0).toBeGreaterThanOrEqual(0);
     expect(world.people.slotGenerations[slot0] & 0xff).toBe(gen0);
+    const expectedRoot = world.people.rootLeaderId[slot0] || world.people.idOf(slot0);
+    expect(rId0).toBe(expectedRoot);
   });
 
   it('retrieves detailed person record by slot or 32-bit ID', () => {

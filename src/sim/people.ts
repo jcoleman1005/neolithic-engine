@@ -49,6 +49,7 @@ export interface PackedPerson {
   readonly genes?: readonly number[];
   readonly habits?: readonly number[];
   readonly leaderId?: number;
+  readonly rootLeaderId?: number;
 }
 
 export interface PeopleState {
@@ -76,6 +77,7 @@ export class People {
   public motherId: Uint32Array;
   public fatherId: Uint32Array;
   public leaderId: Uint32Array;
+  public rootLeaderId: Uint32Array;
   public genes: Uint8Array; // capacity * GENE_COUNT
   public habits: Uint8Array; // capacity * HABIT_COUNT
 
@@ -97,6 +99,7 @@ export class People {
     this.motherId = new Uint32Array(this.capacity);
     this.fatherId = new Uint32Array(this.capacity);
     this.leaderId = new Uint32Array(this.capacity);
+    this.rootLeaderId = new Uint32Array(this.capacity);
     this.genes = new Uint8Array(this.capacity * GENE_COUNT);
     this.habits = new Uint8Array(this.capacity * HABIT_COUNT);
 
@@ -110,6 +113,7 @@ export class People {
       this.pregnant[i] = -1;
       this.mateId[i] = 0;
       this.leaderId[i] = 0;
+      this.rootLeaderId[i] = 0;
     }
   }
 
@@ -166,6 +170,7 @@ export class People {
     this.motherId = copyU32(this.motherId);
     this.fatherId = copyU32(this.fatherId);
     this.leaderId = copyU32(this.leaderId);
+    this.rootLeaderId = copyU32(this.rootLeaderId);
     this.genes = copyGenes(this.genes);
     this.habits = copyHabits(this.habits);
 
@@ -209,6 +214,8 @@ export class People {
     this.motherId[slot] = motherId;
     this.fatherId[slot] = fatherId;
     this.leaderId[slot] = leaderId;
+    const personId = makePersonId(slot, slotGen);
+    this.rootLeaderId[slot] = leaderId !== 0 ? leaderId : personId;
 
     const gOffset = slot * GENE_COUNT;
     if (genes) {
@@ -240,6 +247,7 @@ export class People {
     if (this.alive[slot] === 0) return;
     this.alive[slot] = 0;
     this.leaderId[slot] = 0;
+    this.rootLeaderId[slot] = 0;
     this.freeList[this.freeCount++] = slot;
     this.count--;
   }
@@ -248,6 +256,63 @@ export class People {
     const lId = this.leaderId[slot];
     if (lId !== 0 && !this.isValidId(lId)) {
       this.leaderId[slot] = 0;
+      this.rootLeaderId[slot] = this.idOf(slot);
+    }
+  }
+
+  /**
+   * Refreshes a fractional slice of the root leader cache per tick.
+   * Bounds chain traversal to 16 hops to break cycles.
+   */
+  public refreshRootLeadersSlice(sliceIndex: number, totalSlices: number): void {
+    const sliceSize = Math.ceil(this.capacity / totalSlices);
+    const start = sliceIndex * sliceSize;
+    const end = Math.min(this.capacity, start + sliceSize);
+
+    for (let slot = start; slot < end; slot++) {
+      if (this.alive[slot] === 0) {
+        this.rootLeaderId[slot] = 0;
+        continue;
+      }
+
+      const myId = this.idOf(slot);
+      const lId = this.leaderId[slot];
+      if (lId === 0 || !this.isValidId(lId) || lId === myId) {
+        this.leaderId[slot] = 0;
+        this.rootLeaderId[slot] = myId;
+        continue;
+      }
+
+      // Trace chain up to 16 hops
+      let currId = lId;
+      let hops = 0;
+      let root = currId;
+
+      while (hops++ < 16) {
+        const cSlot = slotFromId(currId);
+        if (cSlot >= this.capacity || this.alive[cSlot] === 0) {
+          break;
+        }
+        const nextId = this.leaderId[cSlot];
+        if (nextId === 0 || !this.isValidId(nextId) || nextId === currId) {
+          root = currId;
+          break;
+        }
+        if (nextId === myId) {
+          // Cycle back to observer
+          root = myId;
+          break;
+        }
+        currId = nextId;
+        root = currId;
+      }
+
+      if (hops >= 16) {
+        this.leaderId[slot] = 0;
+        this.rootLeaderId[slot] = myId;
+      } else {
+        this.rootLeaderId[slot] = root;
+      }
     }
   }
 
@@ -290,6 +355,7 @@ export class People {
           motherId: this.motherId[slot],
           fatherId: this.fatherId[slot],
           leaderId: this.leaderId[slot],
+          rootLeaderId: this.rootLeaderId[slot],
           genes: Array.from(this.genes.subarray(gOff, gOff + GENE_COUNT)),
           habits: Array.from(this.habits.subarray(hOff, hOff + HABIT_COUNT)),
         });
@@ -338,6 +404,7 @@ export class People {
       this.motherId[slot] = p.motherId;
       this.fatherId[slot] = p.fatherId;
       this.leaderId[slot] = p.leaderId ?? 0;
+      this.rootLeaderId[slot] = p.rootLeaderId ?? p.leaderId ?? makePersonId(slot, genFromId(p.id));
 
       const gOff = slot * GENE_COUNT;
       if (p.genes && p.genes.length === GENE_COUNT) {
@@ -371,6 +438,7 @@ export class People {
           this.pregnant[slot] = -1;
           this.mateId[slot] = 0;
           this.leaderId[slot] = 0;
+          this.rootLeaderId[slot] = 0;
         }
       }
     } else {
@@ -381,6 +449,7 @@ export class People {
           this.pregnant[i] = -1;
           this.mateId[i] = 0;
           this.leaderId[i] = 0;
+          this.rootLeaderId[i] = 0;
         }
       }
     }

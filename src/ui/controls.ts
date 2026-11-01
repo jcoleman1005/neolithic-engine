@@ -4,6 +4,7 @@ export interface PlaybackCallbacks {
   onPlayPause: () => void;
   onStep: () => void;
   onSpeedChange: (speedMultiplier: number) => void;
+  onColorModeChange?: (mode: 'status' | 'bands') => void;
 }
 
 export interface SettingsCallbacks {
@@ -18,6 +19,7 @@ export class PlaybackPill {
   private readonly playBtn: HTMLButtonElement;
   private readonly stepBtn: HTMLButtonElement;
   private readonly speedSelect: HTMLSelectElement;
+  private readonly colorSelect: HTMLSelectElement | null;
   private readonly tpsBadge: HTMLElement;
 
   constructor(container: HTMLElement, callbacks: PlaybackCallbacks) {
@@ -30,18 +32,28 @@ export class PlaybackPill {
         <option value="3">3×</option>
         <option value="10">10×</option>
       </select>
+      <select id="select-color-mode" class="pill-select" aria-label="Color Mode" title="Color Mode">
+        <option value="status" selected>Status</option>
+        <option value="bands">Bands</option>
+      </select>
       <span id="pill-tps" class="pill-tps">0 tps</span>
     `;
 
     this.playBtn = container.querySelector('#btn-play')!;
     this.stepBtn = container.querySelector('#btn-step')!;
     this.speedSelect = container.querySelector('#select-speed')!;
+    this.colorSelect = container.querySelector('#select-color-mode');
     this.tpsBadge = container.querySelector('#pill-tps')!;
 
     this.playBtn.addEventListener('click', () => callbacks.onPlayPause());
     this.stepBtn.addEventListener('click', () => callbacks.onStep());
     this.speedSelect.addEventListener('change', () => {
       callbacks.onSpeedChange(parseFloat(this.speedSelect.value));
+    });
+    this.colorSelect?.addEventListener('change', () => {
+      if (this.colorSelect) {
+        callbacks.onColorModeChange?.(this.colorSelect.value as 'status' | 'bands');
+      }
     });
   }
 

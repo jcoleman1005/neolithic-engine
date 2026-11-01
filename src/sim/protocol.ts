@@ -5,7 +5,7 @@ import type { WorldEvent } from './events';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
-export const PERSON_FRAME_BYTES = 6;
+export const PERSON_FRAME_BYTES = 10;
 
 // Look byte bit layout:
 // Bit 0: sex (0 = female, 1 = male)
@@ -67,6 +67,7 @@ export interface PersonDetail {
   readonly motherId: number;
   readonly fatherId: number;
   readonly leaderId?: number;
+  readonly rootLeaderId?: number;
   readonly genes?: {
     readonly strength: number;
     readonly bravery: number;

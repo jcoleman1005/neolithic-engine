@@ -12,6 +12,7 @@
     "check": "tsc -b --pretty",
     "verify": "bash scripts/verify.sh",
     "sim": "vite-node scripts/run.ts --",
+    "bands": "vite-node scripts/bands.ts --",
     "fingerprint": "vite-node scripts/fingerprint.ts",
     "perf": "vite-node scripts/perf.ts",
     "build:server": "vite build --ssr server/main.ts --outDir dist-server --emptyOutDir",

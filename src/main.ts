@@ -163,6 +163,9 @@ const pill = new PlaybackPill($('#playback'), {
   onSpeedChange: (speed) => {
     sim.setSpeed(speed * 3);
   },
+  onColorModeChange: (mode) => {
+    renderer.colorMode = mode;
+  },
 });
 
 const sheet = new BottomSheet(sheetEl, () => {

@@ -1,33 +1,41 @@
 # Neolithic Engine — Status
 
 ## Current State
-Phase 3 (People) implemented and verified on branch `phase-3-people`.
-- **CPU Scent Fields (`src/sim/fields.ts`)**:
-  - Double-buffered food and danger scent fields ($256 \times 256$) with wrapped torus boundary conditions.
-  - Periodic diffusion (every 4 ticks) and evaporation with zero per-tick heap allocations.
-  - Wrap-aware gradient computation (`getFoodGradient`, `getDangerGradient`).
-- **Eight Genes & Eight Habits (`src/sim/people.ts`)**:
-  - Expanded traits to 8 genes: `strength`, `bravery`, `greed`, `piety`, `charisma`, `curiosity`, `wisdom`, `cruelty`.
-  - 8 cultural habits: `forage`, `caution`, `generosity`, `belligerence`, `devotion`, `roaming`, `loyalty`, `industry`.
-  - Leader link tracking (`leaderId`: 20-bit slot + 12-bit generation); dead leader invalidation and slot reuse safety.
-  - Genetic crossover with mutation bounds $[0, 255]$ and parental habit blending upon birth.
-- **Three Local Rules (`src/sim/rules.ts`)**:
-  - **`climb`**: Food scent gradient attraction, caution/bravery-modulated danger aversion, leader pull, and land/water navigation.
-  - **`copy`**: ID-staggered social evaluation (every 8 ticks) evaluating leader attractiveness via multi-attribute utility; observer personality modulates respect (e.g. greed respects wealth, piety respects wisdom); habit drift towards leader.
-  - **`touch`**: Physical contact in co-located cells — altruistic sharing among allies with zero-sum ledger balance; combat clashes between belligerent non-allies with damage booked to `ledger.attack`, danger scent deposition, and retreat step.
-  - Feature switches (`climbEnabled`, `copyEnabled`, `touchEnabled`) with test proving border clashes vanish when touch is switched off.
-- **Inspector Person Card (`src/ui/inspector.ts`, `src/style.css`)**:
-  - Person inspection displays leader link, 8 gene chips, and 8 habit chips.
-- **Determinism & Ledger Verification**:
-  - Energy ledger balances with 0 violations across hundreds of ticks.
-  - Save/restore round trip reproduces bit-identical `stateHash` across thousands of subsequent ticks.
+Phase 3 (People) fully implemented, refined for cohesion and decisive clashes, and verified on branch `fix-phase-3-cohesion`.
+
+### Key Enhancements & Fixes
+- **Allies in Touch & Cached Root Leaders (`src/sim/people.ts`, `src/sim/rules.ts`)**:
+  - `Rules.isAllied` prevents violence between allies: direct leader/follower (`A->B` or `B->A`), shared `rootLeaderId`, mates, maternal siblings (`same motherId`), and parent-child.
+  - Added cached `rootLeaderId: Uint32Array` refreshed in staggered time-slices (1/8th slice per tick) with 16-hop cycle breaker.
+- **Decisive Clashes with Conservation (`src/sim/rules.ts`)**:
+  - Combat score compares strength (dominant weight) + nearby allies + PRNG noise.
+  - Loser loses energy share (`clashLossShare = 0.25`); winner loots up to capacity (`clashLootEfficiency = 0.8`); struggle waste and excess over capacity are booked to `ledger.attack`. Loser retreats.
+- **Unbiased Leader Choice & Incumbency Bonus (`src/sim/rules.ts`)**:
+  - Incumbency bonus (`incumbencyBonus = 0.35`) applies only against the current leader or self to stabilize allegiance.
+  - Candidates compared via plain `>`; randomized spatial scan offset eliminates north/directional scan bias; closure-free and zero heap allocations.
+- **Full Cell Pairing (`src/sim/rules.ts`)**:
+  - `touchCell` pairs all co-located people in a cell in a rotating disjoint order, not just the first two.
+- **Band Visibility & Stats (`src/render/renderer.ts`, `src/ui/controls.ts`, `src/ui/metrics-view.ts`)**:
+  - Added "Colour by band" mode: each person colored by a deterministic hash of `rootLeaderId`, loners grey.
+  - Metric panel displays active band count ($\ge 2$) and largest band.
+- **Measurement Script & Verification (`scripts/bands.ts`)**:
+  - `npm run bands` prints per-decade statistics (% following, bands 5+, bands 20+, largest band, retention rate, clash relationship breakdown).
+  - 200-year runs across 3 seeds (Touch ON vs OFF) confirm:
+    - Leader retention: **99.5%–99.9%** per decision cycle.
+    - Clashes by relationship: Stranger clashes ~50k–65k/year; In-band / Leader / Kin clashes: **0.0 / year**.
+    - Band scale: Largest bands grow to **339–378** people.
+
+### Verification & Performance
 - **Automated Verification (`npm run verify`)**:
-  - 52 automated tests across 9 test suites passing cleanly with zero errors.
+  - TypeScript type check (`npm run check`): 0 errors.
+  - 55 automated tests across 9 test suites passing cleanly with 0 errors.
+  - Save/restore round trip reproduces bit-identical `stateHash`.
+  - Energy ledger balance maintains 0 residual across all ticks.
 - **Performance Benchmark (`npm run perf`)**:
-  - Average population: 9,704
-  - Tick duration: 21.696 ms / tick
-  - **Perf: 2.236 µs / person / tick** on desktop (budget: <= 15.0 µs; 6.7× faster than budget).
+  - Population: **12,731** people.
+  - Tick duration: **38.257 ms** / tick.
+  - **Perf: 3.005 µs / person / tick** on desktop (budget: $\le 15.0$ µs; 5× faster than budget).
 
 ## Next Steps
-1. Merge branch `phase-3-people` into `main`.
-2. Begin Phase 4 (Chronicle): event detectors (famine, boom, migration, group split, notable deaths), naming system, ticker, auto-camera.
+1. Merge branch `fix-phase-3-cohesion` into `main`.
+2. Begin Phase 4 (Chronicle): event detectors (famine, boom, migration, group split, clash, notable deaths), naming system, ticker, and auto-camera.

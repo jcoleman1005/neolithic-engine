@@ -15,7 +15,6 @@ import {
   HABIT_GENEROSITY,
   HABIT_BELLIGERENCE,
   HABIT_ROAMING,
-  HABIT_LOYALTY,
   HABIT_COUNT,
   slotFromId,
   genFromId,
@@ -31,9 +30,29 @@ import type { PRNG } from './prng';
 // Preallocated scratch arrays for zero allocations in hot loops
 const scratchGradFood = new Float32Array(2);
 const scratchGradDanger = new Float32Array(2);
-const scratchCandidateSlots = new Int32Array(64);
+
+export interface ClashStats {
+  strangers: number;
+  sameBand: number;
+  leaderFollower: number;
+  kin: number;
+}
 
 export class Rules {
+  /** Observer tracking of physical clashes by relationship (Agent rule 11) */
+  public static clashStats: ClashStats = {
+    strangers: 0,
+    sameBand: 0,
+    leaderFollower: 0,
+    kin: 0,
+  };
+
+  public static resetClashStats(): void {
+    Rules.clashStats.strangers = 0;
+    Rules.clashStats.sameBand = 0;
+    Rules.clashStats.leaderFollower = 0;
+    Rules.clashStats.kin = 0;
+  }
   /**
    * Rule 1: Climb
    * Determines movement direction based on food scent gradient, danger scent aversion,
@@ -85,7 +104,7 @@ export class Rules {
         const distSq = dx * dx + dy * dy;
         // Pull if leader is not right on the same tile
         if (distSq > 1) {
-          const loyalty = people.habits[hOff + HABIT_LOYALTY] / 255;
+          const loyalty = people.genes[gOff + GENE_CHARISMA] / 255; // personal devotion
           const pull = 0.8 + 0.8 * loyalty;
           vx += (dx > 0 ? 1 : dx < 0 ? -1 : 0) * pull;
           vy += (dy > 0 ? 1 : dy < 0 ? -1 : 0) * pull;
@@ -153,63 +172,90 @@ export class Rules {
 
   /**
    * Rule 2: Copy
-   * Staggered social evaluation: evaluates nearby neighbors and leaders to decide
-   * who to follow, and shifts habits towards leaders and thriving peers.
+   * Staggered social evaluation: evaluates nearby neighbors without directional bias
+   * or heap closures (Agent rule 7). Incumbency bonus applies to current leader / self.
+   * Other candidates are compared with a plain `>`.
    */
   public static copy(
     slot: number,
     people: People,
     spatial: SpatialIndex,
     config: Readonly<SimulationConfig>,
-    _prng: PRNG
+    prng: PRNG
   ): void {
     const px = people.x[slot];
     const py = people.y[slot];
     const maxEnergy = config.maxEnergy ?? 100.0;
     const radius = config.leaderSearchRadius ?? 6;
     const stickiness = config.habitStickiness ?? 0.9;
-    const hOff = slot * HABIT_COUNT;
+    const incumbency = config.incumbencyBonus ?? 0.35;
+    const rSq = radius * radius;
+    const side = 2 * radius + 1;
 
-    // Calculate self attractiveness
+    // Self attractiveness
     const selfScore = Rules.scoreAttraction(slot, slot, people, config, maxEnergy);
 
-    // Collect nearby candidate slots
-    let candidateCount = 0;
-    spatial.query(px, py, radius, (otherSlot) => {
-      if (otherSlot !== slot && candidateCount < scratchCandidateSlots.length) {
-        scratchCandidateSlots[candidateCount++] = otherSlot;
-      }
-    });
+    // Calculate incumbency threshold
+    const curLeaderId = people.leaderId[slot];
+    let thresholdToBeat = selfScore * (1 + incumbency);
 
-    let bestScore = selfScore;
-    let bestSlot = slot;
+    if (curLeaderId !== 0 && people.isValidId(curLeaderId)) {
+      const curLeaderSlot = slotFromId(curLeaderId);
+      const curScore = Rules.scoreAttraction(slot, curLeaderSlot, people, config, maxEnergy);
+      thresholdToBeat = curScore * (1 + incumbency);
+    }
 
-    // Loyalty threshold: must beat self/current leader by loyalty margin
-    const loyalty = people.habits[hOff + HABIT_LOYALTY] / 255;
-    const loyaltyMargin = 0.15 + 0.35 * loyalty;
+    let bestCandidateScore = -1;
+    let bestCandidateSlot = -1;
 
-    for (let i = 0; i < candidateCount; i++) {
-      const cSlot = scratchCandidateSlots[i];
-      const score = Rules.scoreAttraction(slot, cSlot, people, config, maxEnergy);
-      if (score > bestScore * (1 + loyaltyMargin)) {
-        bestScore = score;
-        bestSlot = cSlot;
+    // Remove directional bias: start scan at a randomized offset within the search square
+    const startY = prng.nextInt(0, side);
+    const startX = prng.nextInt(0, side);
+
+    const cellStarts = spatial.cellStarts;
+    const cellPeople = spatial.cellPeople;
+
+    for (let stepY = 0; stepY < side; stepY++) {
+      const dy = ((startY + stepY) % side) - radius;
+      const y = (py + dy) & 255;
+      const row = y << 8;
+
+      for (let stepX = 0; stepX < side; stepX++) {
+        const dx = ((startX + stepX) % side) - radius;
+        if (dx * dx + dy * dy > rSq) continue;
+
+        const x = (px + dx) & 255;
+        const cell = row | x;
+        const start = cellStarts[cell];
+        const end = cellStarts[cell + 1];
+
+        for (let idx = start; idx < end; idx++) {
+          const otherSlot = cellPeople[idx];
+          if (otherSlot === slot || people.alive[otherSlot] === 0) continue;
+
+          const score = Rules.scoreAttraction(slot, otherSlot, people, config, maxEnergy);
+          // Compare candidates to each other with a plain >
+          if (score > bestCandidateScore) {
+            bestCandidateScore = score;
+            bestCandidateSlot = otherSlot;
+          }
+        }
       }
     }
 
-    // Update leader
-    if (bestSlot !== slot) {
-      people.leaderId[slot] = people.idOf(bestSlot);
+    // Incumbency check: candidate must beat the incumbent threshold
+    if (bestCandidateSlot !== -1 && bestCandidateScore > thresholdToBeat) {
+      people.leaderId[slot] = people.idOf(bestCandidateSlot);
       // Cultural learning: shift habits towards leader
-      const targetHOff = bestSlot * HABIT_COUNT;
+      const targetHOff = bestCandidateSlot * HABIT_COUNT;
+      const hOff = slot * HABIT_COUNT;
       for (let h = 0; h < HABIT_COUNT; h++) {
         const cur = people.habits[hOff + h];
         const tgt = people.habits[targetHOff + h];
         const shifted = Math.round(cur * stickiness + tgt * (1.0 - stickiness));
         people.habits[hOff + h] = Math.max(0, Math.min(255, shifted));
       }
-    } else {
-      // Self-led: clear leader ID
+    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId)) {
       people.leaderId[slot] = 0;
     }
   }
@@ -217,7 +263,6 @@ export class Rules {
   /**
    * Evaluates how attractive targetSlot is as a leader to observerSlot.
    * Multi-attribute utility: strength, charisma, energy wealth, kin, wisdom, bravery.
-   * Modulated by observer's own personality (greed values wealth, piety values devotion/wisdom).
    */
   public static scoreAttraction(
     observerSlot: number,
@@ -275,10 +320,113 @@ export class Rules {
   }
 
   /**
+   * Comprehensive ally predicate.
+   * Allied if A follows B or B follows A, they share a root leader,
+   * are mates, are maternal siblings, or are parent and child.
+   */
+  public static isAllied(slotA: number, slotB: number, people: People): boolean {
+    const idA = people.idOf(slotA);
+    const idB = people.idOf(slotB);
+    const leaderA = people.leaderId[slotA];
+    const leaderB = people.leaderId[slotB];
+
+    // 1. A follows B or B follows A
+    if (leaderA === idB || leaderB === idA) return true;
+
+    // 2. Share a root leader
+    const rootA = people.rootLeaderId[slotA];
+    const rootB = people.rootLeaderId[slotB];
+    if (rootA !== 0 && rootA === rootB) return true;
+
+    // 3. Mates
+    if (people.mateId[slotA] === idB || people.mateId[slotB] === idA) return true;
+
+    // 4. Maternal siblings
+    const momA = people.motherId[slotA];
+    if (momA > 0 && momA === people.motherId[slotB]) return true;
+
+    // 5. Parent and child
+    if (
+      momA === idB ||
+      people.fatherId[slotA] === idB ||
+      people.motherId[slotB] === idA ||
+      people.fatherId[slotB] === idA
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Counts nearby allies within 1 cell without heap allocations.
+   */
+  public static countNearbyAllies(
+    slot: number,
+    cx: number,
+    cy: number,
+    people: People,
+    spatial: SpatialIndex
+  ): number {
+    let allies = 0;
+    const cellStarts = spatial.cellStarts;
+    const cellPeople = spatial.cellPeople;
+
+    for (let dy = -1; dy <= 1; dy++) {
+      const y = (cy + dy) & 255;
+      const row = y << 8;
+      for (let dx = -1; dx <= 1; dx++) {
+        const x = (cx + dx) & 255;
+        const cell = row | x;
+        const start = cellStarts[cell];
+        const end = cellStarts[cell + 1];
+        for (let i = start; i < end; i++) {
+          const other = cellPeople[i];
+          if (other !== slot && people.alive[other] === 1 && Rules.isAllied(slot, other, people)) {
+            allies++;
+          }
+        }
+      }
+    }
+    return allies;
+  }
+
+  /**
+   * Pairs everyone in a crowded cell in rotating/random order so all co-located
+   * people are evaluated fairly.
+   */
+  public static touchCell(
+    start: number,
+    count: number,
+    cellPeople: Uint32Array,
+    people: People,
+    land: Land,
+    fields: ScentFields,
+    spatial: SpatialIndex,
+    ledger: EnergyLedger,
+    config: Readonly<SimulationConfig>,
+    prng: PRNG,
+    tick: number
+  ): void {
+    if (count < 2) return;
+
+    // Rotating offset to vary pairing order across ticks
+    const rot = (tick + start) % count;
+
+    for (let i = 0; i + 1 < count; i += 2) {
+      const idxA = start + ((rot + i) % count);
+      const idxB = start + ((rot + i + 1) % count);
+      const slotA = cellPeople[idxA];
+      const slotB = cellPeople[idxB];
+      Rules.touch(slotA, slotB, people, land, fields, spatial, ledger, config, prng);
+    }
+  }
+
+  /**
    * Rule 3: Touch
    * Evaluates close-range physical contact between co-located people:
-   * - Sharing food/energy with hungry kin or allies.
-   * - Clash/border friction between hostile or belligerent non-allies.
+   * - Sharing food/energy with hungry kin or allies (zero-sum internal transfer).
+   * - Decisive combat clashes between belligerent non-allies.
    */
   public static touch(
     slotA: number,
@@ -286,23 +434,14 @@ export class Rules {
     people: People,
     land: Land,
     fields: ScentFields,
+    spatial: SpatialIndex,
     ledger: EnergyLedger,
     config: Readonly<SimulationConfig>,
     prng: PRNG
   ): void {
     if (people.alive[slotA] === 0 || people.alive[slotB] === 0) return;
 
-    const leaderA = people.leaderId[slotA];
-    const leaderB = people.leaderId[slotB];
-    const idA = people.idOf(slotA);
-    const idB = people.idOf(slotB);
-
-    const isAllied =
-      (leaderA !== 0 && leaderA === leaderB) ||
-      people.motherId[slotA] === idB ||
-      people.fatherId[slotA] === idB ||
-      people.motherId[slotB] === idA ||
-      people.fatherId[slotB] === idA;
+    const allied = Rules.isAllied(slotA, slotB, people);
 
     const hOffA = slotA * HABIT_COUNT;
     const hOffB = slotB * HABIT_COUNT;
@@ -316,14 +455,13 @@ export class Rules {
     const reproThreshold = config.reproductionThreshold ?? 65.0;
 
     // 1. Sharing
-    if (isAllied || generosityA > 160 || generosityB > 160) {
+    if (allied || generosityA > 160 || generosityB > 160) {
       // Check if A can give to hungry B
       if (people.energy[slotA] > reproThreshold && people.energy[slotB] < reproThreshold * 0.5) {
         const gift = Math.min(shareAmt, people.energy[slotA] - minSurplus);
         if (gift > 0) {
           people.energy[slotA] -= gift;
           people.energy[slotB] += gift;
-          // Internal transfer leaves ledger residual unchanged
           return;
         }
       }
@@ -338,47 +476,78 @@ export class Rules {
       }
     }
 
-    // 2. Clash / Dispute
-    // If not allied, check belligerence and cruelty
-    if (!isAllied) {
+    // 2. Decisive Clash
+    if (!allied) {
       const bellA = people.habits[hOffA + HABIT_BELLIGERENCE] + people.genes[gOffA + GENE_CRUELTY];
       const bellB = people.habits[hOffB + HABIT_BELLIGERENCE] + people.genes[gOffB + GENE_CRUELTY];
 
       if (bellA > 180 || bellB > 180) {
-        const clashCost = config.clashEnergyCost ?? 1.0;
+        const idA = people.idOf(slotA);
+        const idB = people.idOf(slotB);
+        const leaderA = people.leaderId[slotA];
+        const leaderB = people.leaderId[slotB];
+        const rootA = people.rootLeaderId[slotA];
+        const rootB = people.rootLeaderId[slotB];
+
+        if (leaderA === idB || leaderB === idA) {
+          Rules.clashStats.leaderFollower++;
+        } else if (rootA !== 0 && rootA === rootB) {
+          Rules.clashStats.sameBand++;
+        } else if (
+          people.mateId[slotA] === idB ||
+          people.motherId[slotA] === idB ||
+          people.fatherId[slotA] === idB ||
+          people.motherId[slotB] === idA ||
+          people.fatherId[slotB] === idA ||
+          (people.motherId[slotA] !== 0 && people.motherId[slotA] === people.motherId[slotB])
+        ) {
+          Rules.clashStats.kin++;
+        } else {
+          Rules.clashStats.strangers++;
+        }
+
         const px = people.x[slotA];
         const py = people.y[slotA];
 
-        // Deduct energy & book to ledger
-        people.energy[slotA] -= clashCost;
-        ledger.attack += clashCost;
-        if (people.energy[slotA] <= 0) {
-          if (people.energy[slotA] < 0) {
-            ledger.overdraft += -people.energy[slotA];
+        // Combat scores: strength + nearby allies + PRNG noise
+        const alliesA = Rules.countNearbyAllies(slotA, px, py, people, spatial);
+        const alliesB = Rules.countNearbyAllies(slotB, px, py, people, spatial);
+        const strA = people.genes[gOffA + GENE_STRENGTH] / 255;
+        const strB = people.genes[gOffB + GENE_STRENGTH] / 255;
+
+        const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
+        const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;
+
+        const winnerSlot = scoreA >= scoreB ? slotA : slotB;
+        const loserSlot = winnerSlot === slotA ? slotB : slotA;
+
+        // Energy mechanics: loser loses share, winner takes most, remainder struggle waste
+        const lossShare = config.clashLossShare ?? 0.25;
+        const lootEfficiency = config.clashLootEfficiency ?? 0.8;
+        const maxEnergy = config.maxEnergy ?? 100.0;
+
+        let loserLoss = people.energy[loserSlot] * lossShare;
+        if (loserLoss < 0.5) {
+          loserLoss = Math.min(people.energy[loserSlot], 0.5);
+        }
+        loserLoss = Math.min(people.energy[loserSlot], loserLoss);
+        const rawLoot = loserLoss * lootEfficiency;
+        const actualLoot = Math.min(rawLoot, Math.max(0, maxEnergy - people.energy[winnerSlot]));
+        const struggleWaste = loserLoss - actualLoot;
+
+        people.energy[loserSlot] -= loserLoss;
+        people.energy[winnerSlot] += actualLoot;
+        ledger.attack += struggleWaste;
+
+        if (people.energy[loserSlot] <= 0) {
+          if (people.energy[loserSlot] < 0) {
+            ledger.overdraft += -people.energy[loserSlot];
           }
           fields.depositDanger(px, py, config.scentDangerDeath ?? 10.0);
-          people.kill(slotA);
-        }
-
-        people.energy[slotB] -= clashCost;
-        ledger.attack += clashCost;
-        if (people.energy[slotB] <= 0) {
-          if (people.energy[slotB] < 0) {
-            ledger.overdraft += -people.energy[slotB];
-          }
-          fields.depositDanger(px, py, config.scentDangerDeath ?? 10.0);
-          people.kill(slotB);
-        }
-
-        // Deposit danger scent at clash site
-        fields.depositDanger(px, py, config.scentDangerClash ?? 5.0);
-
-        // Retreat weaker/less brave participant if still alive
-        if (people.alive[slotA] === 1 && people.alive[slotB] === 1) {
-          const braA = people.genes[gOffA + GENE_BRAVERY];
-          const braB = people.genes[gOffB + GENE_BRAVERY];
-          const retreatSlot = braA < braB ? slotA : slotB;
-          Rules.retreatStep(retreatSlot, people, land, prng);
+          people.kill(loserSlot);
+        } else {
+          fields.depositDanger(px, py, config.scentDangerClash ?? 5.0);
+          Rules.retreatStep(loserSlot, people, land, prng);
         }
       }
     }
