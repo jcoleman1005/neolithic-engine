@@ -94,6 +94,24 @@ export interface SimulationConfig {
   touchEnabled: boolean;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
+
+  // Life & Demographics (Phase 1)
+  initialPopulation: number;
+  initialEnergy: number;
+  maxEnergy: number;
+  metabolismCost: number;
+  moveCost: number;
+  forageBite: number;
+  landFoodMax: number;
+  landRegrowthRate: number;
+  landGrazingFloor: number;
+  adultAge: number;
+  maxAge: number;
+  reproductionThreshold: number;
+  childEnergy: number;
+  birthTax: number;
+  gestationTicks: number;
+  matingRadius: number;
 }
 
 export interface WorldMetrics {

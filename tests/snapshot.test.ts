@@ -3,7 +3,7 @@ import { World, type WorldState } from '../src/sim/world';
 
 const plain = (state: WorldState) => JSON.parse(JSON.stringify(state)) as WorldState;
 
-const SMALL = { worldWidth: 32, worldHeight: 32, gridWidth: 32, gridHeight: 32 };
+const SMALL = { initialPopulation: 100 };
 
 describe('Snapshots', () => {
   it('a world restored mid-run continues exactly as the original', () => {
