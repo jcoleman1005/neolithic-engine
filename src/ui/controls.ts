@@ -1,7 +1,4 @@
-import type { ColorMode, MotionStyle } from '../render/renderer';
-import type { FoodLayout, WorldSize } from '../sim/config';
-import type { SavedWorldInfo } from './saved-worlds';
-import { APP_VERSION, APP_CODENAME, APP_RELEASE_DATE } from '../version';
+import type { SimulationConfig } from '../sim/types';
 
 export interface PlaybackCallbacks {
   onPlayPause: () => void;
@@ -12,377 +9,76 @@ export interface PlaybackCallbacks {
 export interface SettingsCallbacks {
   onReset: (seed: string | number) => void;
   onNewSeed: () => void;
-  onColorModeChange: (mode: ColorMode) => void;
-  onMotionStyleChange: (style: MotionStyle) => void;
-  onSharingChange: (enabled: boolean) => void;
-  onSignalsChange: (enabled: boolean) => void;
-  onDispersalChange: (enabled: boolean) => void;
-  onWindfallsChange: (enabled: boolean) => void;
-  onImmigrationChange: (enabled: boolean) => void;
-  onPlantsChange: (enabled: boolean) => void;
-  onMemoryChange: (enabled: boolean) => void;
-  onGenomeVariationChange: (enabled: boolean) => void;
-  onGrowableBrainChange: (enabled: boolean) => void;
-  onContinuousAbilitiesChange: (enabled: boolean) => void;
-  onSplitDietsChange: (enabled: boolean) => void;
-  onWeatherChange: (enabled: boolean) => void;
-  onNutrientCycleChange: (enabled: boolean) => void;
-  onOvergrazingChange: (enabled: boolean) => void;
-  onPredationChange: (enabled: boolean) => void;
-  onToughnessChange: (enabled: boolean) => void;
-  onStealthChange: (enabled: boolean) => void;
-  onCarrionChange: (enabled: boolean) => void;
-  onSexChange: (enabled: boolean) => void;
-  onSeasonsChange: (enabled: boolean) => void;
-  onControllerChange: (controller: 'dials' | 'brain') => void;
-  /** World size and food layout restart the run with the current seed. */
-  onWorldSizeChange: (size: WorldSize) => void;
-  onFoodLayoutChange: (layout: FoodLayout) => void;
-  /** Saved worlds: branch points in this browser, and files. */
-  onBranch: () => void;
-  onGoToBranch: (key: string) => void;
-  onDeleteBranch: (key: string) => void;
   onSaveFile: () => void;
   onLoadFile: (file: File) => void;
+  onConfigChange: (config: Partial<SimulationConfig>) => void;
 }
 
-export interface ExperimentToggles {
-  sharingEnabled: boolean;
-  signalsEnabled: boolean;
-  dispersalEnabled: boolean;
-  windfallsEnabled: boolean;
-  weatherEnabled: boolean;
-  nutrientCycleEnabled: boolean;
-  overgrazingEnabled: boolean;
-  carrionEnabled: boolean;
-  predationEnabled: boolean;
-  toughnessGeneEnabled: boolean;
-  stealthGeneEnabled: boolean;
-  sexEnabled: boolean;
-  immigrationEnabled: boolean;
-  plantsEnabled: boolean;
-  memoryEnabled: boolean;
-  dnaVariationEnabled: boolean;
-  dnaGrowableBrain: boolean;
-  dnaContinuousAbilities: boolean;
-  dnaSplitDiets: boolean;
-  seasonsEnabled: boolean;
-  controller: 'dials' | 'brain';
-  worldSize: WorldSize;
-  foodLayout: FoodLayout;
-}
-
-export const SPEEDS = [0.25, 0.5, 1, 2, 5, 10] as const;
-const speedLabel = (s: number) => (s === 0.25 ? '¼×' : s === 0.5 ? '½×' : `${s}×`);
-
-const PLAY_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>';
-const PAUSE_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>';
-const SLOWER_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M11.5 7 6.5 12l5 5M17.5 7l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const FASTER_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12.5 7l5 5-5 5M6.5 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const STEP_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6.5v11a1 1 0 0 0 1.55.83l8-5.5a1 1 0 0 0 0-1.66l-8-5.5A1 1 0 0 0 6 6.5z" fill="currentColor"/><rect x="16.5" y="5.5" width="2.5" height="13" rx="1" fill="currentColor"/></svg>';
-
-/** The floating playback pill over the world: play/pause, step, slower / speed / faster, tick. */
 export class PlaybackPill {
   private readonly playBtn: HTMLButtonElement;
   private readonly stepBtn: HTMLButtonElement;
-  private readonly speedEl: HTMLElement;
-  private readonly slowerBtn: HTMLButtonElement;
-  private readonly fasterBtn: HTMLButtonElement;
-  private readonly onSpeedChange: (speedMultiplier: number) => void;
-  private readonly tickEl: HTMLElement;
-  private speedIndex = SPEEDS.indexOf(0.5);
+  private readonly speedSelect: HTMLSelectElement;
 
   constructor(container: HTMLElement, callbacks: PlaybackCallbacks) {
     container.innerHTML = `
-      <button type="button" class="pill-btn pill-play" aria-label="Play">${PLAY_ICON}</button>
-      <button type="button" class="pill-btn pill-step" aria-label="Step one tick">${STEP_ICON}</button>
-      <span class="pill-speed-group" role="group" aria-label="Speed">
-        <button type="button" class="pill-btn pill-slower" aria-label="Slower">${SLOWER_ICON}</button>
-        <span class="pill-speed" aria-live="polite">½×</span>
-        <button type="button" class="pill-btn pill-faster" aria-label="Faster">${FASTER_ICON}</button>
-      </span>
-      <span class="pill-tick" aria-live="off">t 0</span>
+      <div class="playback-pill">
+        <button id="btn-play" class="pill-btn" aria-label="Play or pause">Play</button>
+        <button id="btn-step" class="pill-btn" aria-label="Step one tick">Step</button>
+        <select id="select-speed" class="pill-select" aria-label="Speed">
+          <option value="0.33">⅓×</option>
+          <option value="1" selected>1×</option>
+          <option value="3">3×</option>
+          <option value="10">10×</option>
+        </select>
+      </div>
     `;
-    this.playBtn = container.querySelector('.pill-play')!;
-    this.stepBtn = container.querySelector('.pill-step')!;
-    this.speedEl = container.querySelector('.pill-speed')!;
-    this.slowerBtn = container.querySelector('.pill-slower')!;
-    this.fasterBtn = container.querySelector('.pill-faster')!;
-    this.tickEl = container.querySelector('.pill-tick')!;
-    this.onSpeedChange = callbacks.onSpeedChange;
+
+    this.playBtn = container.querySelector('#btn-play')!;
+    this.stepBtn = container.querySelector('#btn-step')!;
+    this.speedSelect = container.querySelector('#select-speed')!;
+
     this.playBtn.addEventListener('click', () => callbacks.onPlayPause());
     this.stepBtn.addEventListener('click', () => callbacks.onStep());
-    this.slowerBtn.addEventListener('click', () => this.changeSpeed(-1));
-    this.fasterBtn.addEventListener('click', () => this.changeSpeed(1));
-    this.showSpeed();
-  }
-
-  /** One speed step slower (-1) or faster (+1), stopping at ¼× and 10×. */
-  public changeSpeed(direction: 1 | -1): void {
-    const next = Math.max(0, Math.min(SPEEDS.length - 1, this.speedIndex + direction));
-    if (next === this.speedIndex) return;
-    this.speedIndex = next;
-    this.showSpeed();
-    this.onSpeedChange(SPEEDS[this.speedIndex]);
-  }
-
-  /** Shows a speed set elsewhere (e.g. by another viewer of a shared world), without reporting it back. */
-  public setSpeed(multiplier: number): void {
-    let nearest = 0;
-    SPEEDS.forEach((s, i) => {
-      if (Math.abs(s - multiplier) < Math.abs(SPEEDS[nearest] - multiplier)) nearest = i;
+    this.speedSelect.addEventListener('change', () => {
+      callbacks.onSpeedChange(parseFloat(this.speedSelect.value));
     });
-    if (nearest === this.speedIndex) return;
-    this.speedIndex = nearest;
-    this.showSpeed();
   }
 
-  private showSpeed(): void {
-    const label = speedLabel(SPEEDS[this.speedIndex]);
-    this.speedEl.textContent = label;
-    this.speedEl.setAttribute('aria-label', `Speed ${label}`);
-    this.slowerBtn.disabled = this.speedIndex === 0;
-    this.fasterBtn.disabled = this.speedIndex === SPEEDS.length - 1;
-  }
-
-  public setRunning(running: boolean): void {
-    this.playBtn.innerHTML = running ? PAUSE_ICON : PLAY_ICON;
-    this.playBtn.setAttribute('aria-label', running ? 'Pause' : 'Play');
-    this.playBtn.classList.toggle('running', running);
+  public update(running: boolean, _tps: number): void {
+    this.playBtn.textContent = running ? 'Pause' : 'Play';
     this.stepBtn.disabled = running;
-  }
-
-  public setTick(tick: number): void {
-    const text = `t ${tick}`;
-    if (this.tickEl.textContent !== text) this.tickEl.textContent = text;
   }
 }
 
-const segmented = (label: string, attr: string, options: [string, string][], active: string) => `
-  <div class="setting-row">
-    <span class="setting-label">${label}</span>
-    <div class="segmented" role="group" aria-label="${label}">
-      ${options
-        .map(
-          ([value, text]) =>
-            `<button type="button" data-${attr}="${value}" class="${value === active ? 'active' : ''}" aria-pressed="${value === active}">${text}</button>`
-        )
-        .join('')}
-    </div>
-  </div>`;
-
-/** Experiment switches, grouped: World, Behaviour, Display, Run. */
 export class SettingsView {
-  private readonly container: HTMLElement;
-  private readonly callbacks: SettingsCallbacks;
-
-  constructor(container: HTMLElement, initialSeed: string | number, toggles: ExperimentToggles, callbacks: SettingsCallbacks) {
-    this.container = container;
-    this.callbacks = callbacks;
-    const onOff: [string, string][] = [
-      ['on', 'On'],
-      ['off', 'Off'],
-    ];
+  constructor(container: HTMLElement, callbacks: SettingsCallbacks, config: SimulationConfig) {
     container.innerHTML = `
-      <section class="settings-group">
-        <h3>World & Climate <small>terrain and plants restart the run</small></h3>
-        ${segmented('Size', 'world', [['small', '30×30'], ['large', '60×60']], toggles.worldSize)}
-        ${segmented('Food', 'food', [['anywhere', 'Anywhere'], ['regions', 'Regions'], ['shifting', 'Shifting']], toggles.foodLayout)}
-        ${segmented('Plants', 'plants', [['off', 'Patches'], ['on', 'Evolving']], toggles.plantsEnabled ? 'on' : 'off')}
-        ${segmented('Seasons', 'seasons', onOff, toggles.seasonsEnabled ? 'on' : 'off')}
-        ${segmented('Weather', 'weather', onOff, toggles.weatherEnabled ? 'on' : 'off')}
-        ${segmented('Nutrients', 'nutrients', onOff, toggles.nutrientCycleEnabled ? 'on' : 'off')}
-        ${segmented('Windfalls', 'windfalls', onOff, toggles.windfallsEnabled ? 'on' : 'off')}
-        ${segmented('Overgrazing', 'overgrazing', onOff, toggles.overgrazingEnabled ? 'on' : 'off')}
-        ${segmented('Spontaneous generation', 'immigration', onOff, toggles.immigrationEnabled ? 'on' : 'off')}
-      </section>
-      <section class="settings-group">
-        <h3>Behaviour <small>takes effect next tick</small></h3>
-        ${segmented('Controller', 'controller', [['dials', 'Dials'], ['brain', 'Brain']], toggles.controller)}
-        ${segmented('Predation', 'predation', onOff, toggles.predationEnabled ? 'on' : 'off')}
-        ${segmented('Prey armor', 'toughness', onOff, toggles.toughnessGeneEnabled ? 'on' : 'off')}
-        ${segmented('Stealth', 'stealth', onOff, toggles.stealthGeneEnabled ? 'on' : 'off')}
-        ${segmented('Mating', 'mating', onOff, toggles.sexEnabled ? 'on' : 'off')}
-        ${segmented('Carrion', 'carrion', onOff, toggles.carrionEnabled ? 'on' : 'off')}
-        ${segmented('Sharing', 'sharing', onOff, toggles.sharingEnabled ? 'on' : 'off')}
-        ${segmented('Signals', 'signals', onOff, toggles.signalsEnabled ? 'on' : 'off')}
-        ${segmented('Dispersal', 'dispersal', onOff, toggles.dispersalEnabled ? 'on' : 'off')}
-        ${segmented('Memory', 'memory', onOff, toggles.memoryEnabled ? 'on' : 'off')}
-      </section>
-      <section class="settings-group">
-        <h3>Genetics & DNA <small>takes effect next tick</small></h3>
-        ${segmented('Genome changes', 'genomeVariation', onOff, toggles.dnaVariationEnabled ? 'on' : 'off')}
-        ${segmented('Growable brain', 'growableBrain', onOff, toggles.dnaGrowableBrain ? 'on' : 'off')}
-        ${segmented('Continuous abilities', 'continuousAbilities', onOff, toggles.dnaContinuousAbilities ? 'on' : 'off')}
-        ${segmented('Split diets', 'splitDiets', onOff, toggles.dnaSplitDiets ? 'on' : 'off')}
-      </section>
-      <section class="settings-group">
-        <h3>Display</h3>
-        ${segmented('Colour by', 'color', [['tag', 'Tag'], ['lineage', 'Family'], ['diet', 'Diet'], ['metabolism', 'Metabolism'], ['reproStrategy', 'Breeding'], ['species', 'Species']], 'tag')}
-        ${segmented('Motion', 'motion', [['smooth', 'Smooth'], ['fluid', 'Fluid']], 'fluid')}
-      </section>
-      <section class="settings-group">
-        <h3>Run</h3>
+      <div class="settings-panel">
         <div class="setting-row">
-          <label class="setting-label" for="input-seed">Seed</label>
-          <input type="text" id="input-seed" inputmode="numeric" autocomplete="off" value="${initialSeed}" />
+          <label>Seed: <input type="number" id="setting-seed" value="${config.seed}" /></label>
+          <button id="btn-reset-seed">Reset</button>
+          <button id="btn-new-seed">Random Seed</button>
         </div>
-        <div class="setting-actions">
-          <button type="button" id="btn-reset" class="btn btn-secondary">Reset</button>
-          <button type="button" id="btn-new-seed" class="btn btn-secondary">New seed</button>
+        <div class="setting-row">
+          <button id="btn-save-world">Save to File</button>
+          <label class="file-label">Load File <input type="file" id="input-load-file" accept=".json" hidden /></label>
         </div>
-        <p id="sim-status" class="sim-status">Tick 0 · Paused</p>
-      </section>
-      <section class="settings-group">
-        <h3>Saved worlds <small>this browser keeps your world and resumes it</small></h3>
-        <div class="setting-actions">
-          <button type="button" id="btn-branch" class="btn btn-secondary">Branch here</button>
-          <button type="button" id="btn-save-file" class="btn btn-secondary">Save to file</button>
-          <label class="btn btn-secondary file-btn">Load file<input type="file" id="input-load-file" accept=".json,application/json" hidden /></label>
-        </div>
-        <p class="setting-hint">A branch point saves this moment so you can come back and try something different.</p>
-        <ul id="branch-list" class="branch-list"></ul>
-      </section>
-      <footer class="settings-version-footer">
-        <span>Artificial Life Lab <strong>v${APP_VERSION}</strong> (${APP_CODENAME}) · ${APP_RELEASE_DATE}</span>
-      </footer>
+      </div>
     `;
-    this.attachEvents();
-  }
 
-  public setSeed(seed: string | number): void {
-    const input = this.container.querySelector<HTMLInputElement>('#input-seed');
-    if (input) input.value = String(seed);
-  }
-
-  /** Shows the settings of a world that was loaded or reset. */
-  public setToggles(t: ExperimentToggles): void {
-    const set = (attr: string, value: string) => {
-      this.container.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) => {
-        const on = b.getAttribute(`data-${attr}`) === value;
-        b.classList.toggle('active', on);
-        b.setAttribute('aria-pressed', String(on));
-      });
-    };
-    set('world', t.worldSize);
-    set('food', t.foodLayout);
-    set('plants', t.plantsEnabled ? 'on' : 'off');
-    set('seasons', t.seasonsEnabled ? 'on' : 'off');
-    set('weather', t.weatherEnabled ? 'on' : 'off');
-    set('nutrients', t.nutrientCycleEnabled ? 'on' : 'off');
-    set('windfalls', t.windfallsEnabled ? 'on' : 'off');
-    set('overgrazing', t.overgrazingEnabled ? 'on' : 'off');
-    set('immigration', t.immigrationEnabled ? 'on' : 'off');
-    set('controller', t.controller);
-    set('predation', t.predationEnabled ? 'on' : 'off');
-    set('toughness', t.toughnessGeneEnabled ? 'on' : 'off');
-    set('stealth', t.stealthGeneEnabled ? 'on' : 'off');
-    set('mating', t.sexEnabled ? 'on' : 'off');
-    set('carrion', t.carrionEnabled ? 'on' : 'off');
-    set('sharing', t.sharingEnabled ? 'on' : 'off');
-    set('signals', t.signalsEnabled ? 'on' : 'off');
-    set('dispersal', t.dispersalEnabled ? 'on' : 'off');
-    set('memory', t.memoryEnabled ? 'on' : 'off');
-    set('genomeVariation', t.dnaVariationEnabled ? 'on' : 'off');
-    set('growableBrain', t.dnaGrowableBrain ? 'on' : 'off');
-    set('continuousAbilities', t.dnaContinuousAbilities ? 'on' : 'off');
-    set('splitDiets', t.dnaSplitDiets ? 'on' : 'off');
-  }
-
-  /** The list of branch points, newest first. */
-  public setBranches(branches: readonly SavedWorldInfo[]): void {
-    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-    const list = this.container.querySelector<HTMLElement>('#branch-list')!;
-    const when = (iso: string) =>
-      new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    list.innerHTML =
-      branches.length === 0
-        ? '<li class="muted">No branch points yet.</li>'
-        : branches
-            .map(
-              (b) => `
-          <li>
-            <span class="branch-text"><strong>${esc(b.label)}</strong><small>${when(b.savedAt)} · ${b.population} alive</small></span>
-            <button type="button" class="btn btn-secondary btn-small" data-go-branch="${esc(b.key)}">Go</button>
-            <button type="button" class="round-btn btn-small-round" data-delete-branch="${esc(b.key)}" aria-label="Delete ${esc(b.label)}">✕</button>
-          </li>`
-            )
-            .join('');
-  }
-
-  /** Tick, run state, measured speed. */
-  public setStatus(text: string): void {
-    const status = this.container.querySelector<HTMLElement>('#sim-status');
-    if (status && status.textContent !== text) status.textContent = text;
-  }
-
-  private bindSegment(attr: string, handler: (value: string) => void): void {
-    const buttons = this.container.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`);
-    buttons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        buttons.forEach((b) => {
-          b.classList.toggle('active', b === btn);
-          b.setAttribute('aria-pressed', String(b === btn));
-        });
-        handler(btn.getAttribute(`data-${attr}`)!);
-      });
+    const seedInput = container.querySelector<HTMLInputElement>('#setting-seed')!;
+    container.querySelector('#btn-reset-seed')?.addEventListener('click', () => {
+      callbacks.onReset(parseInt(seedInput.value, 10) || 42);
     });
-  }
-
-  private attachEvents(): void {
-    const cb = this.callbacks;
-    this.bindSegment('world', (v) => cb.onWorldSizeChange(v as WorldSize));
-    this.bindSegment('food', (v) => cb.onFoodLayoutChange(v as FoodLayout));
-    this.bindSegment('plants', (v) => cb.onPlantsChange(v === 'on'));
-    this.bindSegment('seasons', (v) => cb.onSeasonsChange(v === 'on'));
-    this.bindSegment('weather', (v) => cb.onWeatherChange(v === 'on'));
-    this.bindSegment('nutrients', (v) => cb.onNutrientCycleChange(v === 'on'));
-    this.bindSegment('windfalls', (v) => cb.onWindfallsChange(v === 'on'));
-    this.bindSegment('overgrazing', (v) => cb.onOvergrazingChange(v === 'on'));
-    this.bindSegment('immigration', (v) => cb.onImmigrationChange(v === 'on'));
-    this.bindSegment('controller', (v) => cb.onControllerChange(v === 'brain' ? 'brain' : 'dials'));
-    this.bindSegment('predation', (v) => cb.onPredationChange(v === 'on'));
-    this.bindSegment('toughness', (v) => cb.onToughnessChange(v === 'on'));
-    this.bindSegment('stealth', (v) => cb.onStealthChange(v === 'on'));
-    this.bindSegment('mating', (v) => cb.onSexChange(v === 'on'));
-    this.bindSegment('carrion', (v) => cb.onCarrionChange(v === 'on'));
-    this.bindSegment('sharing', (v) => cb.onSharingChange(v === 'on'));
-    this.bindSegment('signals', (v) => cb.onSignalsChange(v === 'on'));
-    this.bindSegment('dispersal', (v) => cb.onDispersalChange(v === 'on'));
-    this.bindSegment('memory', (v) => cb.onMemoryChange(v === 'on'));
-    this.bindSegment('genomeVariation', (v) => cb.onGenomeVariationChange(v === 'on'));
-    this.bindSegment('growableBrain', (v) => cb.onGrowableBrainChange(v === 'on'));
-    this.bindSegment('continuousAbilities', (v) => cb.onContinuousAbilitiesChange(v === 'on'));
-    this.bindSegment('splitDiets', (v) => cb.onSplitDietsChange(v === 'on'));
-    this.bindSegment('color', (v) => cb.onColorModeChange(v as ColorMode));
-    this.bindSegment('motion', (v) => cb.onMotionStyleChange(v as MotionStyle));
-
-    const seedInput = this.container.querySelector<HTMLInputElement>('#input-seed')!;
-    // A whole number is used as a number, so typing 42 gives the same world as the default seed 42.
-    const reset = () => {
-      const text = seedInput.value.trim() || '42';
-      cb.onReset(/^\d+$/.test(text) ? Number(text) : text);
-    };
-    this.container.querySelector('#btn-reset')!.addEventListener('click', reset);
-    seedInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') reset();
+    container.querySelector('#btn-new-seed')?.addEventListener('click', () => {
+      callbacks.onNewSeed();
     });
-    this.container.querySelector('#btn-new-seed')!.addEventListener('click', () => cb.onNewSeed());
-
-    this.container.querySelector('#btn-branch')!.addEventListener('click', () => cb.onBranch());
-    this.container.querySelector('#btn-save-file')!.addEventListener('click', () => cb.onSaveFile());
-    const fileInput = this.container.querySelector<HTMLInputElement>('#input-load-file')!;
-    fileInput.addEventListener('change', () => {
-      const file = fileInput.files?.[0];
-      if (file) cb.onLoadFile(file);
-      fileInput.value = ''; // the same file can be picked again
+    container.querySelector('#btn-save-world')?.addEventListener('click', () => {
+      callbacks.onSaveFile();
     });
-    this.container.querySelector('#branch-list')!.addEventListener('click', (e) => {
-      const target = e.target as Element;
-      const go = target.closest<HTMLElement>('[data-go-branch]');
-      if (go) cb.onGoToBranch(go.dataset.goBranch!);
-      const del = target.closest<HTMLElement>('[data-delete-branch]');
-      if (del) cb.onDeleteBranch(del.dataset.deleteBranch!);
+    container.querySelector<HTMLInputElement>('#input-load-file')?.addEventListener('change', (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) callbacks.onLoadFile(file);
     });
   }
 }

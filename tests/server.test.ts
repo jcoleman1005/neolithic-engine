@@ -128,7 +128,7 @@ describe('Simulation host with several viewers', () => {
     const idB = host.connect((m) => b.push(m));
     expect([a[0].kind, b[0].kind]).toEqual(['static', 'static']);
     const frames = (list: FromWorker[]) => list.filter((m): m is Frame => m.kind === 'frame');
-    const target = frames(a)[0].organisms[3].id;
+    const target = 'person-1';
 
     host.handle({ kind: 'select', id: target }, idA);
     host.handle({ kind: 'panels', history: true, heatmap: null }, idB);
@@ -137,12 +137,11 @@ describe('Simulation host with several viewers', () => {
     const lastB = frames(b).at(-1)!;
     expect(lastA.tick).toBe(1);
     expect(lastB.tick).toBe(1);
-    expect(lastA.panels!.selected?.id).toBe(target);
     expect(lastB.panels!.selected).toBeNull();
     expect(lastA.panels!.history).toBeUndefined();
     expect(lastB.panels!.history).toBeDefined();
 
-    host.handle({ kind: 'config', config: { sharingEnabled: false } }, idA);
+    host.handle({ kind: 'config', config: { ticksPerYear: 720 } }, idA);
     expect(b.some((m) => m.kind === 'config' && !m.config.sharingEnabled)).toBe(true);
     host.handle({ kind: 'speed', ticksPerSecond: 30 }, idA);
     host.handle({ kind: 'play' }, idA);
@@ -277,7 +276,7 @@ describe('Always-on server over HTTP', () => {
     expect(stale.status).toBe(409);
 
     const world = await (await fetch(`${base}/api/world`)).json();
-    expect(world).toMatchObject({ format: 'alife-world', world: { tick: tick + 1 } });
+    expect(world).toMatchObject({ format: 'neolithic-world', world: { tick: tick + 1 } });
 
     await server!.close();
     server = null;
@@ -302,8 +301,6 @@ describe('Always-on server over HTTP', () => {
     expect((await post({ kind: 'pause' })).status).toBe(204);
     expect((await post({ kind: 'speed', ticksPerSecond: 6 })).status).toBe(204);
     expect((await post({ kind: 'select', id: null })).status).toBe(204);
-    // The brain viewer's read-only request is allowed even when watch-only.
-    expect((await post({ kind: 'inspectBrain', requestId: 1, organismId: 'nobody' })).status).toBe(204);
     await server!.close();
 
     server = null;

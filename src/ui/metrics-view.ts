@@ -1,192 +1,25 @@
 import type { WorldMetrics } from '../sim/types';
-import { setHTMLPreservingDetails } from './dom';
-
-/** Cards for the life-history genes that are switched on: population means, eggs, torpor. */
-function lifeCards(metrics: WorldMetrics): string {
-  const life = metrics.life;
-  if (!life) return '';
-  const card = (label: string, value: string) =>
-    `<div class="metric-card"><span class="m-label">${label}</span><span class="m-val">${value}</span></div>`;
-  const out: string[] = [];
-  if (life.reproThreshold != null || life.investment != null)
-    out.push(
-      card(
-        'Breeding',
-        `${life.reproThreshold != null ? `at ${life.reproThreshold.toFixed(0)} energy` : ''}${
-          life.investment != null ? ` <small>(${Math.round(life.investment * 100)}% to each child)</small>` : ''
-        }`
-      )
-    );
-  if (life.fatCapacity != null) out.push(card('Fat', `${life.fatCapacity.toFixed(0)} cap <small>(${(life.fat ?? 0).toFixed(1)} held)</small>`));
-  if (life.torporDepth != null)
-    out.push(card('Torpor', `${Math.round(life.torporDepth * 100)}% deep <small>(${life.resting ?? 0} resting now)</small>`));
-  const eggVal = life.eggAllocation ?? life.eggRate;
-  if (eggVal != null)
-    out.push(card('Eggs', `${life.eggs ?? 0} waiting <small>(${Math.round(eggVal * 100)}% mean shell; ${life.eggsHatchedTotal ?? 0} hatched, ${life.eggsDecayedTotal ?? 0} failed, ${life.eggsEatenTotal ?? 0} eaten)</small>`));
-  if (life.metabolicRate != null) out.push(card('Metabolism', `${life.metabolicRate.toFixed(2)}×`));
-  if (life.growthDuration != null) out.push(card('Growth', `${life.growthDuration.toFixed(0)} <small>(fed ticks to adult)</small>`));
-  if (life.hatchMaturity != null) out.push(card('Hatch', `${Math.round(life.hatchMaturity * 100)}% <small>(grown at birth)</small>`));
-  if (life.clutchSize != null) out.push(card('Clutch', `${life.clutchSize.toFixed(2)} <small>(children per mating)</small>`));
-  if (life.size != null) out.push(card('Size', `${life.size.toFixed(2)}×`));
-  if (life.sensingRadius != null) out.push(card('Vision', `${life.sensingRadius.toFixed(1)} cells`));
-  if (life.digestiveEfficiency != null) out.push(card('Digestion', `${Math.round(life.digestiveEfficiency * 100)}%`));
-  if (life.carnivoreEfficiency != null) out.push(card('Meat digestion', `${Math.round(life.carnivoreEfficiency * 100)}%`));
-  return out.join('');
-}
 
 export class MetricsView {
-  private readonly container: HTMLElement;
-
-  constructor(container: HTMLElement) {
-    this.container = container;
-  }
+  constructor(private readonly container: HTMLElement) {}
 
   public render(metrics: WorldMetrics): void {
-    const {
-      tick,
-      population,
-      totalFoodStock,
-      activePatchCount,
-      birthsTotal,
-      deathsTotal,
-      maxGeneration,
-      averageLifespan,
-      activeLineageCount,
-      diversity,
-    } = metrics;
-    const kills = metrics.killsTotal ?? 0;
-    const strangerShare = kills > 0 ? Math.round((100 * (metrics.killsOfStrangersTotal ?? 0)) / kills) : 0;
-    const kinShare = kills > 0 ? Math.round((100 * (metrics.killsOfKinTotal ?? 0)) / kills) : 0;
-    const matings = metrics.matingsTotal ?? 0;
-    const matingChildren = metrics.matingChildrenTotal ?? 0;
-    const failedClutches = metrics.clutchesFailedTotal ?? 0;
-    const lostChildren = metrics.matingChildrenLostTotal ?? 0;
-    const matingAlikeShare = matings > 0 ? Math.round((100 * (metrics.matingsAlikeTotal ?? 0)) / matings) : 0;
-
-    setHTMLPreservingDetails(
-      this.container,
-      `
-      <div class="metrics-bar">
+    const { tick, year, population } = metrics;
+    this.container.innerHTML = `
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="m-label">Year</span>
+          <span class="m-val">${year}</span>
+        </div>
         <div class="metric-card">
           <span class="m-label">Tick</span>
           <span class="m-val">${tick}</span>
         </div>
-        <div class="metric-card ${population === 0 ? 'metric-alert' : ''}">
+        <div class="metric-card">
           <span class="m-label">Population</span>
           <span class="m-val">${population}</span>
         </div>
-        <div class="metric-card">
-          <span class="m-label">Food Stock</span>
-          <span class="m-val">${totalFoodStock} <small>(${activePatchCount} patches)</small></span>
-        </div>
-        <div class="metric-card">
-          <span class="m-label">Births / Deaths</span>
-          <span class="m-val">${birthsTotal} / ${deathsTotal}</span>
-        </div>
-        <div class="metric-card">
-          <span class="m-label">Max Gen</span>
-          <span class="m-val">Gen ${maxGeneration}</span>
-        </div>
-        <div class="metric-card">
-          <span class="m-label">Lineages</span>
-          <span class="m-val">${activeLineageCount}</span>
-        </div>
-        <div class="metric-card">
-          <span class="m-label">Kills</span>
-          <span class="m-val">${kills}${kills > 0 ? ` <small>(${strangerShare}% different colour, ${kinShare}% alike)</small>` : ''}</span>
-        </div>
-        <div class="metric-card">
-          <span class="m-label">Matings</span>
-          <span class="m-val">${matings}${matings > 0 ? ` <small>(${matingChildren} children, ${Math.round((100 * matingChildren) / Math.max(1, birthsTotal))}% of births; ${matingAlikeShare}% alike pairs${failedClutches + lostChildren > 0 ? `; ${failedClutches} clutches failed, ${lostChildren} children lost` : ''})</small>` : ''}</span>
-        </div>
-        <div class="metric-card">
-          <span class="m-label">Diet</span>
-          <span class="m-val">${Math.round((metrics.averageCarnivory ?? 0) * 100)}% meat <small>(${metrics.meatEaters ?? 0} mostly meat eaters)</small></span>
-        </div>
-        ${lifeCards(metrics)}
-        ${
-          metrics.genomeLength
-            ? `<div class="metric-card">
-          <span class="m-label">Genome</span>
-          <span class="m-val">${metrics.genomeLength.mean} genes <small>(±${metrics.genomeLength.sd}, longest ${metrics.genomeLength.max})</small></span>
-        </div>`
-            : ''
-        }
-        <div class="metric-card">
-          <span class="m-label">Carrion</span>
-          <span class="m-val">${metrics.carrionStock ?? 0} energy <small>(${metrics.carrionEatenTotal ?? 0} meals eaten)</small></span>
-        </div>
-        ${
-          metrics.plants
-            ? `<div class="metric-card"><span class="m-label">Plants</span><span class="m-val">${metrics.plants.count} <small>(${metrics.plants.seedlings} seedlings, ${metrics.plants.dormant} dormant)</small></span></div>`
-            : ''
-        }
-        ${
-          metrics.nutrients
-            ? `<div class="metric-card"><span class="m-label">Nutrients</span><span class="m-val">${metrics.nutrients.totalBiosphereNutrients.toFixed(0)} <small>(soil ${metrics.nutrients.totalSoilNutrients.toFixed(0)}, bio ${(metrics.nutrients.totalPlantNutrients + metrics.nutrients.totalOrganismNutrients + metrics.nutrients.totalCarrionNutrients).toFixed(0)})</small></span></div>`
-            : ''
-        }
-        ${
-          metrics.weather
-            ? `<div class="metric-card"><span class="m-label">Weather</span><span class="m-val">${metrics.weather.frontCount} fronts <small>(${metrics.weather.avgTemp >= 0 ? '+' : ''}${metrics.weather.avgTemp.toFixed(1)}° temp, wind ${metrics.weather.windSpeed.toFixed(1)})</small></span></div>`
-            : ''
-        }
       </div>
-
-      <details class="diversity-collapsible">
-        <summary>
-          <span><strong>Behavioral Diversity & Survival Metrics</strong></span>
-          <span class="diversity-badge">Avg Var: ${diversity.averageDiversity.toFixed(3)}</span>
-        </summary>
-        <div class="diversity-grid">
-          <div class="div-item">
-            <span class="div-label">Avg Lifespan</span>
-            <span class="div-val">${averageLifespan} ticks</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Food Attraction Var</span>
-            <span class="div-val">${diversity.foodAttractionVariance.toFixed(3)}</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Obstacle Avoidance Var</span>
-            <span class="div-val">${diversity.obstacleAvoidanceVariance.toFixed(3)}</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Crowd Avoidance Var</span>
-            <span class="div-val">${diversity.crowdingAvoidanceVariance.toFixed(3)}</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Explore Tendency Var</span>
-            <span class="div-val">${diversity.exploreTendencyVariance.toFixed(3)}</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Eat Drive Var</span>
-            <span class="div-val">${diversity.eatDriveVariance.toFixed(3)}</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Reproduce Drive Var</span>
-            <span class="div-val">${diversity.reproduceDriveVariance.toFixed(3)}</span>
-          </div>
-          ${
-            metrics.tribes
-              ? `
-          <div class="div-item">
-            <span class="div-label">Tribe Count</span>
-            <span class="div-val">${metrics.tribes.tribeCount} <small>(largest: ${metrics.tribes.largestTribe})</small></span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Population in Tribes</span>
-            <span class="div-val">${Math.round(metrics.tribes.inTribeFraction * 100)}%</span>
-          </div>
-          <div class="div-item">
-            <span class="div-label">Kin Clustering</span>
-            <span class="div-val">${Math.round(metrics.tribes.localKinFraction * 100)}% <small>(chance ${Math.round(metrics.tribes.globalKinFraction * 100)}%)</small></span>
-          </div>`
-              : ''
-          }
-        </div>
-      </details>
-    `
-    );
+    `;
   }
 }

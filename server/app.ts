@@ -54,7 +54,7 @@ const KEEPALIVE_MS = 15_000;
 
 /** Commands that replace or reconfigure the shared world (refused when watch-only). */
 const SHARED_COMMANDS = new Set<ToWorker['kind']>(['reset', 'config', 'load']);
-const ALL_COMMANDS = new Set<ToWorker['kind']>([...SHARED_COMMANDS, 'play', 'pause', 'step', 'speed', 'select', 'panels', 'csv', 'save', 'inspectBrain']);
+const ALL_COMMANDS = new Set<ToWorker['kind']>([...SHARED_COMMANDS, 'play', 'pause', 'step', 'speed', 'select', 'panels', 'csv', 'save']);
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

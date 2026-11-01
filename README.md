@@ -1,6 +1,8 @@
-# Artificial Life Lab
+# Neolithic Engine
 
-A personal artificial-life simulation focused on interpretable evolutionary behavior.
+A self-running fantasy world on a dedicated Galaxy S21, where about 700 years of history play out over one real day. Stick-figure bands forage, settle, farm, raid, worship and form city-states, followed through quick glances and a written chronicle.
+
+Created from a copy of `artificial-life` at commit `ca3e97f`.
 
 ## Requirements
 - Node.js 20.19+ or 22.12+
@@ -13,21 +15,21 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. To test on another device on your LAN, use the Fedora machine's LAN IP and Vite port. Do not expose the development server directly to the public internet.
+Open the local URL printed by Vite.
+
+## Headless simulation
+```bash
+npm run sim -- --seed 3 --years 50
+```
 
 ## Always-on server
 ```bash
 npm run server
 ```
 
-Builds the app and the server, then runs one world for every viewer at `http://<this machine>:8080`. The world keeps running with nobody watching, is saved to `./data` every 5 minutes and on shutdown, and resumes where it was after a restart. See `docs/server.md` for options and the Galaxy S21 (Termux) setup.
+Runs the simulation server at `http://localhost:8080`. The world keeps running with nobody watching, is saved to `./data` every 5 minutes and on shutdown, and resumes where it was after a restart.
 
 ## Checks
 ```bash
-npm run check
-npm test
-npm run build
+npm run verify
 ```
-
-See `AGENTS.md` and `docs/implementation-plan.md` for project decisions and the initial milestone.
-

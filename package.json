@@ -1,7 +1,7 @@
 {
   "name": "neolithic-engine",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -11,15 +11,9 @@
     "test:watch": "vitest",
     "check": "tsc -b --pretty",
     "verify": "bash scripts/verify.sh",
+    "sim": "vite-node scripts/run.ts --",
     "fingerprint": "vite-node scripts/fingerprint.ts",
-    "sweep:overgrazing": "vite-node scripts/overgrazing-sweep.ts",
     "perf": "vite-node scripts/perf.ts",
-    "core:smoke": "vite-node scripts/core-smoke.ts --",
-    "core:memtask": "vite-node scripts/core-memtask.ts --",
-    "genome-distance": "vite-node scripts/genome-distance.ts --",
-    "census": "vite-node scripts/census.ts --",
-    "ablation": "vite-node scripts/ablation.ts --",
-    "experiment": "vite-node scripts/experiment.ts --",
     "build:server": "vite build --ssr server/main.ts --outDir dist-server --emptyOutDir",
     "server": "npm run build && npm run build:server && node dist-server/main.js",
     "server:start": "node dist-server/main.js"

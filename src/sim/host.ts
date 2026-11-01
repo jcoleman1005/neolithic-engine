@@ -1,13 +1,9 @@
 import { World } from './world';
-import type { SavedWorld } from './protocol';
+import type { FromWorker, PanelData, SavedWorld, ToWorker } from './protocol';
 import { WorldEventDetector, type WorldEvent } from './events';
-import { SpeciesTracker } from './species';
-import { ActivityMaps, type HeatmapKind } from './activity';
-import { toOrganismView, type EggView, type FromWorker, type PanelData, type ToWorker } from './protocol';
-import type { Egg, Organism, SimulationConfig } from './types';
-import { traceBrain } from './brain-trace';
+import type { SimulationConfig, WorldMetrics } from './types';
 
-/** How often panel data (metrics, history, the selected organism) is sent while running. */
+/** How often panel data (metrics, history) is sent while running. */
 export const PANEL_INTERVAL_MS = 200;
 /** Ticks never pile up beyond this much lag (e.g. after the tab was hidden). */
 const MAX_LAG_MS = 250;
@@ -21,41 +17,15 @@ export interface HostEnvironment {
   cancel(handle: unknown): void;
 }
 
-/** One page watching the world. Selection and panels are its own; everything else is shared. */
 interface Viewer {
   readonly post: (message: FromWorker) => void;
   selectedId: string | null;
   wantsHistory: boolean;
-  heatmap: HeatmapKind | null;
 }
 
-/** The saved part of the playback state, so a server can resume as it was. */
 export interface PlaybackState {
   readonly running: boolean;
   readonly ticksPerSecond: number;
-}
-
-/**
- * Runs the World and its tick timing, driven by messages from the page.
- * Used inside the Web Worker (src/sim/worker.ts) for one page, and by the
- * always-on server (server/) for any number of viewers; kept free of worker
- * and Node APIs so tests can drive it directly. It only steps the World, so
- * outcomes are exactly those of stepping a World by hand with the same seed.
- */
-function toEggView(e: Egg): EggView {
-  return {
-    id: e.child.id,
-    x: e.x,
-    y: e.y,
-    laidTick: e.laidTick,
-    shell: e.shell ?? 0,
-    energy: e.child.energy,
-    tag: e.child.tag,
-    size: e.child.size ?? 1.0,
-    parentId: e.child.lineage.id,
-    generation: e.child.lineage.generation,
-    ...(e.toxicity !== undefined ? { toxicity: e.toxicity } : {}),
-  };
 }
 
 export class SimulationHost {
@@ -69,11 +39,8 @@ export class SimulationHost {
   private lastPanels = -Infinity;
   private readonly viewers = new Map<number, Viewer>();
   private nextViewerId = 1;
-  // Observers of the world (they never change it): world events and heatmaps.
+
   private events = new WorldEventDetector();
-  private activity!: ActivityMaps;
-  private species = new SpeciesTracker();
-  /** Events found since the last frame was sent. */
   private pendingEvents: WorldEvent[] = [];
   private readonly tickTimes: number[] = [];
 
@@ -84,13 +51,9 @@ export class SimulationHost {
     if (env.post) this.connect(env.post);
   }
 
-  /**
-   * Adds a viewer and sends it the terrain and a first frame. Returns its id,
-   * which is also given to `beforeWelcome` before anything is sent.
-   */
   public connect(post: (message: FromWorker) => void, beforeWelcome?: (id: number) => void): number {
     const id = this.nextViewerId++;
-    const viewer: Viewer = { post, selectedId: null, wantsHistory: false, heatmap: null };
+    const viewer: Viewer = { post, selectedId: null, wantsHistory: false };
     this.viewers.set(id, viewer);
     beforeWelcome?.(id);
     this.postStatic(viewer);
@@ -110,11 +73,6 @@ export class SimulationHost {
     return { running: this.running, ticksPerSecond: this.ticksPerSecond };
   }
 
-  /**
-   * Handles a message from a viewer (by default the first one, i.e. the
-   * worker's page). Selection, panels and requests are per viewer; playback,
-   * settings, reset and load change the shared world.
-   */
   public handle(message: ToWorker, viewerId?: number): void {
     const viewer = viewerId === undefined ? this.viewers.values().next().value : this.viewers.get(viewerId);
     switch (message.kind) {
@@ -157,7 +115,6 @@ export class SimulationHost {
         this.postFrame(false, true);
         break;
       case 'config':
-        // Live switches take effect from the next tick.
         Object.assign(this.world.config, message.config);
         for (const v of this.viewers.values()) v.post({ kind: 'config', config: { ...this.world.config } });
         this.postFrame(false, true);
@@ -170,7 +127,6 @@ export class SimulationHost {
       case 'panels':
         if (!viewer) return;
         viewer.wantsHistory = message.history;
-        viewer.heatmap = message.heatmap;
         this.postFrame(false, true);
         break;
       case 'csv':
@@ -182,19 +138,9 @@ export class SimulationHost {
       case 'load':
         this.load(message.saved, viewer);
         break;
-      case 'inspectBrain':
-        // Observer: reads the world, changes nothing (traceBrain draws from its own PRNG).
-        viewer?.post({
-          kind: 'brainTrace',
-          requestId: message.requestId,
-          organismId: message.organismId,
-          trace: traceBrain(this.world, message.organismId),
-        });
-        break;
     }
   }
 
-  /** Runs every tick that is due, then sends one frame. */
   private pump(): void {
     this.timer = null;
     if (!this.running) return;
@@ -213,19 +159,16 @@ export class SimulationHost {
     this.scheduleNext();
   }
 
-  /** The whole world as a SavedWorld (also what the server writes to disk). */
   public save(): SavedWorld {
     return {
-      format: 'alife-world',
+      format: 'neolithic-world',
       version: 1,
       savedAt: new Date().toISOString(),
       world: this.world.exportState(),
-      events: [...this.events.recentEvents()],
-      species: this.species.exportState(),
+      events: [],
     };
   }
 
-  /** Replaces the world with a saved one, paused. A bad save leaves the current world running. */
   private load(saved: SavedWorld, from?: Viewer): void {
     let world: World;
     try {
@@ -238,33 +181,20 @@ export class SimulationHost {
     this.running = false;
     this.stopTimer();
     this.world = world;
-    this.events = new WorldEventDetector();
-    this.events.resume(world, saved.events);
-    this.activity = new ActivityMaps(world.config.gridWidth, world.config.gridHeight);
-    this.species = new SpeciesTracker();
-    this.species.restore(saved.species);
-    this.species.observe(world); // rebuilds when the save has none (or when a run is due); events are not reported
-    this.pendingEvents = [];
+    this.resetObservers();
     this.tickTimes.length = 0;
     for (const v of this.viewers.values()) v.selectedId = null;
     this.postStatic();
     this.postFrame(false, true);
   }
 
-  /** One world tick, then the observers look at the result. */
   private stepWorld(): void {
     this.world.step();
-    this.pendingEvents.push(...this.events.observe(this.world));
-    this.activity.observe(this.world);
-    this.pendingEvents.push(...this.events.record(this.species.observe(this.world), this.world.tick));
+    this.pendingEvents.push(...this.events.record(this.world));
   }
 
   private resetObservers(): void {
     this.events = new WorldEventDetector();
-    this.events.observe(this.world); // starting state, e.g. groups already large
-    this.activity = new ActivityMaps(this.world.config.gridWidth, this.world.config.gridHeight);
-    this.species = new SpeciesTracker();
-    this.species.observe(this.world); // the founders' species; no events at the start
     this.pendingEvents = [];
   }
 
@@ -279,7 +209,6 @@ export class SimulationHost {
     this.timer = null;
   }
 
-  /** The terrain last sent to the page, to send a new copy only when it has worn. */
   private terrainSentFor: ReturnType<World['getTerrain']> = null;
   private terrainSentVersion = -1;
   private terrainSentAt = 0;
@@ -287,7 +216,6 @@ export class SimulationHost {
   private postStatic(only?: Viewer): void {
     const { world } = this;
     if (!only) {
-      // Everyone gets the current terrain with a reset; a single new viewer does not stop the others' updates.
       this.terrainSentFor = world.getTerrain();
       this.terrainSentVersion = this.terrainSentFor?.version ?? -1;
       this.terrainSentAt = this.env.now();
@@ -299,36 +227,22 @@ export class SimulationHost {
       ...(world.getElevation() ? { elevation: world.getElevation()!.exportView() } : {}),
       ...(world.getTerrain() ? { terrain: world.getTerrain()!.exportState(true) } : {}),
       foodRegions: world.foodRegions.map((r) => ({ ...r })),
-      events: [...this.events.recentEvents()],
+      events: [],
     };
     for (const v of only ? [only] : this.viewers.values()) v.post(message);
   }
 
-  /** The part of a frame every viewer shares. */
   private baseFrame(fromStep: boolean): Omit<Extract<FromWorker, { kind: 'frame' }>, 'panels'> {
     const { world } = this;
     const now = this.env.now();
     while (this.tickTimes.length > 0 && now - this.tickTimes[0] > 1000) this.tickTimes.shift();
-    const organisms = Array.from(world.organisms.values());
     return {
       kind: 'frame',
       tick: world.tick,
-      organisms: organisms.map(toOrganismView),
-      ...(world.config.speciesEnabled ? { speciesIds: organisms.map((o) => this.species.speciesIdOf(o, world.config)) } : {}),
-      foodPatches: Array.from(world.foodPatches.values(), (p) => ({ ...p })),
-      carrion: Array.from(world.carrion.values(), (c) => ({ ...c })),
-      eggs: Array.from(world.eggs.values(), toEggView),
-      ...(world.deathPulses.length > 0
-        ? { deathPulses: world.deathPulses.map((dp) => ({ ...dp })) }
-        : {}),
-      ...(world.weather && world.config.weatherEnabled
-        ? {
-            weather: {
-              fronts: world.weather.fronts.map((f) => ({ ...f })),
-              wind: { ...world.weather.wind },
-            },
-          }
-        : {}),
+      organisms: [],
+      foodPatches: [],
+      carrion: [],
+      eggs: [],
       ticksPerSecond: this.tickTimes.length,
       running: this.running,
       targetTicksPerSecond: this.ticksPerSecond,
@@ -337,46 +251,29 @@ export class SimulationHost {
     };
   }
 
-  private metricsIfAny() {
+  private metricsIfAny(): WorldMetrics | null {
     return this.viewers.size > 0 ? this.world.getMetrics() : null;
   }
 
-  /** A viewer's frame: the shared part plus its own panels, when due. */
   private frameFor(
     viewer: Viewer,
     base: Omit<Extract<FromWorker, { kind: 'frame' }>, 'panels'>,
-    metrics: ReturnType<World['getMetrics']> | null
+    metrics: WorldMetrics | null
   ): FromWorker {
     if (!metrics) return base;
-    const selectedOrg = viewer.selectedId
-      ? (this.world.getOrganism(viewer.selectedId) ?? this.world.getEgg(viewer.selectedId)?.child ?? null)
-      : null;
     const panels: PanelData = {
       metrics,
-      selected: withoutCircuit(selectedOrg),
-      ...(viewer.selectedId ? { selectedAncestry: this.world.getAncestry(viewer.selectedId) } : {}),
+      selected: viewer.selectedId ? (this.world.getOrganism(viewer.selectedId) ?? null) : null,
       ...(viewer.wantsHistory ? { history: this.world.history.getSamples() } : {}),
-      ...(this.world.config.speciesEnabled ? this.speciesPanel(viewer) : {}),
-      ...(viewer.heatmap ? { heatmap: { kind: viewer.heatmap, cells: this.activity.snapshot(viewer.heatmap, this.world) } } : {}),
     };
     return { ...base, panels };
   }
 
-  private speciesPanel(viewer: Viewer): Pick<PanelData, 'species' | 'selectedSpecies'> {
-    const { world } = this;
-    const own = viewer.selectedId ? world.getOrganism(viewer.selectedId) : undefined;
-    return {
-      species: this.species.snapshot(world.tick, viewer.wantsHistory),
-      selectedSpecies: own ? this.species.distanceToRepresentative(own, world.config) : null,
-    };
-  }
-
   private postFrame(fromStep: boolean, withPanels: boolean): void {
     if (this.viewers.size === 0) {
-      this.pendingEvents = []; // nobody to tell; a new viewer gets the recent events with the terrain
+      this.pendingEvents = [];
       return;
     }
-    // Worn terrain goes along with a frame when it has changed, at most about once a second.
     const terrain = this.world.getTerrain();
     const terrainDue =
       terrain !== null &&
@@ -389,7 +286,7 @@ export class SimulationHost {
       this.terrainSentVersion = terrain.version;
       this.terrainSentAt = this.env.now();
     }
-    let metrics: ReturnType<World['getMetrics']> | null = null;
+    let metrics: WorldMetrics | null = null;
     if (withPanels) {
       this.lastPanels = this.env.now();
       metrics = this.world.getMetrics();
@@ -397,12 +294,4 @@ export class SimulationHost {
     for (const v of this.viewers.values()) v.post(this.frameFor(v, base, metrics));
     this.pendingEvents = [];
   }
-}
-
-/** An organism for the wire, without its circuit (derived from the genome; nothing on the page reads it). */
-function withoutCircuit(o: Organism | null | undefined): Organism | null {
-  if (!o) return null;
-  if (!o.circuit) return o;
-  const { circuit: _circuit, ...rest } = o;
-  return rest;
 }

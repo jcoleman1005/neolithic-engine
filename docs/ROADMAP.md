@@ -159,9 +159,9 @@ Goal: a working app with an empty 256 x 256 world, built from `artificial-life`.
 - Cut `scripts/experiment.ts` down to `scripts/run.ts` (`npm run sim -- --seed 3 --years 50`), printing one stats line per year.
 - Replace `AGENTS.md` with the Agent rules, add this doc as `docs/ROADMAP.md`, start a fresh `STATUS.md`, `decisions.md` and `findings.md`, and remove `WORLD_RULES.md` and the old specs.
 
-* [ ] `npm run verify` passes.
-* [ ] The dev page and `npm run server` both show an empty world.
-* [ ] `npm run sim` prints a line per year.
+* [x] `npm run verify` passes.
+* [x] The dev page and `npm run server` both show an empty world.
+* [x] `npm run sim` prints a line per year.
 
 ### Phase 1: Life
 

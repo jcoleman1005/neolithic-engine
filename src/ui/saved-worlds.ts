@@ -76,7 +76,7 @@ export function infoFor(key: string, kind: SavedWorldInfo['kind'], label: string
     label,
     tick: saved.world.tick,
     seed: saved.world.config.seed,
-    population: saved.world.organisms.length,
+    population: (saved.world as any).organisms?.length ?? 0,
     savedAt: saved.savedAt,
   };
 }

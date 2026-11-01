@@ -1,4 +1,4 @@
-export type SheetTab = 'stats' | 'trends' | 'organism';
+export type SheetTab = 'stats' | 'trends' | 'inspector';
 
 /**
  * The details sheet: on portrait mobile it peeks and drags/taps up;
