@@ -5,12 +5,31 @@ import { HistoryTracker } from './history';
 import { PRNG } from './prng';
 import { StateHasher } from './state-hash';
 import { Land, type LandState } from './land';
+import { ScentFields, type FieldsState } from './fields';
 import {
   People,
   type PeopleState,
   makePersonId,
   slotFromId,
   genFromId,
+  GENE_STRENGTH,
+  GENE_BRAVERY,
+  GENE_GREED,
+  GENE_PIETY,
+  GENE_CHARISMA,
+  GENE_CURIOSITY,
+  GENE_WISDOM,
+  GENE_CRUELTY,
+  GENE_COUNT,
+  HABIT_FORAGE,
+  HABIT_CAUTION,
+  HABIT_GENEROSITY,
+  HABIT_BELLIGERENCE,
+  HABIT_DEVOTION,
+  HABIT_ROAMING,
+  HABIT_LOYALTY,
+  HABIT_INDUSTRY,
+  HABIT_COUNT,
 } from './people';
 import { SpatialIndex } from './spatial';
 import { LifeSystem } from './life';
@@ -33,6 +52,7 @@ export interface WorldState {
   readonly prngState?: number;
   readonly config: SimulationConfig;
   readonly land?: LandState;
+  readonly fields?: FieldsState;
   readonly people?: PeopleState;
   readonly terrain?: TerrainState | null;
   readonly elevation?: ElevationState | null;
@@ -47,6 +67,7 @@ export class World {
   public history: HistoryTracker;
 
   public land: Land;
+  public fields: ScentFields;
   public people: People;
   public spatial: SpatialIndex;
   public ledger: EnergyLedger;
@@ -71,6 +92,7 @@ export class World {
     this.prng = new PRNG(this.seed);
     this.history = new HistoryTracker();
     this.land = new Land(this.config);
+    this.fields = new ScentFields();
     this.people = new People();
     this.spatial = new SpatialIndex();
     this.ledger = new EnergyLedger();
@@ -85,7 +107,16 @@ export class World {
   }
 
   public step(): void {
-    LifeSystem.step(this.people, this.land, this.spatial, this.ledger, this.config, this.prng);
+    LifeSystem.step(
+      this.people,
+      this.land,
+      this.fields,
+      this.spatial,
+      this.ledger,
+      this.config,
+      this.prng,
+      this.tick
+    );
     this.population = this.people.count;
     this.tick++;
 
@@ -104,6 +135,7 @@ export class World {
     this.prng = new PRNG(this.seed);
     this.history.clear();
     this.land = new Land(this.config);
+    this.fields.reset();
     this.people = new People();
     this.spatial = new SpatialIndex();
     this.ledger.reset();
@@ -214,6 +246,8 @@ export class World {
     }
 
     const ticksPerYear = this.config.ticksPerYear || 360;
+    const gOff = slot * GENE_COUNT;
+    const hOff = slot * HABIT_COUNT;
     return {
       id: makePersonId(slot, currentGen),
       slot,
@@ -229,6 +263,27 @@ export class World {
       mateId: people.mateId[slot],
       motherId: people.motherId[slot],
       fatherId: people.fatherId[slot],
+      leaderId: people.leaderId[slot],
+      genes: {
+        strength: people.genes[gOff + GENE_STRENGTH],
+        bravery: people.genes[gOff + GENE_BRAVERY],
+        greed: people.genes[gOff + GENE_GREED],
+        piety: people.genes[gOff + GENE_PIETY],
+        charisma: people.genes[gOff + GENE_CHARISMA],
+        curiosity: people.genes[gOff + GENE_CURIOSITY],
+        wisdom: people.genes[gOff + GENE_WISDOM],
+        cruelty: people.genes[gOff + GENE_CRUELTY],
+      },
+      habits: {
+        forage: people.habits[hOff + HABIT_FORAGE],
+        caution: people.habits[hOff + HABIT_CAUTION],
+        generosity: people.habits[hOff + HABIT_GENEROSITY],
+        belligerence: people.habits[hOff + HABIT_BELLIGERENCE],
+        devotion: people.habits[hOff + HABIT_DEVOTION],
+        roaming: people.habits[hOff + HABIT_ROAMING],
+        loyalty: people.habits[hOff + HABIT_LOYALTY],
+        industry: people.habits[hOff + HABIT_INDUSTRY],
+      },
     };
   }
 
@@ -256,6 +311,9 @@ export class World {
     const mom = people.motherId;
     const dad = people.fatherId;
     const slotGen = people.slotGenerations;
+    const leaderId = people.leaderId;
+    const genes = people.genes;
+    const habits = people.habits;
 
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 1) {
@@ -271,6 +329,11 @@ export class World {
         h.updateInt(mateId[slot]);
         h.updateInt(mom[slot]);
         h.updateInt(dad[slot]);
+        h.updateInt(leaderId[slot]);
+        const gOff = slot * GENE_COUNT;
+        for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
+        const hOff = slot * HABIT_COUNT;
+        for (let hb = 0; hb < HABIT_COUNT; hb++) h.updateInt(habits[hOff + hb]);
       }
     }
 
@@ -280,6 +343,10 @@ export class World {
     h.updateFloatArray(land.maxFood);
     h.updateFloatArray(land.fertility);
     h.updateIntArray(land.isWater);
+
+    // 4. Scent fields
+    h.updateFloatArray(this.fields.foodCurrent);
+    h.updateFloatArray(this.fields.dangerCurrent);
 
     return h.digest();
   }
@@ -292,6 +359,7 @@ export class World {
       prngState: this.prng.getState(),
       config: { ...this.config },
       land: this.land.exportState(),
+      fields: this.fields.exportState(),
       people: this.people.exportState(),
       terrain: this.land.terrain ? this.land.terrain.exportState(true) : null,
       elevation: this.land.elevation ? this.land.elevation.exportView() : null,
@@ -309,6 +377,9 @@ export class World {
     }
     if (state.land) {
       world.land.importState(state.land);
+    }
+    if (state.fields) {
+      world.fields.importState(state.fields);
     }
     if (state.people) {
       world.people.importState(state.people);

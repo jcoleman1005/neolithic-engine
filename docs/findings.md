@@ -26,6 +26,26 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-01 | `birthTax` | 0 | 5.0 | Phase 1 energy cost of gestation and labor |
 | 2026-11-01 | `gestationTicks` | 0 | 270 | Phase 1 pregnancy duration (9 months = 270 ticks) |
 | 2026-11-01 | `matingRadius` | 0 | 2 | Phase 1 mate search radius in wrapped cells |
+| 2026-11-01 | `scentDiffusionRate` | 0 | 0.1 | Phase 3 scent dispersion rate across adjacent cells |
+| 2026-11-01 | `scentEvaporationRate` | 0 | 0.02 | Phase 3 scent decay rate per step |
+| 2026-11-01 | `scentDiffusionInterval` | 0 | 4 | Phase 3 scent diffusion step interval in ticks |
+| 2026-11-01 | `scentFoodEmitRate` | 0 | 0.1 | Phase 3 land plant food scent emission factor |
+| 2026-11-01 | `scentDangerDeath` | 0 | 10.0 | Phase 3 danger scent deposited upon starvation/old age death |
+| 2026-11-01 | `scentDangerClash` | 0 | 5.0 | Phase 3 danger scent deposited at clash site |
+| 2026-11-01 | `geneMutationRate` | 0 | 0.05 | Phase 3 mutation probability per gene during reproduction |
+| 2026-11-01 | `geneMutationRange` | 0 | 16 | Phase 3 mutation drift range [0..255] |
+| 2026-11-01 | `habitStickiness` | 0 | 0.9 | Phase 3 cultural transmission stickiness vs neighbor shift |
+| 2026-11-01 | `decisionStaggerInterval` | 0 | 8 | Phase 3 ID-staggered social evaluation interval in ticks |
+| 2026-11-01 | `leaderWeightStrength` | 0 | 1.0 | Phase 3 leadership utility weight for physical strength |
+| 2026-11-01 | `leaderWeightCharisma` | 0 | 1.0 | Phase 3 leadership utility weight for social charisma |
+| 2026-11-01 | `leaderWeightEnergy` | 0 | 1.0 | Phase 3 leadership utility weight for energy wealth |
+| 2026-11-01 | `leaderWeightKin` | 0 | 1.0 | Phase 3 leadership utility bonus for direct kinship |
+| 2026-11-01 | `leaderWeightWisdom` | 0 | 1.0 | Phase 3 leadership utility weight for wisdom |
+| 2026-11-01 | `leaderWeightBravery` | 0 | 1.0 | Phase 3 leadership utility weight for bravery |
+| 2026-11-01 | `leaderSearchRadius` | 0 | 6 | Phase 3 candidate leader visual search radius in cells |
+| 2026-11-01 | `clashEnergyCost` | 0 | 1.0 | Phase 3 combat friction energy deduction per participant |
+| 2026-11-01 | `shareEnergyMinSurplus` | 0 | 15.0 | Phase 3 minimum surplus energy required before sharing |
+| 2026-11-01 | `shareEnergyAmount` | 0 | 5.0 | Phase 3 energy transferred during close-contact sharing |
 
 ## Experiment Log
 

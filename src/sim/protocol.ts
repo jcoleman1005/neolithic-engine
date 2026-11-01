@@ -66,6 +66,27 @@ export interface PersonDetail {
   readonly mateId: number;
   readonly motherId: number;
   readonly fatherId: number;
+  readonly leaderId?: number;
+  readonly genes?: {
+    readonly strength: number;
+    readonly bravery: number;
+    readonly greed: number;
+    readonly piety: number;
+    readonly charisma: number;
+    readonly curiosity: number;
+    readonly wisdom: number;
+    readonly cruelty: number;
+  };
+  readonly habits?: {
+    readonly forage: number;
+    readonly caution: number;
+    readonly generosity: number;
+    readonly belligerence: number;
+    readonly devotion: number;
+    readonly roaming: number;
+    readonly loyalty: number;
+    readonly industry: number;
+  };
 }
 
 export interface OrganismView {

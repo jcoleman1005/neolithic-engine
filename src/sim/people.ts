@@ -2,6 +2,26 @@ export const INITIAL_PEOPLE_CAPACITY = 2048;
 export const SLOT_MASK = 0xfffff; // 20 bits: up to 1,048,575 slots
 export const GEN_MASK = 0xfff; // 12 bits: 0..4095
 
+export const GENE_STRENGTH = 0;
+export const GENE_BRAVERY = 1;
+export const GENE_GREED = 2;
+export const GENE_PIETY = 3;
+export const GENE_CHARISMA = 4;
+export const GENE_CURIOSITY = 5;
+export const GENE_WISDOM = 6;
+export const GENE_CRUELTY = 7;
+export const GENE_COUNT = 8;
+
+export const HABIT_FORAGE = 0;
+export const HABIT_CAUTION = 1;
+export const HABIT_GENEROSITY = 2;
+export const HABIT_BELLIGERENCE = 3;
+export const HABIT_DEVOTION = 4;
+export const HABIT_ROAMING = 5;
+export const HABIT_LOYALTY = 6;
+export const HABIT_INDUSTRY = 7;
+export const HABIT_COUNT = 8;
+
 export function makePersonId(slot: number, slotGen: number): number {
   return (((slot & SLOT_MASK) << 12) | (slotGen & GEN_MASK)) >>> 0;
 }
@@ -26,6 +46,9 @@ export interface PackedPerson {
   readonly mateId: number;
   readonly motherId: number;
   readonly fatherId: number;
+  readonly genes?: readonly number[];
+  readonly habits?: readonly number[];
+  readonly leaderId?: number;
 }
 
 export interface PeopleState {
@@ -52,6 +75,9 @@ export class People {
   public mateId: Uint32Array;
   public motherId: Uint32Array;
   public fatherId: Uint32Array;
+  public leaderId: Uint32Array;
+  public genes: Uint8Array; // capacity * GENE_COUNT
+  public habits: Uint8Array; // capacity * HABIT_COUNT
 
   public freeList: Int32Array;
   public freeCount = 0;
@@ -70,6 +96,9 @@ export class People {
     this.mateId = new Uint32Array(this.capacity);
     this.motherId = new Uint32Array(this.capacity);
     this.fatherId = new Uint32Array(this.capacity);
+    this.leaderId = new Uint32Array(this.capacity);
+    this.genes = new Uint8Array(this.capacity * GENE_COUNT);
+    this.habits = new Uint8Array(this.capacity * HABIT_COUNT);
 
     this.freeList = new Int32Array(this.capacity);
     this.initFreeList(0, this.capacity);
@@ -80,6 +109,7 @@ export class People {
       this.freeList[this.freeCount++] = i;
       this.pregnant[i] = -1;
       this.mateId[i] = 0;
+      this.leaderId[i] = 0;
     }
   }
 
@@ -89,6 +119,16 @@ export class People {
 
     const copyU8 = (old: Uint8Array) => {
       const n = new Uint8Array(newCap);
+      n.set(old);
+      return n;
+    };
+    const copyGenes = (old: Uint8Array) => {
+      const n = new Uint8Array(newCap * GENE_COUNT);
+      n.set(old);
+      return n;
+    };
+    const copyHabits = (old: Uint8Array) => {
+      const n = new Uint8Array(newCap * HABIT_COUNT);
       n.set(old);
       return n;
     };
@@ -125,6 +165,9 @@ export class People {
     this.mateId = copyU32(this.mateId);
     this.motherId = copyU32(this.motherId);
     this.fatherId = copyU32(this.fatherId);
+    this.leaderId = copyU32(this.leaderId);
+    this.genes = copyGenes(this.genes);
+    this.habits = copyHabits(this.habits);
 
     const newFreeList = new Int32Array(newCap);
     newFreeList.set(this.freeList.subarray(0, this.freeCount));
@@ -141,7 +184,10 @@ export class People {
     sex: number,
     generation = 0,
     motherId = 0,
-    fatherId = 0
+    fatherId = 0,
+    genes?: ArrayLike<number>,
+    habits?: ArrayLike<number>,
+    leaderId = 0
   ): number {
     if (this.freeCount === 0) {
       this.grow();
@@ -162,6 +208,29 @@ export class People {
     this.mateId[slot] = 0;
     this.motherId[slot] = motherId;
     this.fatherId[slot] = fatherId;
+    this.leaderId[slot] = leaderId;
+
+    const gOffset = slot * GENE_COUNT;
+    if (genes) {
+      for (let g = 0; g < GENE_COUNT; g++) {
+        this.genes[gOffset + g] = genes[g] ?? 128;
+      }
+    } else {
+      for (let g = 0; g < GENE_COUNT; g++) {
+        this.genes[gOffset + g] = 128;
+      }
+    }
+
+    const hOffset = slot * HABIT_COUNT;
+    if (habits) {
+      for (let h = 0; h < HABIT_COUNT; h++) {
+        this.habits[hOffset + h] = habits[h] ?? 128;
+      }
+    } else {
+      for (let h = 0; h < HABIT_COUNT; h++) {
+        this.habits[hOffset + h] = 128;
+      }
+    }
 
     this.count++;
     return makePersonId(slot, slotGen);
@@ -170,8 +239,16 @@ export class People {
   public kill(slot: number): void {
     if (this.alive[slot] === 0) return;
     this.alive[slot] = 0;
+    this.leaderId[slot] = 0;
     this.freeList[this.freeCount++] = slot;
     this.count--;
+  }
+
+  public clearStaleLeader(slot: number): void {
+    const lId = this.leaderId[slot];
+    if (lId !== 0 && !this.isValidId(lId)) {
+      this.leaderId[slot] = 0;
+    }
   }
 
   public idOf(slot: number): number {
@@ -198,6 +275,8 @@ export class People {
     const people: PackedPerson[] = [];
     for (let slot = 0; slot < this.capacity; slot++) {
       if (this.alive[slot] === 1) {
+        const gOff = slot * GENE_COUNT;
+        const hOff = slot * HABIT_COUNT;
         people.push({
           id: this.idOf(slot),
           x: this.x[slot],
@@ -210,6 +289,9 @@ export class People {
           mateId: this.mateId[slot],
           motherId: this.motherId[slot],
           fatherId: this.fatherId[slot],
+          leaderId: this.leaderId[slot],
+          genes: Array.from(this.genes.subarray(gOff, gOff + GENE_COUNT)),
+          habits: Array.from(this.habits.subarray(hOff, hOff + HABIT_COUNT)),
         });
       }
     }
@@ -255,6 +337,26 @@ export class People {
       this.mateId[slot] = p.mateId ?? (p as any).mateSlot ?? 0;
       this.motherId[slot] = p.motherId;
       this.fatherId[slot] = p.fatherId;
+      this.leaderId[slot] = p.leaderId ?? 0;
+
+      const gOff = slot * GENE_COUNT;
+      if (p.genes && p.genes.length === GENE_COUNT) {
+        for (let g = 0; g < GENE_COUNT; g++) {
+          this.genes[gOff + g] = p.genes[g];
+        }
+      } else {
+        this.genes.subarray(gOff, gOff + GENE_COUNT).fill(128);
+      }
+
+      const hOff = slot * HABIT_COUNT;
+      if (p.habits && p.habits.length === HABIT_COUNT) {
+        for (let h = 0; h < HABIT_COUNT; h++) {
+          this.habits[hOff + h] = p.habits[h];
+        }
+      } else {
+        this.habits.subarray(hOff, hOff + HABIT_COUNT).fill(128);
+      }
+
       occupied.add(slot);
       this.count++;
     }
@@ -268,6 +370,7 @@ export class People {
         if (slot < this.capacity) {
           this.pregnant[slot] = -1;
           this.mateId[slot] = 0;
+          this.leaderId[slot] = 0;
         }
       }
     } else {
@@ -277,6 +380,7 @@ export class People {
           this.freeList[this.freeCount++] = i;
           this.pregnant[i] = -1;
           this.mateId[i] = 0;
+          this.leaderId[i] = 0;
         }
       }
     }

@@ -15,7 +15,7 @@ Eighteen decisions are settled; change one only on purpose, record why here, and
 | Currency | One energy number per person that leaks every tick | Zero means death; surplus above a threshold becomes a child |
 | Behavior | Three local rules: climb, copy, touch | Following, raiding and tribute are names for patterns, not code |
 | Jobs | None; labels come from what someone has done recently | Skill grows with practice |
-| Genes | Six inherited traits: strength, bravery, greed, piety, charisma, curiosity | Blended from both parents, plus mutation; list still open |
+| Genes | Eight inherited traits: strength, bravery, greed, piety, charisma, curiosity, wisdom, cruelty | Blended from both parents, plus mutation; list settled in Phase 3 |
 | Culture | Habits blended from parents and neighbors, medium stickiness | One tunable number |
 | Groups | Leader links only, no group table | A tribe is everyone under the same root leader, computed |
 | Combat | Abstract clashes for groups, individual injury up close | |

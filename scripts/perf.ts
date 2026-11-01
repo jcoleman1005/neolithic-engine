@@ -2,8 +2,8 @@ import { World } from '../src/sim/world';
 
 console.log('Benchmarking Neolithic Engine at ~10,000 people...');
 
-// Initialize world with 10,000 people
-const world = new World({ initialPopulation: 10000 }, 42);
+// Initialize world with capacity to sustain >= 10,000 people
+const world = new World({ initialPopulation: 12500, landFoodMax: 45.0 }, 42);
 
 // Warm-up 20 ticks
 for (let t = 0; t < 20; t++) {

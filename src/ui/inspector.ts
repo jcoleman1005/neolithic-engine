@@ -129,8 +129,8 @@ export class InspectorView {
                 <span class="info-val">Cell (${person.x}, ${person.y})</span>
               </div>
               <div class="info-item">
-                <span class="info-label">Slot</span>
-                <span class="info-val">#${person.slot}</span>
+                <span class="info-label">Leader</span>
+                <span class="info-val">${person.leaderId && person.leaderId > 0 ? `<button class="link-btn btn-parent" data-id="${person.leaderId}">#${person.leaderId}</button>` : 'Self-led'}</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Mother</span>
@@ -141,6 +141,42 @@ export class InspectorView {
                 <span class="info-val">${person.fatherId > 0 ? `<button class="link-btn btn-parent" data-id="${person.fatherId}">#${person.fatherId}</button>` : 'Founder'}</span>
               </div>
             </div>
+
+            ${
+              person.genes
+                ? `
+            <div class="inspector-section-header">Genes (Inherited)</div>
+            <div class="traits-grid">
+              <div class="trait-chip"><span class="trait-name">STR</span><span class="trait-val">${person.genes.strength}</span></div>
+              <div class="trait-chip"><span class="trait-name">BRA</span><span class="trait-val">${person.genes.bravery}</span></div>
+              <div class="trait-chip"><span class="trait-name">GRD</span><span class="trait-val">${person.genes.greed}</span></div>
+              <div class="trait-chip"><span class="trait-name">PIE</span><span class="trait-val">${person.genes.piety}</span></div>
+              <div class="trait-chip"><span class="trait-name">CHA</span><span class="trait-val">${person.genes.charisma}</span></div>
+              <div class="trait-chip"><span class="trait-name">CUR</span><span class="trait-val">${person.genes.curiosity}</span></div>
+              <div class="trait-chip"><span class="trait-name">WIS</span><span class="trait-val">${person.genes.wisdom}</span></div>
+              <div class="trait-chip"><span class="trait-name">CRU</span><span class="trait-val">${person.genes.cruelty}</span></div>
+            </div>
+            `
+                : ''
+            }
+
+            ${
+              person.habits
+                ? `
+            <div class="inspector-section-header">Habits (Culture)</div>
+            <div class="traits-grid">
+              <div class="trait-chip"><span class="trait-name">Forage</span><span class="trait-val">${person.habits.forage}</span></div>
+              <div class="trait-chip"><span class="trait-name">Caution</span><span class="trait-val">${person.habits.caution}</span></div>
+              <div class="trait-chip"><span class="trait-name">Share</span><span class="trait-val">${person.habits.generosity}</span></div>
+              <div class="trait-chip"><span class="trait-name">Clash</span><span class="trait-val">${person.habits.belligerence}</span></div>
+              <div class="trait-chip"><span class="trait-name">Ritual</span><span class="trait-val">${person.habits.devotion}</span></div>
+              <div class="trait-chip"><span class="trait-name">Roam</span><span class="trait-val">${person.habits.roaming}</span></div>
+              <div class="trait-chip"><span class="trait-name">Loyal</span><span class="trait-val">${person.habits.loyalty}</span></div>
+              <div class="trait-chip"><span class="trait-name">Industry</span><span class="trait-val">${person.habits.industry}</span></div>
+            </div>
+            `
+                : ''
+            }
 
             <div class="person-actions">
               <button class="btn-action btn-follow ${isFollowing ? 'active' : ''}">

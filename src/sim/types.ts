@@ -112,6 +112,28 @@ export interface SimulationConfig {
   birthTax: number;
   gestationTicks: number;
   matingRadius: number;
+
+  // Phase 3: Scent Fields, Genes, Habits & Rules
+  scentDiffusionRate: number;
+  scentEvaporationRate: number;
+  scentDiffusionInterval: number;
+  scentFoodEmitRate: number;
+  scentDangerDeath: number;
+  scentDangerClash: number;
+  geneMutationRate: number;
+  geneMutationRange: number;
+  habitStickiness: number;
+  decisionStaggerInterval: number;
+  leaderWeightStrength: number;
+  leaderWeightCharisma: number;
+  leaderWeightEnergy: number;
+  leaderWeightKin: number;
+  leaderWeightWisdom: number;
+  leaderWeightBravery: number;
+  leaderSearchRadius: number;
+  clashEnergyCost: number;
+  shareEnergyMinSurplus: number;
+  shareEnergyAmount: number;
 }
 
 export interface WorldMetrics {

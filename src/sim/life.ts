@@ -1,9 +1,20 @@
 import type { SimulationConfig } from './types';
-import type { People } from './people';
+import {
+  type People,
+  GENE_COUNT,
+  HABIT_COUNT,
+  slotFromId,
+} from './people';
 import type { Land } from './land';
 import type { SpatialIndex } from './spatial';
+import type { ScentFields } from './fields';
 import type { EnergyLedger } from './ledger';
 import type { PRNG } from './prng';
+import { Rules } from './rules';
+
+// Preallocated scratch arrays for zero allocations in hot loops
+const scratchChildGenes = new Uint8Array(GENE_COUNT);
+const scratchChildHabits = new Uint8Array(HABIT_COUNT);
 
 export class LifeSystem {
   /**
@@ -13,16 +24,30 @@ export class LifeSystem {
   public static step(
     people: People,
     land: Land,
+    fields: ScentFields,
     spatial: SpatialIndex,
     ledger: EnergyLedger,
     config: Readonly<SimulationConfig>,
-    prng: PRNG
+    prng: PRNG,
+    tick: number
   ): void {
-    // 1. Spatial indexing
-    spatial.build(people);
-
-    // 2. Land food regrowth
+    // 1. Land food regrowth
     land.step(config);
+
+    // 2. Scent fields: deposit land food scent & diffuse periodically
+    const diffInterval = config.scentDiffusionInterval ?? 4;
+    if (tick % diffInterval === 0) {
+      const emitRate = config.scentFoodEmitRate ?? 0.1;
+      const foodArr = land.food;
+      const isWater = land.isWater;
+      const foodCurr = fields.foodCurrent;
+      for (let i = 0; i < 65536; i++) {
+        if (isWater[i] === 0 && foodArr[i] > 1.0) {
+          foodCurr[i] = Math.min(255, foodCurr[i] + foodArr[i] * emitRate);
+        }
+      }
+      fields.step(config);
+    }
 
     const cap = people.capacity;
     const alive = people.alive;
@@ -49,10 +74,13 @@ export class LifeSystem {
     const totalBirthCost = childEnergy + birthTax;
     const gestationTicks = config.gestationTicks ?? 270;
     const matingRadius = config.matingRadius ?? 2;
+    const dangerDeath = config.scentDangerDeath ?? 10.0;
 
-    // 3. Metabolism & Mortality
+    // 3. Clear stale leader links & evaluate Metabolism & Mortality
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
+
+      people.clearStaleLeader(slot);
 
       age[slot]++;
       energy[slot] -= metabolism;
@@ -63,6 +91,7 @@ export class LifeSystem {
         if (energy[slot] < 0) {
           ledger.overdraft += -energy[slot];
         }
+        fields.depositDanger(px[slot], py[slot], dangerDeath);
         people.kill(slot);
         continue;
       }
@@ -70,6 +99,7 @@ export class LifeSystem {
       // Old age death
       if (age[slot] >= maxAge) {
         ledger.deathFat += energy[slot];
+        fields.depositDanger(px[slot], py[slot], dangerDeath);
         people.kill(slot);
         continue;
       }
@@ -90,12 +120,18 @@ export class LifeSystem {
       }
     }
 
-    // 5. Wandering & Movement
+    // 5. Movement (Climb rule or Wander fallback)
+    const climbOn = config.climbEnabled ?? true;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
 
-      // 4 cardinal moves or stay: 0 = east, 1 = west, 2 = south, 3 = north, >= 4 stay
-      const dir = prng.nextInt(0, 5);
+      let dir = 4; // Stay
+      if (climbOn) {
+        dir = Rules.climb(slot, people, land, fields, config, prng);
+      } else {
+        dir = prng.nextInt(0, 5);
+      }
+
       if (dir < 4) {
         let dx = 0;
         let dy = 0;
@@ -117,6 +153,7 @@ export class LifeSystem {
             if (energy[slot] < 0) {
               ledger.overdraft += -energy[slot];
             }
+            fields.depositDanger(nx, ny, dangerDeath);
             people.kill(slot);
             continue;
           }
@@ -124,7 +161,44 @@ export class LifeSystem {
       }
     }
 
-    // 6. Gestation & Birth
+    // 6. Spatial indexing based on updated positions
+    spatial.build(people);
+
+    // 7. Social Decision / Copy rule (staggered by ID)
+    if (config.copyEnabled ?? true) {
+      const stagger = config.decisionStaggerInterval ?? 8;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 1 && (tick + slot) % stagger === 0) {
+          Rules.copy(slot, people, spatial, config, prng);
+        }
+      }
+    }
+
+    // 8. Physical Contact / Touch rule (co-located people)
+    if (config.touchEnabled ?? true) {
+      const cellStarts = spatial.cellStarts;
+      const cellPeople = spatial.cellPeople;
+      for (let c = 0; c < 65536; c++) {
+        const start = cellStarts[c];
+        const count = cellStarts[c + 1] - start;
+        if (count >= 2) {
+          const slotA = cellPeople[start];
+          const slotB = cellPeople[start + 1];
+          Rules.touch(slotA, slotB, people, land, fields, ledger, config, prng);
+
+          if (count >= 4) {
+            const slotC = cellPeople[start + 2];
+            const slotD = cellPeople[start + 3];
+            Rules.touch(slotC, slotD, people, land, fields, ledger, config, prng);
+          }
+        }
+      }
+    }
+
+    // 9. Gestation, Childbirth & Genetic/Habit Inheritance
+    const mutRate = config.geneMutationRate ?? 0.05;
+    const mutRange = config.geneMutationRange ?? 16;
+
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0 || sex[slot] !== 0) continue; // Females only
 
@@ -150,14 +224,50 @@ export class LifeSystem {
             const mId = people.idOf(slot);
             const fId = mateId[slot];
 
-            people.spawn(childX, childY, childEnergy, childSex, childGen, mId, fId);
+            // Genetic inheritance: blend parents + mutation
+            const momGOff = slot * GENE_COUNT;
+            const dadSlot = slotFromId(fId);
+            const dadLiving = people.isValidId(fId);
+            const dadGOff = dadLiving ? dadSlot * GENE_COUNT : momGOff;
+
+            for (let g = 0; g < GENE_COUNT; g++) {
+              let allele = prng.next() < 0.5 ? people.genes[momGOff + g] : people.genes[dadGOff + g];
+              if (prng.next() < mutRate) {
+                const mut = prng.nextInt(-mutRange, mutRange);
+                allele = Math.max(0, Math.min(255, allele + mut));
+              }
+              scratchChildGenes[g] = allele;
+            }
+
+            // Habit transmission: blend parents + small environmental noise
+            const momHOff = slot * HABIT_COUNT;
+            const dadHOff = dadLiving ? dadSlot * HABIT_COUNT : momHOff;
+
+            for (let h = 0; h < HABIT_COUNT; h++) {
+              const blend = Math.round((people.habits[momHOff + h] + people.habits[dadHOff + h]) * 0.5);
+              const drift = prng.nextInt(-4, 4);
+              scratchChildHabits[h] = Math.max(0, Math.min(255, blend + drift));
+            }
+
+            people.spawn(
+              childX,
+              childY,
+              childEnergy,
+              childSex,
+              childGen,
+              mId,
+              fId,
+              scratchChildGenes,
+              scratchChildHabits,
+              people.leaderId[slot]
+            );
           }
           mateId[slot] = 0;
         }
       }
     }
 
-    // 7. Mating Search (zero closures/allocations)
+    // 10. Mating Search (zero closures/allocations)
     const cellStarts = spatial.cellStarts;
     const cellPeople = spatial.cellPeople;
     const rSq = matingRadius * matingRadius;
@@ -210,7 +320,6 @@ export class LifeSystem {
         if (foundMateSlot !== -1) {
           pregnant[slot] = 0;
           mateId[slot] = people.idOf(foundMateSlot);
-          // female's fatherId[slot] remains her own father
         }
       }
     }
@@ -241,7 +350,27 @@ export class LifeSystem {
         const sex = prng.next() < 0.5 ? 0 : 1;
         // Start as young adults so mating begins reasonably soon
         const founderAge = adultAge + prng.nextInt(0, 1000);
-        const slot = people.spawn(x, y, initialEnergy, sex, 0, 0, 0);
+
+        // Generate diverse founder genes & habits
+        for (let g = 0; g < GENE_COUNT; g++) {
+          scratchChildGenes[g] = prng.nextInt(32, 224);
+        }
+        for (let h = 0; h < HABIT_COUNT; h++) {
+          scratchChildHabits[h] = prng.nextInt(64, 192);
+        }
+
+        const slot = people.spawn(
+          x,
+          y,
+          initialEnergy,
+          sex,
+          0,
+          0,
+          0,
+          scratchChildGenes,
+          scratchChildHabits,
+          0
+        );
         const actualSlot = slot >>> 12;
         people.age[actualSlot] = founderAge;
         ledger.immigrants += initialEnergy;

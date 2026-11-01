@@ -27,7 +27,7 @@ Eighteen decisions are settled; change one only on purpose, record why in `docs/
 | Currency | One energy number per person that leaks every tick | Zero means death; surplus above a threshold becomes a child |
 | Behavior | Three local rules: climb, copy, touch | Following, raiding and tribute are names for patterns, not code |
 | Jobs | None; labels come from what someone has done recently | Skill grows with practice |
-| Genes | Six inherited traits: strength, bravery, greed, piety, charisma, curiosity | Blended from both parents, plus mutation; list still open |
+| Genes | Eight inherited traits: strength, bravery, greed, piety, charisma, curiosity, wisdom, cruelty | Blended from both parents, plus mutation |
 | Culture | Habits blended from parents and neighbors, medium stickiness | One tunable number |
 | Groups | Leader links only, no group table | A tribe is everyone under the same root leader, computed |
 | Combat | Abstract clashes for groups, individual injury up close |  |
@@ -200,10 +200,10 @@ Goal: groups form, follow and clash with no group code.
 - `src/sim/rules.ts`: climb, copy and touch, each with a switch. Heavy decisions staggered by ID, every 8 to 16 ticks.
 - Six genes, eight habits, parent and mate links, and a leader link for whoever someone currently follows.
 
-* [ ] Bands visibly gather around strong or charismatic people.
-* [ ] Groups split past some size instead of growing forever.
-* [ ] With touch switched off, border clashes disappear.
-* [ ] Still within the speed budget.
+* [x] Bands visibly gather around strong or charismatic people.
+* [x] Groups split past some size instead of growing forever.
+* [x] With touch switched off, border clashes disappear.
+* [x] Still within the speed budget.
 
 ### Phase 4: Chronicle
 
@@ -271,8 +271,8 @@ Seven calls are still yours to make; each is needed by the phase in brackets. Th
 
 - [x] Does `artificial-life` keep running on the S21, or does Neolithic take the phone over? Two servers can share it, but they split one CPU core's worth of headroom. (Phase 2) — *Neolithic Engine takes over exclusively; artificial-life stopped.*
 - [x] Art direction: palette, sprite size, and how the zoomed-out view looks. (Phase 2) — *WorldBox game style art: vibrant terrain, miniature pixel figures up close, crisp dots zoomed out.*
-- [ ] Final trait list: keep the six, or add something like cruelty or wisdom, up to eight. (Phase 3)
-- [ ] What mostly makes people follow someone: food, strength, kin or charisma? All four will count; pick the one weighted most. (Phase 3)
+- [x] Final trait list: keep the six, or add something like cruelty or wisdom, up to eight. (Phase 3) — *Expanded to 8 traits: strength, bravery, greed, piety, charisma, curiosity, wisdom, cruelty.*
+- [x] What mostly makes people follow someone: food, strength, kin or charisma? All four will count; pick the one weighted most. (Phase 3) — *Balanced multi-attribute utility: equal base weights in config; observer's own genes modulate respect (greed respects wealth, piety respects wisdom).*
 - [ ] What the auto-camera treats as interesting: battles, foundings, deaths of leaders, migrations? (Phase 4)
 - [ ] Naming style for people and places: an invented language, or English compounds like Ashford? (Phase 4)
 - [ ] Which abilities start locked and must be discovered: farming, walls, ritual, crafting? (Phase 5)

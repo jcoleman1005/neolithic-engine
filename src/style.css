@@ -2770,3 +2770,43 @@ button {
   color: #38bdf8;
 }
 
+.inspector-section-header {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.traits-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.trait-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 3px 2px;
+}
+
+.trait-name {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.trait-val {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: monospace;
+}
+
+

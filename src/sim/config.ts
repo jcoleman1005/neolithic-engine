@@ -69,6 +69,28 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   birthTax: 5.0,
   gestationTicks: 270, // 9 months
   matingRadius: 2,
+
+  // Phase 3: Scent Fields, Genes, Habits & Rules
+  scentDiffusionRate: 0.1,
+  scentEvaporationRate: 0.02,
+  scentDiffusionInterval: 4,
+  scentFoodEmitRate: 0.1,
+  scentDangerDeath: 10.0,
+  scentDangerClash: 5.0,
+  geneMutationRate: 0.05,
+  geneMutationRange: 16,
+  habitStickiness: 0.9,
+  decisionStaggerInterval: 8,
+  leaderWeightStrength: 1.0,
+  leaderWeightCharisma: 1.0,
+  leaderWeightEnergy: 1.0,
+  leaderWeightKin: 1.0,
+  leaderWeightWisdom: 1.0,
+  leaderWeightBravery: 1.0,
+  leaderSearchRadius: 6,
+  clashEnergyCost: 1.0,
+  shareEnergyMinSurplus: 15.0,
+  shareEnergyAmount: 5.0,
 };
 
 export const WORLD_SIZES = [
