@@ -192,4 +192,35 @@ describe('Phase 1 Invariants & Mechanics', () => {
     world.land.food[0] -= 0.5;
     expect(world.stateHash()).toBe(baseHash);
   });
+
+  it('runs past 5,000 people, saves through JSON round trip, restores, steps 2,000 ticks with matching stateHashes', () => {
+    // Start with a healthy population that grows past 5,000
+    const worldA = new World({ seed: 777, initialPopulation: 4000 });
+
+    // Step until past 5,000 people
+    while (worldA.people.count <= 5000) {
+      worldA.step();
+    }
+    expect(worldA.people.count).toBeGreaterThan(5000);
+    expect(worldA.people.capacity).toBeGreaterThan(2048);
+
+    // Save through a JSON round trip
+    const exportedJson = JSON.stringify(worldA.exportState());
+    const importedState = JSON.parse(exportedJson);
+    const worldB = World.fromState(importedState);
+
+    // State hashes must match immediately upon restoration
+    expect(worldB.stateHash()).toBe(worldA.stateHash());
+    expect(worldB.people.count).toBe(worldA.people.count);
+    expect(worldB.people.capacity).toBe(worldA.people.capacity);
+
+    // Step both for 2,000 ticks and assert stateHashes match every tick
+    for (let tick = 0; tick < 2000; tick++) {
+      worldA.step();
+      worldB.step();
+      if (worldA.stateHash() !== worldB.stateHash()) {
+        expect(worldB.stateHash(), `State hash mismatch at tick ${tick}`).toBe(worldA.stateHash());
+      }
+    }
+  }, 120000);
 });

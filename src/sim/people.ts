@@ -32,6 +32,7 @@ export interface PeopleState {
   readonly capacity: number;
   readonly count: number;
   readonly slotGenerations: readonly number[];
+  readonly freeList?: readonly number[];
   readonly people: readonly PackedPerson[];
 }
 
@@ -217,20 +218,20 @@ export class People {
       capacity: this.capacity,
       count: this.count,
       slotGenerations: Array.from(this.slotGenerations),
+      freeList: Array.from(this.freeList.subarray(0, this.freeCount)),
       people,
     };
   }
 
   public importState(state: PeopleState): void {
-    this.capacity = Math.max(INITIAL_PEOPLE_CAPACITY, state.capacity);
+    const targetCap = Math.max(INITIAL_PEOPLE_CAPACITY, state.capacity);
+    // Expand arrays FIRST before setting this.capacity so growTo actually grows
+    this.growTo(targetCap);
+    this.capacity = targetCap;
+
     this.alive.fill(0);
     this.freeCount = 0;
     this.count = 0;
-
-    // Expand arrays if state capacity exceeds current
-    if (this.capacity > this.alive.length) {
-      this.growTo(this.capacity);
-    }
 
     // Restore slot generation sequence
     const genLen = Math.min(this.slotGenerations.length, state.slotGenerations.length);
@@ -258,12 +259,25 @@ export class People {
       this.count++;
     }
 
-    // Reconstruct freeList for unoccupied slots
-    for (let i = 0; i < this.capacity; i++) {
-      if (!occupied.has(i)) {
-        this.freeList[this.freeCount++] = i;
-        this.pregnant[i] = -1;
-        this.mateId[i] = 0;
+    // Restore free-list order exactly if saved, or reconstruct
+    if (state.freeList && Array.isArray(state.freeList) && state.freeList.length > 0) {
+      this.freeCount = state.freeList.length;
+      for (let i = 0; i < state.freeList.length; i++) {
+        const slot = state.freeList[i];
+        this.freeList[i] = slot;
+        if (slot < this.capacity) {
+          this.pregnant[slot] = -1;
+          this.mateId[slot] = 0;
+        }
+      }
+    } else {
+      // Reconstruct freeList for unoccupied slots
+      for (let i = 0; i < this.capacity; i++) {
+        if (!occupied.has(i)) {
+          this.freeList[this.freeCount++] = i;
+          this.pregnant[i] = -1;
+          this.mateId[i] = 0;
+        }
       }
     }
   }

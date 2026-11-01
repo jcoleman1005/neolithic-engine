@@ -22,17 +22,15 @@ export class PlaybackPill {
 
   constructor(container: HTMLElement, callbacks: PlaybackCallbacks) {
     container.innerHTML = `
-      <div class="playback-pill">
-        <button id="btn-play" class="pill-btn" aria-label="Play or pause">Play</button>
-        <button id="btn-step" class="pill-btn" aria-label="Step one tick">Step</button>
-        <select id="select-speed" class="pill-select" aria-label="Speed">
-          <option value="0.33">⅓×</option>
-          <option value="1" selected>1×</option>
-          <option value="3">3×</option>
-          <option value="10">10×</option>
-        </select>
-        <span id="pill-tps" class="pill-tps">0 tps</span>
-      </div>
+      <button id="btn-play" class="pill-btn" aria-label="Play or pause">Play</button>
+      <button id="btn-step" class="pill-btn" aria-label="Step one tick">Step</button>
+      <select id="select-speed" class="pill-select" aria-label="Speed">
+        <option value="0.33">⅓×</option>
+        <option value="1" selected>1×</option>
+        <option value="3">3×</option>
+        <option value="10">10×</option>
+      </select>
+      <span id="pill-tps" class="pill-tps">0 tps</span>
     `;
 
     this.playBtn = container.querySelector('#btn-play')!;

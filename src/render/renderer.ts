@@ -78,11 +78,11 @@ export class CanvasRenderer {
   private terrainGenerated = false;
   private lastTerrainVersion = -1;
 
-  // Zoomed-out people blit overlay canvas
+  // Zoomed-out people blit overlay canvas (fixed 256x256, 1 px/cell)
   private readonly peopleCanvas: HTMLCanvasElement;
   private readonly peopleCtx: CanvasRenderingContext2D;
-  private peopleImgData: ImageData;
-  private peopleData32: Uint32Array;
+  private readonly peopleImgData: ImageData;
+  private readonly peopleData32: Uint32Array;
 
   // Motion smoothing state (up to 65536 slots)
   private readonly activeSlots = new Int32Array(65536);
@@ -93,6 +93,7 @@ export class CanvasRenderer {
   private readonly currX = new Float32Array(65536);
   private readonly currY = new Float32Array(65536);
   private readonly lookBytes = new Uint8Array(65536);
+  private readonly slotGenerations = new Uint8Array(65536);
 
   private lastFrameTime = 0;
   private frameInterval = 333; // ms between sim frames
@@ -141,12 +142,14 @@ export class CanvasRenderer {
     this.terrainImgData = this.terrainCtx.createImageData(256, 256);
     this.terrainData32 = new Uint32Array(this.terrainImgData.data.buffer);
 
-    // Initialize overlay canvas for direct ImageData blitting
+    // Initialize 256x256 overlay canvas for direct 1px/cell ImageData blitting
     this.peopleCanvas = document.createElement('canvas');
+    this.peopleCanvas.width = 256;
+    this.peopleCanvas.height = 256;
     this.peopleCtx = this.peopleCanvas.getContext('2d')!;
     this.peopleCtx.imageSmoothingEnabled = false;
-    this.peopleImgData = this.peopleCtx.createImageData(1, 1);
-    this.peopleData32 = new Uint32Array(0);
+    this.peopleImgData = this.peopleCtx.createImageData(256, 256);
+    this.peopleData32 = new Uint32Array(this.peopleImgData.data.buffer);
 
     this.setupEvents();
     this.resize();
@@ -169,13 +172,6 @@ export class CanvasRenderer {
       this.canvas.height = h;
       this.canvas.style.width = `${rect.width}px`;
       this.canvas.style.height = `${rect.height}px`;
-
-      // Resize overlay canvas to match screen
-      this.peopleCanvas.width = w;
-      this.peopleCanvas.height = h;
-      this.peopleCtx.imageSmoothingEnabled = false;
-      this.peopleImgData = this.peopleCtx.createImageData(w, h);
-      this.peopleData32 = new Uint32Array(this.peopleImgData.data.buffer);
     }
 
     const worldW = this.world.config.worldWidth || 256;
@@ -442,13 +438,16 @@ export class CanvasRenderer {
       const x = buf[offset + 2];
       const y = buf[offset + 3];
       const look = buf[offset + 4];
+      const gen = buf[offset + 5];
       offset += PERSON_FRAME_BYTES;
 
       if (slot >= 65536) continue;
 
-      if (this.activeMask[slot] === 0) {
+      if (this.activeMask[slot] === 0 || this.slotGenerations[slot] !== gen) {
+        // Snap rather than slide when slot generation changes or slot first seen
         this.prevX[slot] = x;
         this.prevY[slot] = y;
+        this.slotGenerations[slot] = gen;
       } else {
         this.prevX[slot] = this.currX[slot];
         this.prevY[slot] = this.currY[slot];
@@ -705,13 +704,8 @@ export class CanvasRenderer {
     let hasSelected = false;
 
     if (!isZoomedIn) {
-      // Zoomed out: Write colored pixels straight into ImageData
-      const dpr = window.devicePixelRatio || 1;
-      const canvasW = this.canvas.width;
-      const canvasH = this.canvas.height;
-      this.peopleData32.fill(0); // clear transparent overlay
-
-      const blockSize = Math.max(1, Math.min(cellSize, 3));
+      // Zoomed out: Draw into 256x256 overlay (one pixel per cell) and scale up with nearest neighbor
+      this.peopleData32.fill(0); // clear transparent 256x256 overlay
 
       for (let i = 0; i < this.activeCount; i++) {
         const slot = this.activeSlots[i];
@@ -736,45 +730,44 @@ export class CanvasRenderer {
         if (ry < 0) ry += worldH;
         else if (ry >= worldH) ry -= worldH;
 
-        const sx = Math.floor(rx * cellSize + this.panX);
-        const sy = Math.floor(ry * cellSize + this.panY);
+        const cellX = Math.floor(rx) & 255;
+        const cellY = Math.floor(ry) & 255;
 
         if (slot === this.selectedSlot) {
-          selectedRenderX = sx;
-          selectedRenderY = sy;
+          selectedRenderX = Math.round(rx * cellSize + this.panX);
+          selectedRenderY = Math.round(ry * cellSize + this.panY);
           hasSelected = true;
         }
 
-        const px = Math.floor(sx * dpr);
-        const py = Math.floor(sy * dpr);
+        const look = this.lookBytes[slot];
+        const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
+        const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
+        const stage = (look & LOOK_STAGE_MASK) >> 2;
+        const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
 
-        if (px >= 0 && px < canvasW && py >= 0 && py < canvasH) {
-          const look = this.lookBytes[slot];
-          const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
-          const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
-          const stage = (look & LOOK_STAGE_MASK) >> 2;
-          const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
+        let colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
+        if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
+        else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
+        else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
+        else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
 
-          let colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
-          if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
-          else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
-          else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
-          else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
-
-          for (let by = 0; by < blockSize; by++) {
-            const row = (py + by) * canvasW;
-            if (py + by >= canvasH) break;
-            for (let bx = 0; bx < blockSize; bx++) {
-              if (px + bx < canvasW) {
-                this.peopleData32[row + (px + bx)] = colorABGR;
-              }
-            }
-          }
-        }
+        this.peopleData32[cellY * 256 + cellX] = colorABGR;
       }
 
       this.peopleCtx.putImageData(this.peopleImgData, 0, 0);
-      this.ctx.drawImage(this.peopleCanvas, 0, 0, screenWidth, screenHeight);
+      const worldPxW = worldW * cellSize;
+      const worldPxH = worldH * cellSize;
+      this.ctx.drawImage(
+        this.peopleCanvas,
+        0,
+        0,
+        256,
+        256,
+        this.panX,
+        this.panY,
+        worldPxW,
+        worldPxH
+      );
     } else {
       // Zoomed in: Draw stick-figure sprites for on-screen people with deterministic ID offsets
       const scale = Math.max(1, Math.floor(cellSize / 8));

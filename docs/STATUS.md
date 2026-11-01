@@ -1,11 +1,12 @@
 # Neolithic Engine — Status
 
 ## Current State
-Phase 2 (Window) Art & Protocol implemented on branch `phase-2-worldbox-art`.
-- **Phase 1 Bug Fixes Merged (`main`)**:
-  - `mateId: Uint32Array` added to `People` so a woman's `fatherId` is unchanged across mating and childbirth, and newborn receives mother's mate ID as father.
-  - Streaming `StateHasher` expanded to hash every per-person array for living people, every land array (`food`, `maxFood`, `fertility`, `isWater`), PRNG state, and tick.
-  - Zero-allocation direct loop over `spatial.cellStarts` and `spatial.cellPeople` during mating, eliminating closure allocation per woman per tick.
+Phase 2 (Window) Art, Protocol & S21 Pre-Flight Fixes merged on branch `fix-s21-prep`.
+- **Pre-Flight S21 Fixes**:
+  - **`People.importState` Bug**: Fixed capacity bug by growing arrays prior to updating `capacity`, and preserved exact `freeList` stack order. Added invariant test running past 5,000 people, saving through JSON round trip, restoring, and asserting `stateHash` lockstep match across 2,000 subsequent ticks.
+  - **Fixed 256×256 People Overlay**: Zoomed-out people blit to a dedicated $256 \times 256$ 1 px/cell canvas scaled via nearest-neighbor, remaining sharply visible across all zoom levels while eliminating costly full-screen `ImageData` repainting on mobile.
+  - **Playback Pill Clean Up**: Removed duplicate inner `.playback-pill` wrapper in `src/ui/controls.ts`, eliminating the stray dark bar underneath the controls.
+  - **Slot Generation Tracking & Snapping**: Added 6th byte to packed people frames (`slotGenerations[slot] & 0xff`). The renderer detects slot generation changes and snaps position immediately rather than sliding between old death location and newborn spawn.
 - **Procedural Sprite Atlas (`src/render/sprites.ts`)**:
   - Code-generated offscreen canvas atlas containing stick-figure sprites (adult male, female, pregnant female with belly bump, child, elder, starving, walking animation frames), tree variants (oak, pine, fruit), and selection chevron.
 - **WorldBox Terrain Rendering (`src/render/renderer.ts`)**:
@@ -17,18 +18,17 @@ Phase 2 (Window) Art & Protocol implemented on branch `phase-2-worldbox-art`.
 - **Zoomed-In Forest Trees**:
   - Visible forest cells rendered with small tree sprites from the atlas when zoomed in ($cellSize \ge 6$).
 - **Dual-Mode People Rendering**:
-  - **Zoomed out**: Colored pixels written directly into an `ImageData` 32-bit buffer and composited in $<0.1$ ms.
+  - **Zoomed out**: Colored pixels written directly into a $256 \times 256$ 1 px/cell overlay buffer scaled with nearest-neighbor.
   - **Zoomed in**: Stick figures rendered from the atlas with view frustum culling and deterministic sub-pixel offsets derived from person ID to prevent cell-stacking.
 - **30 FPS Render Cap & Mobile UX**:
   - Frame-rate capped render loop saving battery on Galaxy S21; wrap-aware motion smoothing; tap-to-inspect and follow camera.
 - **Automated Verification (`npm run verify`)**:
-  - 37 automated tests across 7 test suites passing with zero errors.
+  - 38 automated tests across 7 test suites passing with zero errors.
 - **Performance Benchmark (`npm run perf`)**:
   - Average population: 11,062
-  - Tick duration: 2.622 ms / tick
-  - **Perf: 0.237 µs / person / tick** on desktop (budget: <= 15.0 µs; 63× faster than budget).
+  - Tick duration: 2.684 ms / tick
+  - **Perf: 0.243 µs / person / tick** on desktop (budget: <= 15.0 µs; 61× faster than budget).
 
 ## Next Steps
 1. Verify S21 checks (8 hours unattended run on Galaxy S21, reboot resumption, and <= 30 µs/person/tick).
-2. Merge `phase-2-worldbox-art` into `main`.
-3. Begin Phase 3 (People): food and danger scent fields, climb/copy/touch rules, genes and habits.
+2. Begin Phase 3 (People): food and danger scent fields, climb/copy/touch rules, genes and habits.

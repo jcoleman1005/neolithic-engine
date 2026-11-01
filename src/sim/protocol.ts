@@ -5,7 +5,7 @@ import type { WorldEvent } from './events';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
-export const PERSON_FRAME_BYTES = 5;
+export const PERSON_FRAME_BYTES = 6;
 
 // Look byte bit layout:
 // Bit 0: sex (0 = female, 1 = male)

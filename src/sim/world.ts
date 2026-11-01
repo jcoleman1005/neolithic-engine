@@ -162,6 +162,7 @@ export class World {
     const page = people.age;
     const ppreg = people.pregnant;
     const pener = people.energy;
+    const pslotgen = people.slotGenerations;
     const cap = people.capacity;
 
     const adultAge = this.config.adultAge ?? 5760;
@@ -180,6 +181,7 @@ export class World {
         const stage = age < adultAge ? LOOK_STAGE_CHILD : age >= elderAge ? LOOK_STAGE_ELDER : LOOK_STAGE_ADULT;
         const pregnant = ppreg[slot] >= 0;
         buf[offset++] = encodeLookByte(psex[slot], pregnant, stage, pener[slot], maxEnergy);
+        buf[offset++] = pslotgen[slot] & 0xff;
       }
     }
 
