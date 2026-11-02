@@ -101,15 +101,29 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   shareEnergyAmount: 5.0,
   cultureToleranceThreshold: 0.08,
   cultureClashSlope: 4.0,
+  // Phase 4 fix: culture keeps its variety. Habits come from one parent each, with rare
+  // innovations, and shift with experience in small steps (see docs/findings.md).
+  experienceHabitsEnabled: true,
+  habitInnovationRate: 0.01, // chance per birth of one habit jumping
+  habitInnovationRange: 40, // that jump is +/- this
+  habitWinStep: 3, // belligerence gained by the winner of a clash
+  habitLoseStep: 3, // belligerence lost by the loser
+  habitHungerStep: 1, // forage and roaming gained per decision cycle while hungry
+  habitFedStep: 1, // forage and roaming lost per decision cycle while well fed
+  habitHelpStep: 3, // generosity and loyalty gained by someone who receives help
+  habitHungerEnergy: 0.25, // hungry below this fraction of maxEnergy
+  habitFedEnergy: 0.75, // well fed above this fraction
 
   // Phase 4: Chronicle band tracking (observer)
   bandTrackInterval: 60, // ticks between passes (1/6 year)
   bandTrackMinSize: 10, // a band is tracked from this size, dropped below half of it
 
   // Phase 4: Chronicle thresholds (tuned in docs/findings.md; ticks are days, 360 to a year)
-  chronicleBattleClashes: 14, // clashes between the same two bands inside the window
-  chronicleBattleWindow: 5, // ticks
-  chronicleBattleCooldown: 360, // ticks before the same pair can make another battle entry
+  chronicleBattleClashes: 150, // clashes in one fight for it to be reported at all (a skirmish)
+  chronicleBattleWindow: 5, // quiet ticks between two bands that end a fight (it is reported then)
+  chronicleBattleCooldown: 360, // ticks after a report before the same pair can make another entry
+  chronicleBattleSize: 300, // clashes in one fight that make it a battle
+  chronicleGreatBattleSize: 700, // clashes in one fight that make it a great battle
   chronicleBattleMinSize: 20, // both bands must be this big
   chronicleSplitMinSize: 30, // a band that splits off is announced once it reaches this
   chronicleFoundMinSize: 70, // a band gathered around a loner is announced at this size

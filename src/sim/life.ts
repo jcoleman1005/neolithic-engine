@@ -235,6 +235,16 @@ export class LifeSystem {
       }
     }
 
+    // 8b. Hunger and plenty shape habits (no random draws)
+    if (config.experienceHabitsEnabled ?? true) {
+      const stagger = config.decisionStaggerInterval ?? 8;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 1 && (tick + slot) % stagger === 0) {
+          Rules.experienceNeeds(slot, people, config);
+        }
+      }
+    }
+
     // 9. Physical Contact / Touch rule (co-located people)
     if (config.touchEnabled ?? true) {
       const cellStarts = spatial.cellStarts;
@@ -263,6 +273,8 @@ export class LifeSystem {
     // 9. Gestation, Childbirth & Genetic/Habit Inheritance
     const mutRate = config.geneMutationRate ?? 0.05;
     const mutRange = config.geneMutationRange ?? 16;
+    const innovRate = config.habitInnovationRate ?? 0.01;
+    const innovRange = config.habitInnovationRange ?? 40;
 
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0 || sex[slot] !== 0) continue; // Females only
@@ -304,14 +316,20 @@ export class LifeSystem {
               scratchChildGenes[g] = allele;
             }
 
-            // Habit transmission: blend parents + small environmental noise
+            // Habit transmission: each habit comes from one parent at random (like genes),
+            // plus small drift, and rarely one bigger innovation.
             const momHOff = slot * HABIT_COUNT;
             const dadHOff = dadLiving ? dadSlot * HABIT_COUNT : momHOff;
 
             for (let h = 0; h < HABIT_COUNT; h++) {
-              const blend = Math.round((people.habits[momHOff + h] + people.habits[dadHOff + h]) * 0.5);
+              const inherited = prng.next() < 0.5 ? people.habits[momHOff + h] : people.habits[dadHOff + h];
               const drift = prng.nextInt(-4, 4);
-              scratchChildHabits[h] = Math.max(0, Math.min(255, blend + drift));
+              scratchChildHabits[h] = Math.max(0, Math.min(255, inherited + drift));
+            }
+            if (prng.next() < innovRate) {
+              const h = prng.nextInt(0, HABIT_COUNT - 1);
+              const jump = prng.nextInt(-innovRange, innovRange);
+              scratchChildHabits[h] = Math.max(0, Math.min(255, scratchChildHabits[h] + jump));
             }
 
             people.spawn(

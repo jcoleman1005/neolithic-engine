@@ -2897,3 +2897,74 @@ button {
   background: transparent;
   color: inherit;
 }
+
+
+/* Phone width: the pill keeps Play/Pause, speed and tps; the rest sits in a small menu. */
+.playback-pill {
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+}
+
+.pill-menu-btn {
+  font-size: 1.3rem;
+  min-width: 40px;
+  padding: 0 6px;
+}
+
+.pill-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--bg-glass);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.pill-menu[hidden] {
+  display: none;
+}
+
+.pill-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pill-menu-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pill-menu-item[aria-pressed='true'] {
+  border-color: rgba(103, 232, 249, 0.6);
+  color: #67e8f9;
+}
+
+@media (max-width: 400px) {
+  .playback-pill {
+    gap: 2px;
+    padding: 4px;
+  }
+  .playback-pill .pill-btn {
+    padding: 0 8px;
+  }
+}

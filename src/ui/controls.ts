@@ -22,23 +22,31 @@ export class PlaybackPill {
   private readonly speedSelect: HTMLSelectElement;
   private readonly colorSelect: HTMLSelectElement | null;
   private readonly tpsBadge: HTMLElement;
+  private readonly menu: HTMLElement;
+  private readonly menuBtn: HTMLButtonElement;
 
   constructor(container: HTMLElement, callbacks: PlaybackCallbacks) {
+    // Play/Pause, speed and tps stay on the pill (it must fit 360 px); the rest lives in a menu.
     container.innerHTML = `
       <button id="btn-play" class="pill-btn" aria-label="Play or pause">Play</button>
-      <button id="btn-step" class="pill-btn" aria-label="Step one tick">Step</button>
       <select id="select-speed" class="pill-select" aria-label="Speed">
         <option value="0.33">⅓×</option>
         <option value="1" selected>1×</option>
         <option value="3">3×</option>
         <option value="10">10×</option>
       </select>
-      <select id="select-color-mode" class="pill-select" aria-label="Color Mode" title="Color Mode">
-        <option value="status" selected>Status</option>
-        <option value="bands">Bands</option>
-      </select>
-      <button id="btn-auto-camera" class="pill-btn" aria-pressed="true" title="Auto-camera follows the story">Cam</button>
       <span id="pill-tps" class="pill-tps">0 tps</span>
+      <button id="btn-pill-menu" class="pill-btn pill-menu-btn" aria-label="More controls" aria-expanded="false">⋯</button>
+      <div id="pill-menu" class="pill-menu" hidden>
+        <button id="btn-step" class="pill-menu-item" aria-label="Step one tick">Step one tick</button>
+        <button id="btn-auto-camera" class="pill-menu-item" aria-pressed="true" title="Auto-camera follows the story">Auto camera</button>
+        <label class="pill-menu-item">Colour
+          <select id="select-color-mode" class="pill-select" aria-label="Color Mode" title="Color Mode">
+            <option value="status" selected>Status</option>
+            <option value="bands">Bands</option>
+          </select>
+        </label>
+      </div>
     `;
 
     this.playBtn = container.querySelector('#btn-play')!;
@@ -46,6 +54,20 @@ export class PlaybackPill {
     this.speedSelect = container.querySelector('#select-speed')!;
     this.colorSelect = container.querySelector('#select-color-mode');
     this.tpsBadge = container.querySelector('#pill-tps')!;
+    this.menu = container.querySelector('#pill-menu')!;
+    this.menuBtn = container.querySelector('#btn-pill-menu')!;
+
+    const setMenu = (open: boolean): void => {
+      this.menu.hidden = !open;
+      this.menuBtn.setAttribute('aria-expanded', String(open));
+    };
+    this.menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMenu(this.menu.hidden);
+    });
+    document.addEventListener('click', (e) => {
+      if (!this.menu.hidden && !container.contains(e.target as Node)) setMenu(false);
+    });
 
     const camBtn = container.querySelector<HTMLButtonElement>('#btn-auto-camera');
     camBtn?.addEventListener('click', () => {
@@ -70,6 +92,29 @@ export class PlaybackPill {
     this.playBtn.textContent = running ? 'Pause' : 'Play';
     this.stepBtn.disabled = running;
     this.tpsBadge.textContent = `${tps} tps`;
+  }
+
+  /**
+   * Shows the speed the server is really running at (1x is 3 ticks a second), for example
+   * after the page reconnects. A speed with no matching option gets one of its own.
+   */
+  public showServerSpeed(targetTicksPerSecond: number): void {
+    if (!(targetTicksPerSecond > 0) || document.activeElement === this.speedSelect) return;
+    const multiplier = targetTicksPerSecond / 3;
+    let match: HTMLOptionElement | null = null;
+    for (const opt of Array.from(this.speedSelect.options)) {
+      if (Math.abs(parseFloat(opt.value) - multiplier) < 0.02) {
+        match = opt;
+        break;
+      }
+    }
+    if (!match) {
+      match = document.createElement('option');
+      match.value = String(multiplier);
+      match.textContent = `${Number(multiplier.toFixed(2))}×`;
+      this.speedSelect.appendChild(match);
+    }
+    this.speedSelect.value = match.value;
   }
 }
 

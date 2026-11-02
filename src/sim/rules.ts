@@ -15,6 +15,7 @@ import {
   HABIT_GENEROSITY,
   HABIT_BELLIGERENCE,
   HABIT_ROAMING,
+  HABIT_LOYALTY,
   HABIT_COUNT,
   slotFromId,
   genFromId,
@@ -51,17 +52,22 @@ export interface CultureStats {
  */
 export const CLASH_RING = 8192;
 export class ClashLog {
-  public readonly rootA = new Uint32Array(CLASH_RING);
-  public readonly rootB = new Uint32Array(CLASH_RING);
+  /** Root leader (or the person alone) of the side that won the clash. */
+  public readonly winner = new Uint32Array(CLASH_RING);
+  /** Root leader (or the person alone) of the side that lost. */
+  public readonly loser = new Uint32Array(CLASH_RING);
+  /** 1 when the loser died in the clash. */
+  public readonly fell = new Uint8Array(CLASH_RING);
   public readonly x = new Uint8Array(CLASH_RING);
   public readonly y = new Uint8Array(CLASH_RING);
   /** Total clashes ever pushed; entry n lives at index n % CLASH_RING. */
   public head = 0;
 
-  public push(a: number, b: number, x: number, y: number): void {
+  public push(winner: number, loser: number, fell: number, x: number, y: number): void {
     const i = this.head % CLASH_RING;
-    this.rootA[i] = a;
-    this.rootB[i] = b;
+    this.winner[i] = winner;
+    this.loser[i] = loser;
+    this.fell[i] = fell;
     this.x[i] = x;
     this.y[i] = y;
     this.head++;
@@ -93,6 +99,28 @@ export class Rules {
       sum += d < 0 ? -d : d;
     }
     return sum / (HABIT_COUNT * 255);
+  }
+
+  /** Nudge one habit by delta, clamped to 0..255. */
+  public static nudgeHabit(people: People, slot: number, habit: number, delta: number): void {
+    const i = slot * HABIT_COUNT + habit;
+    const v = people.habits[i] + delta;
+    people.habits[i] = v < 0 ? 0 : v > 255 ? 255 : v;
+  }
+
+  /** Hunger raises forage and roaming; plenty lowers them (small steps, config.ts). */
+  public static experienceNeeds(slot: number, people: People, config: Readonly<SimulationConfig>): void {
+    const maxE = config.maxEnergy ?? 100.0;
+    const e = people.energy[slot] / maxE;
+    if (e < (config.habitHungerEnergy ?? 0.25)) {
+      const step = config.habitHungerStep ?? 1;
+      Rules.nudgeHabit(people, slot, HABIT_FORAGE, step);
+      Rules.nudgeHabit(people, slot, HABIT_ROAMING, step);
+    } else if (e > (config.habitFedEnergy ?? 0.75)) {
+      const step = -(config.habitFedStep ?? 1);
+      Rules.nudgeHabit(people, slot, HABIT_FORAGE, step);
+      Rules.nudgeHabit(people, slot, HABIT_ROAMING, step);
+    }
   }
 
   /** Observer tracking of physical clashes by relationship (Agent rule 11) */
@@ -518,6 +546,11 @@ export class Rules {
         if (gift > 0) {
           people.energy[slotA] -= gift;
           people.energy[slotB] += gift;
+          if (config.experienceHabitsEnabled ?? true) {
+            const hs = config.habitHelpStep ?? 3;
+            Rules.nudgeHabit(people, slotB, HABIT_GENEROSITY, hs);
+            Rules.nudgeHabit(people, slotB, HABIT_LOYALTY, hs);
+          }
           return;
         }
       }
@@ -527,6 +560,11 @@ export class Rules {
         if (gift > 0) {
           people.energy[slotB] -= gift;
           people.energy[slotA] += gift;
+          if (config.experienceHabitsEnabled ?? true) {
+            const hs = config.habitHelpStep ?? 3;
+            Rules.nudgeHabit(people, slotA, HABIT_GENEROSITY, hs);
+            Rules.nudgeHabit(people, slotA, HABIT_LOYALTY, hs);
+          }
           return;
         }
       }
@@ -583,10 +621,6 @@ export class Rules {
         const px = people.x[slotA];
         const py = people.y[slotA];
 
-        if ((config.chronicleEnabled ?? true) && rootA !== rootB) {
-          Rules.clashLog.push(rootA !== 0 ? rootA : idA, rootB !== 0 ? rootB : idB, px, py);
-        }
-
         // Combat scores: strength + nearby allies + PRNG noise
         const alliesA = Rules.countNearbyAllies(slotA, px, py, people, spatial);
         const alliesB = Rules.countNearbyAllies(slotB, px, py, people, spatial);
@@ -617,7 +651,20 @@ export class Rules {
         people.energy[winnerSlot] += actualLoot;
         ledger.attack += struggleWaste;
 
-        if (people.energy[loserSlot] <= 0) {
+        if (config.experienceHabitsEnabled ?? true) {
+          Rules.nudgeHabit(people, winnerSlot, HABIT_BELLIGERENCE, config.habitWinStep ?? 3);
+          Rules.nudgeHabit(people, loserSlot, HABIT_BELLIGERENCE, -(config.habitLoseStep ?? 3));
+        }
+
+        const loserFell = people.energy[loserSlot] <= 0;
+        if ((config.chronicleEnabled ?? true) && rootA !== rootB) {
+          // Observer only: who beat whom, and whether the loser died.
+          const wRoot = winnerSlot === slotA ? (rootA !== 0 ? rootA : idA) : rootB !== 0 ? rootB : idB;
+          const lRoot = winnerSlot === slotA ? (rootB !== 0 ? rootB : idB) : rootA !== 0 ? rootA : idA;
+          Rules.clashLog.push(wRoot, lRoot, loserFell ? 1 : 0, px, py);
+        }
+
+        if (loserFell) {
           if (people.energy[loserSlot] < 0) {
             ledger.overdraft += -people.energy[loserSlot];
           }

@@ -69,12 +69,23 @@ export function driftTongue(parent: Tongue, key: number): Tongue {
 }
 
 function word(tongue: Tongue, h: number, syllables: number): string {
+  const n = tongue.length;
+  const used: number[] = [];
   let out = '';
   for (let i = 0; i < syllables; i++) {
-    out += tongue[h % tongue.length];
-    h = Math.floor(h / tongue.length) + 1;
+    let idx = h % n;
+    // No syllable twice in one word: "Mama", "Lolo" are out.
+    while (used.includes(idx) && used.length < n) idx = (idx + 1) % n;
+    used.push(idx);
+    out += tongue[idx];
+    h = Math.floor(h / n) + 1;
   }
-  return capitalise(out + CODAS[h % CODAS.length]);
+  // A closing consonant must not echo a sound already in the word ("Shushush", "Mam").
+  let coda = CODAS[h % CODAS.length];
+  if (coda !== '') {
+    for (const idx of used) if (tongue[idx].startsWith(coda)) coda = '';
+  }
+  return capitalise(out + coda);
 }
 
 /** A given name for a person, one or two syllables: "Kesh". */
@@ -105,26 +116,42 @@ export interface EpithetFacts {
   readonly charisma: number;
   readonly wisdom: number;
   readonly bravery: number;
-  /** Times this person left a leader's band for another (or was left alone by it). */
-  readonly exiles: number;
+  /** Times this person led followers out of a band to start their own (they leave; nobody is exiled). */
+  readonly departures: number;
   /** Largest following held so far. */
   readonly peakFollowers: number;
   readonly ageYears: number;
+  /** Battles reported for their band while they led it. */
+  readonly battles?: number;
+  /** True for someone who gathered a band around themselves from nothing. */
+  readonly founder?: boolean;
 }
 
-/** An English epithet from traits or deeds, or null when nothing stands out. */
+/**
+ * An English epithet from traits or deeds, or null when nothing stands out.
+ * Everything that applies goes in a pool and the id's hash picks one, so the
+ * same person keeps the same epithet while different people vary.
+ */
 export function epithet(personId: number, f: EpithetFacts): string | null {
-  if (f.exiles >= 3) return 'the Wanderer';
-  if (f.exiles === 2) return 'Twice-Exiled';
-  if (f.exiles === 1) return 'the Exiled';
   const options: string[] = [];
-  if (f.cruelty > 200) options.push('the Cruel');
-  if (f.strength > 220) options.push('the Strong');
-  if (f.charisma > 220) options.push('the Beloved');
-  if (f.wisdom > 220) options.push('the Wise');
-  if (f.bravery > 220) options.push('the Bold');
-  if (f.peakFollowers >= 100) options.push('the Great');
-  if (f.ageYears >= 60) options.push('the Old');
+  if (f.departures >= 3) options.push('the Wanderer');
+  else if (f.departures === 2) options.push('the Restless');
+  else if (f.departures === 1) options.push('the Leaver');
+  if (f.founder) options.push('the Founder');
+  if ((f.battles ?? 0) >= 3) options.push('Battle-Hardened');
+  else if ((f.battles ?? 0) >= 1) options.push('the Warlike');
+  if (f.cruelty > 190) options.push('the Cruel');
+  if (f.cruelty < 50) options.push('the Gentle');
+  if (f.strength > 200) options.push('the Strong');
+  if (f.strength < 50) options.push('the Slight');
+  if (f.charisma > 200) options.push('the Beloved');
+  if (f.wisdom > 200) options.push('the Wise');
+  if (f.bravery > 200) options.push('the Bold');
+  if (f.bravery < 50) options.push('the Wary');
+  if (f.peakFollowers >= 150) options.push('the Great');
+  else if (f.peakFollowers >= 60) options.push('Many-Followed');
+  if (f.ageYears >= 50) options.push('the Old');
+  else if (f.ageYears < 24 && f.peakFollowers >= 20) options.push('the Young');
   if (options.length === 0) return null;
   return options[hash32(personId, 0, 0xe9171) % options.length];
 }

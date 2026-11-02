@@ -291,3 +291,36 @@ New tunables in `src/sim/config.ts`, switch `autoCameraEnabled` (default on). Th
 | `cameraResumeSeconds` | none | 20 | Agreed: resume 20 s after the last manual input. |
 | `cameraDriftCellsPerSecond` | none | 0.6 | Slow drift when idle; a guess to adjust by eye. |
 | `cameraMinBandSize` | none | 20 | Same size as battles: only bands of 20+ are followed. |
+
+## Phase 4 fix: culture keeps its variety, battles report real fights
+
+Design change, not a tuned war level: children take each habit from one parent at random (plus drift), 1% of births innovate one habit by ±40, and habits shift with experience (`experienceHabitsEnabled`, default on). Parent averaging halved cultural differences every generation.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `habitInnovationRate` / `Range` | none | 0.01 / 40 | Rare jumps keep new variety entering. |
+| `habitWinStep` / `habitLoseStep` | none | 3 / 3 | Belligerence up for winners, down for losers. |
+| `habitHungerStep` / `habitFedStep` | none | 1 / 1 | Forage and roaming up when hungry (<0.25 energy), down when fed (>0.75). |
+| `habitHelpStep` | none | 3 | Generosity and loyalty up for someone helped. |
+| `chronicleBattleClashes` | 14 | 150 | With culture alive there are about 15,000 to 20,000 clashes a year, and 14 gave 1,000 to 2,500 entries an hour. |
+| `chronicleBattleSize` | 60 | 300 | Tiers: skirmish 150+, battle 300+, great battle 700+. |
+| `chronicleGreatBattleSize` | 250 | 700 | As above. |
+
+Habit spread (mean SD over the eight habits) and stranger clashes per year, 200 years, `npm run culture`:
+
+| Seed | Spread y0 / 60 / 120 / 200 | Clashes y30 / 120 / 200 |
+|:--:|:--|:--|
+| 1 | 37.1 / 27.7 / 22.4 / 20.0 | 21,305 / 19,628 / 17,329 |
+| 2 | 37.3 / 26.7 / 21.0 / 18.7 | 22,185 / 19,198 / 14,854 |
+| 3 | 37.3 / 28.3 / 22.6 / 19.3 | 20,885 / 21,079 / 14,799 |
+
+Spread falls, then flattens (under 1 point per 30 years after year 150); clashes never reach 0. Seed 1 to year 120 with experience off: spread 16.8, clashes 8,893 a year; on: 22.4 and 19,628.
+
+Chronicle entries per 30-year hour, 200 years (last hour is 20 years):
+
+| Seed | hours 1 to 7 |
+|:--:|:--|
+| 1 | 17, 22, 21, 15, 13, 20, 8 |
+| 2 | 29, 17, 11, 14, 19, 9, 11 |
+
+All within 10 to 30 except seed 2 hour 6 (9). Not tuned further to avoid fitting one seed.

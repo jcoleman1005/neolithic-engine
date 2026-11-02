@@ -24,13 +24,21 @@ export interface Notable extends EpithetFacts {
   readonly died: boolean;
 }
 
+/** One running fight between two bands, closed when they have been quiet for a few days. */
 interface PairState {
   a: number;
   b: number;
-  count: number;
+  clashes: number;
+  winsA: number;
+  winsB: number;
+  fellA: number;
+  fellB: number;
   firstTick: number;
   lastTick: number;
-  lastReported: number;
+  sizeA: number;
+  sizeB: number;
+  tongueA: Tongue | null;
+  tongueB: Tongue | null;
   x: number;
   y: number;
 }
@@ -73,6 +81,8 @@ export class Chronicle {
   public readonly tracker = new BandTracker();
   private readonly notables = new Map<number, Notable>();
   private readonly pairs = new Map<number, PairState>();
+  /** When each pair last had a battle reported, for the cooldown. */
+  private readonly lastBattle = new Map<number, number>();
   /** Bands waiting to reach an announcement size: band key -> [kind, tick it began]. */
   private readonly pending = new Map<number, { kind: 'split' | 'founded'; since: number }>();
   private readonly marks = new Map<number, Mark>();
@@ -91,7 +101,8 @@ export class Chronicle {
     const out: WorldEventBody[] = [];
     if (!(config.chronicleEnabled ?? true)) return out;
 
-    this.drainClashes(world, out);
+    this.closeFights(world, out);
+    this.drainClashes(world);
 
     const changes = this.tracker.update(world);
     if (world.tick % (config.bandTrackInterval ?? 60) !== 0) return out;
@@ -107,47 +118,99 @@ export class Chronicle {
 
   // ---- battles -----------------------------------------------------------
 
-  private drainClashes(world: World, out: WorldEventBody[]): void {
+  /** Adds every new clash to the running fight between its two bands. */
+  private drainClashes(world: World): void {
     const log = Rules.clashLog;
     if (log.head - this.read > CLASH_RING) this.read = log.head - CLASH_RING;
-    const config = world.config;
-    const need = config.chronicleBattleClashes ?? 12;
-    const window = config.chronicleBattleWindow ?? 5;
-    const cooldown = config.chronicleBattleCooldown ?? 360;
-    const minSize = config.chronicleBattleMinSize ?? 20;
+    const window = world.config.chronicleBattleWindow ?? 5;
     const tick = world.tick;
 
     for (; this.read < log.head; this.read++) {
       const i = this.read % CLASH_RING;
-      const ra = log.rootA[i];
-      const rb = log.rootB[i];
-      const lo = ra < rb ? ra : rb;
-      const hi = ra < rb ? rb : ra;
+      const winner = log.winner[i];
+      const loser = log.loser[i];
+      const aWon = winner < loser;
+      const lo = aWon ? winner : loser;
+      const hi = aWon ? loser : winner;
       // Slots fit in 20 bits, so the pair fits in a double exactly.
       const key = slotFromId(lo) * 1048576 + slotFromId(hi);
       let p = this.pairs.get(key);
-      if (!p || p.a !== lo || p.b !== hi) {
-        p = { a: lo, b: hi, count: 0, firstTick: tick, lastTick: tick, lastReported: -Infinity, x: 0, y: 0 };
+      if (p && (p.a !== lo || p.b !== hi || tick - p.lastTick > window)) {
+        // A different pair on a reused slot, or a gap that should already have closed the fight.
+        p = undefined;
+      }
+      if (!p) {
+        p = {
+          a: lo, b: hi, clashes: 0, winsA: 0, winsB: 0, fellA: 0, fellB: 0,
+          firstTick: tick, lastTick: tick, sizeA: 0, sizeB: 0, tongueA: null, tongueB: null, x: 0, y: 0,
+        };
         this.pairs.set(key, p);
       }
-      if (tick - p.firstTick > window) {
-        p.count = 0;
-        p.firstTick = tick;
+      p.clashes++;
+      if (aWon) p.winsA++;
+      else p.winsB++;
+      if (log.fell[i] === 1) {
+        if (aWon) p.fellB++;
+        else p.fellA++;
       }
-      p.count++;
       p.lastTick = tick;
       p.x = log.x[i];
       p.y = log.y[i];
-      if (p.count >= need && tick - p.lastReported >= cooldown) {
-        const A = this.tracker.bands.get(lo);
-        const B = this.tracker.bands.get(hi);
-        if (A && B && A.size >= minSize && B.size >= minSize) {
-          p.lastReported = tick;
-          const text = `Battle: the ${bandName(A.id, A.tongue)} and the ${bandName(B.id, B.tongue)} fight near ${this.placeAt(world, p.x, p.y, A.tongue)} (${p.count} clashes in ${tick - p.firstTick + 1} days)`;
-          out.push(this.entry('battle', text, p.x, p.y, A.id));
-        }
-      }
+      const A = this.tracker.bands.get(lo);
+      const B = this.tracker.bands.get(hi);
+      if (A) { p.sizeA = A.size; p.tongueA = A.tongue; }
+      if (B) { p.sizeB = B.size; p.tongueB = B.tongue; }
     }
+  }
+
+  /** A fight ends when the two bands have been quiet for a few days; only then is it reported. */
+  private closeFights(world: World, out: WorldEventBody[]): void {
+    if (this.pairs.size === 0) return;
+    const config = world.config;
+    const window = config.chronicleBattleWindow ?? 5;
+    const need = config.chronicleBattleClashes ?? 14;
+    const cooldown = config.chronicleBattleCooldown ?? 360;
+    const minSize = config.chronicleBattleMinSize ?? 20;
+    const tick = world.tick;
+
+    for (const [key, p] of this.pairs) {
+      if (tick - p.lastTick <= window) continue;
+      this.pairs.delete(key);
+      if (p.clashes < need || p.sizeA < minSize || p.sizeB < minSize || !p.tongueA || !p.tongueB) continue;
+      const lastReport = this.lastBattle.get(key);
+      if (lastReport !== undefined && tick - lastReport < cooldown) continue;
+      this.lastBattle.set(key, tick);
+      out.push(this.battleEntry(world, p));
+    }
+  }
+
+  private battleEntry(world: World, p: PairState): WorldEventBody {
+    const config = world.config;
+    const kind = p.clashes >= (config.chronicleGreatBattleSize ?? 250) ? 'Great battle'
+      : p.clashes >= (config.chronicleBattleSize ?? 60) ? 'Battle' : 'Skirmish';
+    const nameA = bandName(p.a, p.tongueA!);
+    const nameB = bandName(p.b, p.tongueB!);
+    const days = p.lastTick - p.firstTick + 1;
+    const fell = p.fellA + p.fellB;
+    const margin = Math.abs(p.winsA - p.winsB);
+    let outcome: string;
+    if (margin * 10 < p.clashes) {
+      outcome = `neither the ${nameA} nor the ${nameB} gave way`;
+    } else if (p.winsA > p.winsB) {
+      outcome = `the ${nameA} beat the ${nameB}`;
+    } else {
+      outcome = `the ${nameB} beat the ${nameA}`;
+    }
+    const toll = fell === 0 ? 'no one fell'
+      : `${fell} fell (${p.fellA} of the ${nameA}, ${p.fellB} of the ${nameB})`;
+    const place = this.placeAt(world, p.x, p.y, p.tongueA!);
+    const text = `${kind} near ${place}: ${outcome} after ${days} ${days === 1 ? 'day' : 'days'}, ${p.clashes} clashes, ${toll}`;
+    // Both leaders carry the battle into their epithets.
+    for (const id of [p.a, p.b]) {
+      const n = this.notables.get(id);
+      if (n) this.notables.set(id, { ...n, battles: (n.battles ?? 0) + 1 });
+    }
+    return this.entry('battle', text, p.x, p.y, p.winsA >= p.winsB ? p.a : p.b);
   }
 
   // ---- bands -------------------------------------------------------------
@@ -169,7 +232,9 @@ export class Chronicle {
         charisma: people.genes[g + GENE_CHARISMA],
         wisdom: people.genes[g + GENE_WISDOM],
         bravery: people.genes[g + GENE_BRAVERY],
-        exiles: prev?.exiles ?? 0,
+        departures: prev?.departures ?? 0,
+        battles: prev?.battles ?? 0,
+        founder: prev?.founder ?? false,
         peakFollowers: Math.max(prev?.peakFollowers ?? 0, band.size - 1),
         ageYears: people.age[s] / ticksPerYear,
       });
@@ -182,9 +247,12 @@ export class Chronicle {
       if (c.kind === 'split') {
         this.pending.set(c.band, { kind: 'split', since: world.tick });
         const n = this.notables.get(c.band);
-        if (n) this.notables.set(c.band, { ...n, exiles: n.exiles + 1 });
+        // The leader of a split leaves with their followers; nobody is exiled.
+        if (n) this.notables.set(c.band, { ...n, departures: n.departures + 1 });
       } else if (c.kind === 'founded') {
         this.pending.set(c.band, { kind: 'founded', since: world.tick });
+        const n = this.notables.get(c.band);
+        if (n) this.notables.set(c.band, { ...n, founder: true });
       } else if (c.kind === 'succession') {
         const rec = this.tracker.bands.get(c.band);
         const old = this.notables.get(c.from);
@@ -354,8 +422,8 @@ export class Chronicle {
   // ---- helpers -----------------------------------------------------------
 
   private prune(world: World): void {
-    const horizon = world.tick - 2 * (world.config.chronicleBattleWindow ?? 5) - 1;
-    for (const [k, p] of this.pairs) if (p.lastTick < horizon && p.lastReported < horizon) this.pairs.delete(k);
+    const cooldown = world.config.chronicleBattleCooldown ?? 360;
+    for (const [k, t] of this.lastBattle) if (world.tick - t >= cooldown) this.lastBattle.delete(k);
     if (this.notables.size > NOTABLE_CAP) {
       const dead = [...this.notables.values()].filter((n) => n.died).sort((a, b) => a.peakFollowers - b.peakFollowers);
       for (const n of dead) {
@@ -418,7 +486,11 @@ export class Chronicle {
   public importState(state: ChronicleState): void {
     this.tracker.importState(state.bands);
     this.notables.clear();
-    for (const n of state.notables) this.notables.set(n.id, n);
+    for (const n of state.notables) {
+      // Older saves counted departures as "exiles".
+      const legacy = (n as unknown as { exiles?: number }).exiles;
+      this.notables.set(n.id, { ...n, departures: n.departures ?? legacy ?? 0, battles: n.battles ?? 0, founder: n.founder ?? false });
+    }
     this.pending.clear();
     for (const [k, kind, since] of state.pending) this.pending.set(k, { kind, since });
     this.marks.clear();

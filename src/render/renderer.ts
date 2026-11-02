@@ -270,8 +270,13 @@ export class CanvasRenderer {
     if (!rect) return;
     const availW = Math.max(100, rect.width - this.insets.left - this.insets.right);
     const availH = Math.max(100, rect.height - this.insets.top - this.insets.bottom);
-    const wantX = this.insets.left + availW / 2 - t.x * this.cellSize;
-    const wantY = this.insets.top + availH / 2 - t.y * this.cellSize;
+    let wantX = this.insets.left + availW / 2 - t.x * this.cellSize;
+    let wantY = this.insets.top + availH / 2 - t.y * this.cellSize;
+    // The world wraps, so glide the short way round (and across an edge) to the target.
+    const wpx = (this.world.config.worldWidth || 256) * this.cellSize;
+    const hpx = (this.world.config.worldHeight || 256) * this.cellSize;
+    wantX -= Math.round((wantX - this.camX) / wpx) * wpx;
+    wantY -= Math.round((wantY - this.camY) / hpx) * hpx;
     // Someone else moved the view (a drag or zoom): start again from where it is.
     if (Math.abs(Math.round(this.camX) - this.panX) > 1 || Math.abs(Math.round(this.camY) - this.panY) > 1) {
       this.camX = this.panX;
@@ -575,26 +580,24 @@ export class CanvasRenderer {
       this.panY = Math.round(height / 2 - sy);
     }
 
+    // The world wraps: keep the pan in [-world, 0) so tiled copies always cover the screen.
+    // (camX/camY follow along so the glide sees no jump.)
+    const nx = ((this.panX % worldPxW) + worldPxW) % worldPxW - worldPxW;
+    const ny = ((this.panY % worldPxH) + worldPxH) % worldPxH - worldPxH;
+    this.camX += nx - this.panX;
+    this.camY += ny - this.panY;
+    this.panX = nx;
+    this.panY = ny;
+
     // 1. Ensure terrain cache is up to date
     this.updateTerrainCache();
 
-    // 2. Draw scaled terrain directly from 256x256 offscreen canvas with nearest neighbor
-    this.ctx.drawImage(
-      this.terrainCanvas,
-      0,
-      0,
-      256,
-      256,
-      this.panX,
-      this.panY,
-      worldPxW,
-      worldPxH
-    );
-
-    // 3. World Border
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(this.panX, this.panY, worldPxW, worldPxH);
+    // 2. Draw the terrain tiled, copy after copy, from the 256x256 offscreen canvas
+    for (let ty = this.panY; ty < height; ty += worldPxH) {
+      for (let tx = this.panX; tx < width; tx += worldPxW) {
+        this.ctx.drawImage(this.terrainCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
+      }
+    }
 
     // 4. Render Forest Trees when zoomed in
     const isZoomedIn = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
@@ -817,6 +820,8 @@ export class CanvasRenderer {
         if (slot === this.selectedSlot) {
           selectedRenderX = Math.round(rx * cellSize + this.panX);
           selectedRenderY = Math.round(ry * cellSize + this.panY);
+          if (selectedRenderX < 0) selectedRenderX += worldW * cellSize;
+          if (selectedRenderY < 0) selectedRenderY += worldH * cellSize;
           hasSelected = true;
         }
 
@@ -845,17 +850,11 @@ export class CanvasRenderer {
       this.peopleCtx.putImageData(this.peopleImgData, 0, 0);
       const worldPxW = worldW * cellSize;
       const worldPxH = worldH * cellSize;
-      this.ctx.drawImage(
-        this.peopleCanvas,
-        0,
-        0,
-        256,
-        256,
-        this.panX,
-        this.panY,
-        worldPxW,
-        worldPxH
-      );
+      for (let ty = this.panY; ty < screenHeight; ty += worldPxH) {
+        for (let tx = this.panX; tx < screenWidth; tx += worldPxW) {
+          this.ctx.drawImage(this.peopleCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
+        }
+      }
     } else {
       // Zoomed in: Draw stick-figure sprites for on-screen people with deterministic ID offsets
       const scale = Math.max(1, Math.floor(cellSize / 8));
@@ -888,8 +887,18 @@ export class CanvasRenderer {
         const offX = ((hVal & 7) - 3.5) / 10;
         const offY = (((hVal >>> 3) & 7) - 3.5) / 10;
 
-        const screenX = Math.round((rx + offX) * cellSize + this.panX);
-        const screenY = Math.round((ry + offY) * cellSize + this.panY);
+        const baseX = Math.round((rx + offX) * cellSize + this.panX);
+        const baseY = Math.round((ry + offY) * cellSize + this.panY);
+        const worldPxW = worldW * cellSize;
+        const worldPxH = worldH * cellSize;
+
+        // Wrapped world: the copy of this person that lands on screen (first one if several)
+        let screenX = baseX;
+        while (screenX > -cellSize) screenX -= worldPxW;
+        while (screenX < -cellSize) screenX += worldPxW;
+        let screenY = baseY;
+        while (screenY > -cellSize) screenY -= worldPxH;
+        while (screenY < -cellSize) screenY += worldPxH;
 
         if (slot === this.selectedSlot) {
           selectedRenderX = screenX;
@@ -897,15 +906,12 @@ export class CanvasRenderer {
           hasSelected = true;
         }
 
-        // View frustum culling: skip people outside visible screen bounds
-        if (
-          screenX < -cellSize ||
-          screenX > screenWidth + cellSize ||
-          screenY < -cellSize ||
-          screenY > screenHeight + cellSize
-        ) {
+        // View frustum culling: skip people with no copy inside the visible screen bounds
+        if (screenX > screenWidth + cellSize || screenY > screenHeight + cellSize) {
           continue;
         }
+        const firstX = screenX;
+        const firstY = screenY;
 
         const look = this.lookBytes[slot];
         const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
@@ -930,19 +936,27 @@ export class CanvasRenderer {
 
         const dw = spr.w * scale;
         const dh = spr.h * scale;
-        const sprX = Math.round(screenX - spr.anchorX * scale);
-        const sprY = Math.round(screenY - spr.anchorY * scale);
+        const bandFill =
+          this.colorMode === 'bands'
+            ? (this.bandSizes.get(this.rootLeaderIds[slot]) ?? 0) <= 1
+              ? '#888888'
+              : hashRootLeaderToHex(this.rootLeaderIds[slot])
+            : null;
 
-        if (this.colorMode === 'bands') {
-          const rId = this.rootLeaderIds[slot];
-          const bandSize = this.bandSizes.get(rId) ?? 0;
-          this.ctx.fillStyle = bandSize <= 1 ? '#888888' : hashRootLeaderToHex(rId);
-          this.ctx.beginPath();
-          this.ctx.arc(screenX, screenY + spr.h * scale * 0.45, Math.max(3, 3 * scale), 0, Math.PI * 2);
-          this.ctx.fill();
+        for (let cy = firstY; cy <= screenHeight + cellSize; cy += worldPxH) {
+          for (let cx = firstX; cx <= screenWidth + cellSize; cx += worldPxW) {
+            if (bandFill !== null) {
+              this.ctx.fillStyle = bandFill;
+              this.ctx.beginPath();
+              this.ctx.arc(cx, cy + spr.h * scale * 0.45, Math.max(3, 3 * scale), 0, Math.PI * 2);
+              this.ctx.fill();
+            }
+            this.ctx.drawImage(
+              this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
+              Math.round(cx - spr.anchorX * scale), Math.round(cy - spr.anchorY * scale), dw, dh
+            );
+          }
         }
-
-        this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, sprX, sprY, dw, dh);
       }
     }
 
