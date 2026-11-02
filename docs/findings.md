@@ -244,3 +244,14 @@ Stranger clashes per year, seed 1, 50 years (`npm run bands -- --seed 1 --years 
 | 5 | 61042 | 4792 |
 
 Bands of 20+ at decade 5: 99 with culture off, 112 with culture on. Leader retention stays at 99.6%. Only seed 1 was measured; seeds 2 and 3 were not run.
+
+## Band tracking (Phase 4a)
+
+New tunables in `src/sim/config.ts`, switch `bandTrackEnabled` (default on).
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `bandTrackInterval` | none | 60 ticks | One pass is about 1.2 ms at 7,000 people, so a pass every sixth of a year costs far less than 1% of tick time. |
+| `bandTrackMinSize` | none | 10 | A band is tracked from 10 members and dropped below 5, so a band near the line does not flicker. The 20+ rule for battles is applied by the chronicle in 4b. |
+
+Seed 1, 20 years: 223 bands founded, 70 died, 11 successions, 1 split. Splits are rare, so 4b must decide what counts as "band split or new band" for the camera priority.
