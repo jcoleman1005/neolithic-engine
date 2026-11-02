@@ -117,7 +117,7 @@ export class LifeSystem {
       const curE = energy[slot];
       if (curE < maxEnergy) {
         const want = Math.min(forageBite, maxEnergy - curE);
-        const eaten = land.graze(px[slot], py[slot], want, config);
+        const eaten = land.graze(px[slot], py[slot], want, config, people.prevDir[slot] === 4);
         if (eaten > 0) {
           energy[slot] = curE + eaten;
           ledger.plantMeal += eaten;

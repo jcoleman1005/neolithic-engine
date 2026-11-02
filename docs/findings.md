@@ -354,27 +354,29 @@ An investigation found people reversing their last step 65% of the time (random 
 
 Reversals are still above the random walk; the leader pull is the likely rest, left alone. Seed 1 population at year 10 / 30 / 60: on 4,719 / 7,080 / 7,025; off 4,934 / 7,245 / 7,427. Slightly lower, no inflation, so no retune of `birthTax` or `forageBite`. Perf 4.4 us / person / tick at about 13k people (busy machine; budget 15).
 
-## Farming physics (Phase 5b), first pass, NOT yet tuned
+## Farming physics (Phase 5b), tuned
 
-Switch `farmingPhysicsEnabled` (default on). No unlock flags. New state: land `tilled`, `seeds`, `soilHealth`; person `carry`. The viewer gets a one-byte-per-cell overlay (desert, farmland, seeds) every 2 s. No player tools: the viewer is watch-only.
+Switch `farmingPhysicsEnabled` (default on). No unlock flags. State: land `tilled`, `seeds`, `soilHealth`; person `carry`. Tilling now counts only when the person stayed on the cell the tick before. The viewer gets a one-byte-per-cell overlay (desert, farmland, seeds) every 2 s; the viewer is watch-only.
 
-| Value | Old | New | Why |
+First pass (all bites till, strong seeds) was far too strong: about 97% of land tilled, 58% desert, population 5 to 10% under the off run. Retuned with `npm run farming-sweep` (value sets in one process, one table). Targets set before sweeping: worked soil (tilled > 0.1) 10 to 35% of land, desert (soil < 0.6) under 15%, seeds on under 20% of land, population within 5% of the farming-off run.
+
+| Value | First try | New | Why |
 |:--|:--|:--|:--|
-| `tillGain` / `tillDecay` | none | 0.02 / 0.001 | Each bite tills a cell; tilling fades with a half-life of about 2 years. |
-| `tillRegrowBoost` | none | 1.0 | Fully worked soil regrows twice as fast. |
-| `seedPickupPerBite` / `seedCarryMax` | none | 0.1 / 3.0 | A little seed comes away with each bite. |
-| `seedDropEnergy` | none | 0.4 | Tired = below 40% of max energy, and resting = standing still. |
-| `seedCap` / `seedDecay` | none | 10 / 0.002 | Seeds per cell, and fade rate. |
-| `seedRegrowBoost` / `seedCapacityBoost` | none | 1.5 / 0.6 | Seeds speed regrowth and raise capacity. |
-| `soilWearRate` / `soilRecoveryRate` / `soilMin` | none | 0.004 / 0.0006 / 0.2 | A bite that strips a cell wears the soil; it recovers slowly. |
+| `tillGain` | 0.02 | 0.015 | Per bite while standing still. |
+| `tillDecay` | 0.001 | 0.002 | Tilling fades with a half-life of about 1 year. |
+| `soilWearRate` | 0.004 | 0.0012 | Stripping a cell wears soil more slowly. |
+| `soilRecoveryRate` | 0.0006 | 0.0015 | Stripped soil recovers faster when left alone. |
+| `seedPickupPerBite` | 0.1 | 0.05 | Fewer seeds per bite. |
+| `seedRegrowBoost` / `seedCapacityBoost` | 1.5 / 0.6 | 0.8 / 0.3 | Seeds were the dominant effect (population up to 35% over off). |
+| `seedDecay` | 0.002 | 0.004 | Seed banks fade faster. |
+| unchanged | | | `seedCarryMax` 3, `seedDropEnergy` 0.4, `seedCap` 10, `tillRegrowBoost` 1.0, `soilMin` 0.2. |
 
-Seeds 1 and 2, 60 years, on vs off (`npm run farming`):
+Eight sets screened at 20 years on seed 1 (off pop 6,168); first pass was M, then confirmed over 50 years on seeds 1 to 3:
 
-| | Pop y60 | Farm cells (tilled > 0.3) | Desert cells (soil < 0.6) | Cells with seeds | Mean food |
-|:--|--:|--:|--:|--:|--:|
-| Seed 1 off | 7,025 | 0 | 0 | 0 | 4.74 |
-| Seed 1 on | 6,664 | 32,346 of 33,255 | 19,418 | 15,019 | 3.05 |
-| Seed 2 off | 7,026 | 0 | 0 | 0 | 4.25 |
-| Seed 2 on | 6,345 | 30,910 of 31,628 | 18,961 | 14,308 | 2.89 |
+| Seed | Pop vs off | Worked | Farm (> 0.3) | Desert | Seeds |
+|:--:|--:|--:|--:|--:|--:|
+| 1 | +1.2% | 17.7% | 2.7% | 6.1% | 15.3% |
+| 2 | +1.6% | 16.2% | 2.2% | 6.1% | 15.5% |
+| 3 | +2.7% | 18.7% | 2.8% | 7.1% | 16.3% |
 
-**Problem:** the mechanics work but are far too strong. About 97% of land counts as farmland, 58% as desert and 45% holds seeds, so the map would be one colour rather than patches, and the population is 5 to 10% lower than with farming off (desert costs more than farming gains). Next: lower `tillGain`, raise `tillDecay`, make wear need a longer strip, and count tilling only for a person who stays. Perf 4.4 us / person / tick at 14.7k people (budget 15).
+All pass. Note: two earlier sweeps passed the seed values through an unquoted shell variable, so they never took effect; their results (including an apparent tilling-versus-desert feedback) are not used. Not yet looked at on screen: the farm overlay is brown, desert sand, seeds yellow.

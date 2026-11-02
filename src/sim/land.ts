@@ -196,7 +196,7 @@ export class Land {
    * Forages plant food from cell (x, y).
    * Returns actual energy harvested (leaves floor intact).
    */
-  public graze(x: number, y: number, want: number, config: Readonly<SimulationConfig>): number {
+  public graze(x: number, y: number, want: number, config: Readonly<SimulationConfig>, till = true): number {
     const index = (y & COORD_MASK) * GRID_SIZE + (x & COORD_MASK);
     if (this.isWater[index] === 1) return 0;
 
@@ -208,7 +208,7 @@ export class Land {
     this.food[index] -= take;
     if (config.farmingPhysicsEnabled !== false) {
       // Working a cell tills it; stripping it down wears the soil out.
-      this.tilled[index] += (config.tillGain ?? 0.02) * (1 - this.tilled[index]);
+      if (till) this.tilled[index] += (config.tillGain ?? 0.02) * (1 - this.tilled[index]);
       if (this.food[index] < 0.25 * this.capacityAt(index, config)) {
         const wear = config.soilWearRate ?? 0.004;
         this.soilHealth[index] = Math.max(config.soilMin ?? 0.2, this.soilHealth[index] - wear);
