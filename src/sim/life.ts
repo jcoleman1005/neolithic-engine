@@ -133,6 +133,7 @@ export class LifeSystem {
         dir = prng.nextInt(0, 5);
       }
 
+      people.prevDir[slot] = dir;
       if (dir < 4) {
         let dx = 0;
         let dy = 0;

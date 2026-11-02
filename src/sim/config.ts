@@ -47,6 +47,12 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
 
   // Feature Switches
   climbEnabled: true,
+  // Phase 4 fix: calmer movement. Stay and graze on a tile that is rich enough, and do not step
+  // straight back unless the pull is strong (see docs/findings.md).
+  calmMovementEnabled: true,
+  stayFoodFraction: 0.5, // stay while the tile holds this fraction of its capacity
+  hungerStayPenalty: 0.5, // a hungry person wants this much more (x1.5) before staying
+  reversalOverride: 1.5, // a 180 degree step back needs a pull at least this strong
   copyEnabled: true,
   touchEnabled: true,
   cultureTouchEnabled: true,

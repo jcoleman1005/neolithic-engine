@@ -148,7 +148,7 @@ export class Rules {
     people: People,
     land: Land,
     fields: ScentFields,
-    _config: Readonly<SimulationConfig>,
+    config: Readonly<SimulationConfig>,
     prng: PRNG
   ): number {
     const px = people.x[slot];
@@ -174,6 +174,7 @@ export class Rules {
     let vy = scratchGradFood[1] * foodWeight - scratchGradDanger[1] * dangerAversion;
 
     // Leader pull
+    let leaderPulling = false;
     const lId = people.leaderId[slot];
     if (lId !== 0) {
       const lSlot = slotFromId(lId);
@@ -188,6 +189,7 @@ export class Rules {
         const distSq = dx * dx + dy * dy;
         // Pull if leader is not right on the same tile
         if (distSq > 1) {
+          leaderPulling = true;
           const loyalty = people.genes[gOff + GENE_CHARISMA] / 255; // personal devotion
           const pull = 0.8 + 0.8 * loyalty;
           vx += (dx > 0 ? 1 : dx < 0 ? -1 : 0) * pull;
@@ -195,6 +197,19 @@ export class Rules {
         }
       } else {
         people.leaderId[slot] = 0;
+      }
+    }
+
+    // Calm movement: a person on a rich enough tile stays and grazes, unless a leader is
+    // pulling them along. Hungry people want a richer tile before they settle for it.
+    const calm = config.calmMovementEnabled ?? true;
+    if (calm && !leaderPulling) {
+      const cell = (py << 8) | px;
+      const max = land.maxFood[cell];
+      if (max > 0) {
+        const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
+        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);
+        if (land.food[cell] >= need * max) return 4;
       }
     }
 
@@ -226,6 +241,13 @@ export class Rules {
     } else {
       primaryDir = vy > 0 ? 2 : 3; // South or North
       secondaryDir = vx !== 0 ? (vx > 0 ? 0 : 1) : -1;
+    }
+
+    // Calm movement: no stepping straight back unless the pull is strong; sidestep or stay.
+    if (calm && people.prevDir[slot] < 4 && primaryDir === (people.prevDir[slot] ^ 1)
+        && Math.max(absX, absY) < (config.reversalOverride ?? 1.5)) {
+      if (secondaryDir !== -1 && Rules.canStep(px, py, secondaryDir, land)) return secondaryDir;
+      return 4;
     }
 
     // Check if primary direction is land (not water)

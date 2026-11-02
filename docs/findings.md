@@ -334,3 +334,22 @@ No new state: a season factor is computed from the tick and multiplies plant reg
 | `seasonAmplitude` | none | 0.8 | Regrowth swings from 0.2x (mid-winter) to 1.8x (mid-summer) and averages 1 over a year, so the food balance stays near the seasonless one. A first try, not yet tuned by watching. |
 
 Seed 1, population at year 30 / 60 / 100: seasons on 7,245 / 7,427 / 7,517; off 7,959 / 8,381 / 8,231. About 9% fewer people, stable, no collapse. Perf 4.0 to 5.1 us / person / tick at 13.5k people (machine busy; budget 15).
+
+## Calm movement (Phase 4 fix, after the jitter report)
+
+An investigation found people reversing their last step 65% of the time (random walk: 26.5%), pacing between two cells and gaining less food per move than a random step. Causes: the gradient skips the current tile, there was no reason to stay, and one-tick noise snaps back. Fix, switch `calmMovementEnabled` (default on): a person on a tile holding at least `stayFoodFraction` of its capacity stays and grazes (unless a leader is pulling them); a 180 degree reversal needs a pull of at least `reversalOverride`, otherwise the person sidesteps or stays. New state: `prevDir` (typed array, saved and hashed). No new random draws.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `stayFoodFraction` | none | 0.5 | Stay on a half-full tile. A first try. |
+| `hungerStayPenalty` | none | 0.5 | A hungry person needs 1.5x as much (75%) before settling, so starving people move on. |
+| `reversalOverride` | none | 1.5 | A typical scent pull is about 2, leader pull 0.8 to 1.6; noise (0.8) alone no longer reverses a step. |
+
+`npm run movement`, adults over 300 ticks after 5 years, seeds 1 and 2:
+
+| | Reversals | Standing still | Unique cells | Food gained per move |
+|:--|--:|--:|--:|--:|
+| Off | 65.8% / 63.9% | 3.3% / 2.7% | 64.5 / 69.9 | 1.35 / 1.38 |
+| On | 39.7% / 37.5% | 22.8% / 19.6% | 74.8 / 82.3 | 2.57 / 2.46 |
+
+Reversals are still above the random walk; the leader pull is the likely rest, left alone. Seed 1 population at year 10 / 30 / 60: on 4,719 / 7,080 / 7,025; off 4,934 / 7,245 / 7,427. Slightly lower, no inflation, so no retune of `birthTax` or `forageBite`. Perf 4.4 us / person / tick at about 13k people (busy machine; budget 15).

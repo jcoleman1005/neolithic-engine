@@ -13,6 +13,7 @@
     "verify": "bash scripts/verify.sh",
     "sim": "vite-node scripts/run.ts --",
     "bands": "vite-node scripts/bands.ts --",
+    "movement": "vite-node scripts/movement.ts --",
     "culture": "vite-node scripts/culture.ts --",
     "chronicle": "vite-node scripts/chronicle.ts --",
     "fingerprint": "vite-node scripts/fingerprint.ts",

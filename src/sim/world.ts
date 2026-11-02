@@ -361,6 +361,7 @@ export class World {
         h.updateInt(dad[slot]);
         h.updateInt(leaderId[slot]);
         h.updateInt(people.rootLeaderId[slot]);
+        h.updateInt(people.prevDir[slot]);
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;

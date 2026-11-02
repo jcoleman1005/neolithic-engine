@@ -90,6 +90,10 @@ export interface SimulationConfig {
 
   // Feature Switches
   climbEnabled: boolean;
+  calmMovementEnabled: boolean;
+  stayFoodFraction: number;
+  hungerStayPenalty: number;
+  reversalOverride: number;
   copyEnabled: boolean;
   touchEnabled: boolean;
   cultureTouchEnabled: boolean;
