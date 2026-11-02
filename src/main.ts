@@ -93,6 +93,15 @@ const peekPop = $('.peek-pop');
 const peekYear = $('.peek-year');
 const peekEvent = $('.peek-event');
 const eventsContainer = $('#events-container');
+// Tap a chronicle entry (ticker or list) to glide the camera to where it happened.
+for (const el of [peekEvent, eventsContainer]) {
+  el.addEventListener('click', (ev) => {
+    const hit = (ev.target as HTMLElement).closest<HTMLElement>('[data-go]');
+    if (!hit) return;
+    ev.stopPropagation();
+    renderer.goTo(parseFloat(hit.dataset.x ?? '0'), parseFloat(hit.dataset.y ?? '0'));
+  });
+}
 
 function showNotice(msg: string): void {
   noticeText.textContent = msg;

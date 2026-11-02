@@ -98,6 +98,10 @@ export class CanvasRenderer {
   // Integer scale zoom and pan
   private zoomIndex = 2; // Default scale: ZOOM_STEPS[2] = 3
   public cellSize: number = ZOOM_STEPS[2];
+  private gotoTarget: { x: number; y: number } | null = null;
+  /** False on an axis where the whole world fits on screen: one copy, no tiling. */
+  private wrapX = true;
+  private wrapY = true;
   private panX = 0;
   private panY = 0;
 
@@ -260,12 +264,20 @@ export class CanvasRenderer {
     this.cameraTarget = target;
   }
 
+  /** One-off glide to a spot (a tapped chronicle entry). The auto-camera backs off meanwhile. */
+  public goTo(x: number, y: number): void {
+    this.gotoTarget = { x, y };
+    this.followSelected = false;
+    this.onUserInput?.();
+  }
+
   /** Glides the pan toward the camera target. Pan stays whole pixels so zoom stays crisp. */
   private stepCamera(time: number): void {
     const dt = Math.min(250, Math.max(0, time - this.lastCameraStep));
     this.lastCameraStep = time;
-    const t = this.cameraTarget;
-    if (!t || this.isDragging) return;
+    if (this.isDragging) this.gotoTarget = null;
+    const t = this.gotoTarget ?? this.cameraTarget;
+    if (!t) return;
     const rect = this.canvas.parentElement?.getBoundingClientRect();
     if (!rect) return;
     const availW = Math.max(100, rect.width - this.insets.left - this.insets.right);
@@ -287,6 +299,9 @@ export class CanvasRenderer {
     this.camY += (wantY - this.camY) * k;
     this.panX = Math.round(this.camX);
     this.panY = Math.round(this.camY);
+    if (this.gotoTarget && Math.abs(wantX - this.camX) < 2 && Math.abs(wantY - this.camY) < 2) {
+      this.gotoTarget = null;
+    }
   }
 
   public stopLoop(): void {
@@ -580,10 +595,18 @@ export class CanvasRenderer {
       this.panY = Math.round(height / 2 - sy);
     }
 
-    // The world wraps: keep the pan in [-world, 0) so tiled copies always cover the screen.
+    // When zoomed out far enough that the world fits on an axis, show it once with the void
+    // around it. Otherwise it wraps: keep the pan in [-world, 0) so tiled copies cover the screen.
     // (camX/camY follow along so the glide sees no jump.)
-    const nx = ((this.panX % worldPxW) + worldPxW) % worldPxW - worldPxW;
-    const ny = ((this.panY % worldPxH) + worldPxH) % worldPxH - worldPxH;
+    const sprites = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
+    this.wrapX = sprites || worldPxW > width;
+    this.wrapY = sprites || worldPxH > height;
+    const nx = this.wrapX
+      ? ((this.panX % worldPxW) + worldPxW) % worldPxW - worldPxW
+      : Math.min(Math.max(this.panX, 0), width - worldPxW);
+    const ny = this.wrapY
+      ? ((this.panY % worldPxH) + worldPxH) % worldPxH - worldPxH
+      : Math.min(Math.max(this.panY, 0), height - worldPxH);
     this.camX += nx - this.panX;
     this.camY += ny - this.panY;
     this.panX = nx;
@@ -593,8 +616,8 @@ export class CanvasRenderer {
     this.updateTerrainCache();
 
     // 2. Draw the terrain tiled, copy after copy, from the 256x256 offscreen canvas
-    for (let ty = this.panY; ty < height; ty += worldPxH) {
-      for (let tx = this.panX; tx < width; tx += worldPxW) {
+    for (let ty = this.panY; ty < (this.wrapY ? height : this.panY + 1); ty += worldPxH) {
+      for (let tx = this.panX; tx < (this.wrapX ? width : this.panX + 1); tx += worldPxW) {
         this.ctx.drawImage(this.terrainCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
       }
     }
@@ -850,8 +873,8 @@ export class CanvasRenderer {
       this.peopleCtx.putImageData(this.peopleImgData, 0, 0);
       const worldPxW = worldW * cellSize;
       const worldPxH = worldH * cellSize;
-      for (let ty = this.panY; ty < screenHeight; ty += worldPxH) {
-        for (let tx = this.panX; tx < screenWidth; tx += worldPxW) {
+      for (let ty = this.panY; ty < (this.wrapY ? screenHeight : this.panY + 1); ty += worldPxH) {
+        for (let tx = this.panX; tx < (this.wrapX ? screenWidth : this.panX + 1); tx += worldPxW) {
           this.ctx.drawImage(this.peopleCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
         }
       }

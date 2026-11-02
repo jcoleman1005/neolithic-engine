@@ -20,6 +20,11 @@ function isTickerEvent(e: WorldEvent): boolean {
   return e.kind === 'chronicle' || e.kind === 'extinction';
 }
 
+/** Chronicle entries carry a place; tapping one sends the camera there. */
+function goAttrs(e: WorldEvent): string {
+  return e.kind === 'chronicle' ? ` data-x="${e.x}" data-y="${e.y}" data-go="1"` : '';
+}
+
 export function describeEvent(e: WorldEvent): EventLine {
   switch (e.kind) {
     case 'chronicle':
@@ -36,7 +41,7 @@ export function latestEventHTML(events: readonly WorldEvent[]): string {
   if (shown.length === 0) return '<span class="event-empty">The world is quiet.</span>';
   const last = shown[shown.length - 1];
   const { text, colour } = describeEvent(last);
-  return `<span class="event-dot" style="background: ${colour}"></span><span class="event-text">${text}</span>`;
+  return `<span class="event-dot" style="background: ${colour}"></span><span class="event-text"${goAttrs(last)}>${text}</span>`;
 }
 
 export function eventListHTML(events: readonly WorldEvent[], ticksPerYear = 360): string {
@@ -48,7 +53,7 @@ export function eventListHTML(events: readonly WorldEvent[], ticksPerYear = 360)
     .map((e) => {
       const { text, colour } = describeEvent(e);
       const year = Math.floor(e.tick / ticksPerYear);
-      return `<li class="event-row"><span class="event-tick">Year ${year}</span><span class="event-dot" style="background: ${colour}"></span><span class="event-text">${text}</span></li>`;
+      return `<li class="event-row"${goAttrs(e)}><span class="event-tick">Year ${year}</span><span class="event-dot" style="background: ${colour}"></span><span class="event-text">${text}</span></li>`;
     })
     .join('');
 }
