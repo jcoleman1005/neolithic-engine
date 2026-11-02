@@ -1,15 +1,16 @@
 ## Current State
-Phase 4 step 4b (chronicle detectors, ticker, saving) done on branch `phase-4b-chronicle`. Step 4c (auto-camera, inspector text, "while you were away") is next.
+Phase 4 step 4c (auto-camera, inspector text, "while you were away") built on branch `phase-4c-camera`, not yet merged. 4a and 4b are merged.
 
-- **Chronicle (`src/sim/chronicle.ts`)**: observer on top of the band tracker. Entry types: battle, split, founded, leaderDeath (also covers a band scattering after its leader dies), migration, famine, boom. Each entry carries text, camera priority (battle 4, split or new band 3, leader death 2, migration 1, famine and boom 0), position and band key, ready for 4c.
-- **Clash log (`src/sim/rules.ts`)**: fixed typed ring of clashes between different bands, written in `touch`, drained by the chronicle. No allocation, no random draws.
-- **Notables**: leaders are remembered (genes, exiles, peak followers) so epithets and death entries work after the person is gone; capped at 512.
-- **Events and UI**: `chronicle` event kind; `events-view.ts` shows it in the ticker. `host.ts` keeps a log of the last 100 events, sends it to new viewers, and saves it with the tracker and notables in `SavedWorld.chronicle` (optional, so older saves load).
-- **Tuning**: `npm run chronicle -- --years 90 --seed N`. Seeds 1, 2, 3: **22.3, 25.3 and 20.0 entries per real hour at 1x** (1x is 3 ticks a second, 30 years an hour). Target 10-30. Values logged in `docs/findings.md`.
-- **Verify**: `npm run verify` passes. New tests in `tests/chronicle.test.ts`: same fingerprint with the chronicle on or off, reproducible entries, switch off, battle threshold and cooldown, ring overwrite, save round trip, sequence numbers after load.
-- **Perf**: 13,736 people, 47.471 ms/tick, **3.456 us / person / tick** (budget 15.0). The benchmark does not run the host.
-- **Not confirmed**: the roadmap check "an hour yields 10 to 30 entries that match what was on screen" is not ticked; the rate is measured headless but nobody has watched an hour in the browser.
+- **Auto-camera (`src/ui/auto-camera.ts`)**: pure state machine over real time. Follows the oldest band of 20+ and stays with it until it dies; shots last at least 30 s; a queued event of higher priority takes over after the hold (battle 4, split or new band 3, leader death 2, migration 1); famine and boom never move it; drifts slowly when idle; backs off 20 s after a manual pan, zoom or tap, and while "follow selected" is on. Settings are in `config.ts` (`cameraHoldSeconds`, `cameraResumeSeconds`, `cameraDriftCellsPerSecond`, `cameraMinBandSize`, switch `autoCameraEnabled`). A "Cam" button in the playback pill toggles it.
+- **Renderer**: `setCameraTarget` plus an eased glide (about 0.7 s time constant) that keeps pan in whole pixels, so zoom stays crisp. `onUserInput` fires on wheel and pointer down.
+- **Host data**: panels now carry `bands` (large bands with name, size, centroid, founding tick) and `selectedStory` (plain-English lines about the selected person).
+- **Inspector**: shows "Kesh the Cruel of the Varn" and a line such as "Leads 83 followers near Vakel Ridge." or "Follows X, with N others, near Y."
+- **While you were away (`src/ui/away-view.ts`)**: the browser remembers the last event seen in `localStorage` (wrapped in try/catch). On reconnect, newer chronicle entries show in a dismissible card: at most 8, most important first, in the order they happened, with "and N more". Nothing shows on a first visit, when nothing is new, or when the world was reset. The host keeps only the last 100 events, so a long absence shows only the recent part.
+- **Verify**: `npm run verify` passes. New tests: `tests/auto-camera.test.ts` (13), `tests/away-view.test.ts` (6).
+- **Perf**: 13,736 people, 46.917 ms/tick, **3.416 us / person / tick** (budget 15.0). Camera and away card are viewer code and do not touch the tick.
+- **Not checked in a browser**: the Chrome extension was not connected, so I could not look at the camera glide, the Cam button, the inspector text or the away card on screen. The server built and started (port 8080) and the page type-checks and builds, but nobody has watched it run. The roadmap check "an hour yields 10 to 30 entries that match what was on screen" stays unticked.
 
 ## Next Steps
-1. 4c: auto-camera (follow the oldest large band, hold shots 30 s, priority order, idle drift), plain-English inspector text, "while you were away" summary.
-2. Watch an hour in the browser, then tick the Phase 4 check.
+1. Open the app (`npm run server`, then http://localhost:8080) and watch: does the camera glide to battles and new bands, does the Cam button toggle it, does a manual pan hold it off for 20 s, does the inspector text read well, does the away card appear after closing and reopening the tab?
+2. Merge `phase-4c-camera` after that look, then watch an hour and tick the Phase 4 check.
+3. Phase 5: Settle and farm.

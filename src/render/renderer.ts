@@ -140,6 +140,12 @@ export class CanvasRenderer {
   public selectedSlot: number | null = null;
   public followSelected = false;
   public onSelect?: (slot: number | null) => void;
+  /** Called when the viewer pans, zooms or taps, so the auto-camera can back off. */
+  public onUserInput?: () => void;
+  private cameraTarget: { x: number; y: number } | null = null;
+  private camX = 0;
+  private camY = 0;
+  private lastCameraStep = 0;
 
   // 30 FPS Render Loop
   private animHandle: number | null = null;
@@ -242,10 +248,40 @@ export class CanvasRenderer {
       const elapsed = time - this.lastRenderTimestamp;
       if (elapsed >= this.targetFrameMs - 1) {
         this.lastRenderTimestamp = time;
+        this.stepCamera(time);
         this.render();
       }
     };
     this.animHandle = requestAnimationFrame(tick);
+  }
+
+  /** Where the auto-camera wants to look, in cells; null lets go of the view. */
+  public setCameraTarget(target: { x: number; y: number } | null): void {
+    this.cameraTarget = target;
+  }
+
+  /** Glides the pan toward the camera target. Pan stays whole pixels so zoom stays crisp. */
+  private stepCamera(time: number): void {
+    const dt = Math.min(250, Math.max(0, time - this.lastCameraStep));
+    this.lastCameraStep = time;
+    const t = this.cameraTarget;
+    if (!t || this.isDragging) return;
+    const rect = this.canvas.parentElement?.getBoundingClientRect();
+    if (!rect) return;
+    const availW = Math.max(100, rect.width - this.insets.left - this.insets.right);
+    const availH = Math.max(100, rect.height - this.insets.top - this.insets.bottom);
+    const wantX = this.insets.left + availW / 2 - t.x * this.cellSize;
+    const wantY = this.insets.top + availH / 2 - t.y * this.cellSize;
+    // Someone else moved the view (a drag or zoom): start again from where it is.
+    if (Math.abs(Math.round(this.camX) - this.panX) > 1 || Math.abs(Math.round(this.camY) - this.panY) > 1) {
+      this.camX = this.panX;
+      this.camY = this.panY;
+    }
+    const k = 1 - Math.exp(-dt / 700);
+    this.camX += (wantX - this.camX) * k;
+    this.camY += (wantY - this.camY) * k;
+    this.panX = Math.round(this.camX);
+    this.panY = Math.round(this.camY);
   }
 
   public stopLoop(): void {
@@ -267,6 +303,7 @@ export class CanvasRenderer {
       'wheel',
       (e) => {
         e.preventDefault();
+        this.onUserInput?.();
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -291,6 +328,7 @@ export class CanvasRenderer {
     );
 
     this.canvas.addEventListener('pointerdown', (e) => {
+      this.onUserInput?.();
       this.isDragging = true;
       this.dragStartX = e.clientX;
       this.dragStartY = e.clientY;

@@ -286,6 +286,8 @@ export class SimulationHost {
       selected: null,
       selectedPerson,
       selectedId: viewer.selectedId,
+      bands: this.chronicle.bandViews(this.world.config.cameraMinBandSize ?? 20),
+      selectedStory: selectedPerson ? this.chronicle.describePerson(this.world, selectedPerson) : null,
       ...(viewer.wantsHistory ? { history: this.world.history.getSamples() } : {}),
     };
     return { ...base, panels };

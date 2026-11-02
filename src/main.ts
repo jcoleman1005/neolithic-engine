@@ -8,6 +8,8 @@ import { HistoryView } from './ui/history-view';
 import { BottomSheet } from './ui/sheet';
 import { LEGEND_HTML } from './ui/legend';
 import { eventListHTML, latestEventHTML } from './ui/events-view';
+import { AutoCamera } from './ui/auto-camera';
+import { awayHTML, readLastSeen, summariseAway, writeLastSeen } from './ui/away-view';
 import { APP_VERSION, APP_CODENAME } from './version';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -23,6 +25,7 @@ app.innerHTML = `
     <section class="stage" aria-label="World">
       <canvas id="sim-canvas" aria-label="The world."></canvas>
       <div id="playback" class="playback-pill" role="group" aria-label="Playback"></div>
+      <div class="away-card" role="dialog" aria-label="While you were away" hidden></div>
       <div class="notice" role="status" hidden>
         <span class="notice-text"></span>
         <button type="button" class="notice-close" aria-label="Dismiss">✕</button>
@@ -102,6 +105,39 @@ $('.notice-close')?.addEventListener('click', () => {
 
 let isRunning = false;
 
+const awayCard = $('.away-card');
+const storage = ((): Storage | null => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+})();
+const seenOnArrival = readLastSeen(storage);
+let awayChecked = false;
+let lastSeenWrite = 0;
+
+function checkAway(): void {
+  if (awayChecked) return;
+  awayChecked = true;
+  const summary = summariseAway(sim.worldEvents, seenOnArrival, sim.config.ticksPerYear || 360);
+  if (!summary) return;
+  awayCard.innerHTML = awayHTML(summary);
+  awayCard.hidden = false;
+  awayCard.querySelector('.away-close')?.addEventListener('click', () => {
+    awayCard.hidden = true;
+  });
+}
+
+function rememberSeen(): void {
+  const now = performance.now();
+  if (!awayChecked || now - lastSeenWrite < 2000) return;
+  const last = sim.worldEvents[sim.worldEvents.length - 1];
+  if (!last) return;
+  lastSeenWrite = now;
+  writeLastSeen(storage, { seq: last.seq, tick: last.tick });
+}
+
 const sim: SimulationClient = new SimulationClient({
   beforeFrame: () => renderer.frameStart(),
   frame: () => {
@@ -109,13 +145,21 @@ const sim: SimulationClient = new SimulationClient({
     renderer.frameDone();
   },
   reset: () => {
+    checkAway();
     isRunning = false;
     pill.update(false, sim.ticksPerSecond);
     renderer.resize();
     renderer.render();
     refreshPanels();
   },
-  events: () => refreshPanels(),
+  events: (fresh) => {
+    const now = performance.now();
+    camera.notifyEvents(
+      fresh.flatMap((e) => (e.kind === 'chronicle' ? [{ seq: e.seq, priority: e.priority, x: e.x, y: e.y, band: e.band }] : [])),
+      now
+    );
+    refreshPanels();
+  },
   error: (msg) => showNotice(msg),
   config: () => refreshPanels(),
   connection: (connected) => {
@@ -125,6 +169,10 @@ const sim: SimulationClient = new SimulationClient({
 });
 
 const renderer = new CanvasRenderer(canvas, sim);
+
+const camera = new AutoCamera();
+renderer.onUserInput = () => camera.notifyUserInput(performance.now());
+
 const metricsView = new MetricsView($('#metrics-container'));
 const inspectorView = new InspectorView($('#inspector-container'), {
   onSelectPerson: (id) => {
@@ -165,6 +213,10 @@ const pill = new PlaybackPill($('#playback'), {
   },
   onColorModeChange: (mode) => {
     renderer.colorMode = mode;
+  },
+  onAutoCameraChange: (on) => {
+    camera.enabled = on;
+    if (!on) renderer.setCameraTarget(null);
   },
 });
 
@@ -222,7 +274,24 @@ new SettingsView($('#settings-container'), {
   },
 }, sim.config);
 
+function driveCamera(): void {
+  const now = performance.now();
+  const c = sim.config;
+  camera.configure({
+    holdMs: (c.cameraHoldSeconds ?? 30) * 1000,
+    resumeMs: (c.cameraResumeSeconds ?? 20) * 1000,
+    driftCellsPerSecond: c.cameraDriftCellsPerSecond ?? 0.6,
+    minBandSize: c.cameraMinBandSize ?? 20,
+  });
+  // Following a chosen person is the viewer's own choice; leave it alone.
+  if (renderer.followSelected) camera.notifyUserInput(now);
+  const target = camera.update(now, sim.bands);
+  renderer.setCameraTarget(target);
+}
+setInterval(driveCamera, 250);
+
 function onFrame(): void {
+  rememberSeen();
   isRunning = sim.running;
   pill.update(sim.running, sim.ticksPerSecond);
   const m = sim.getMetrics();
@@ -238,7 +307,7 @@ function refreshPanels(): void {
   const m = sim.getMetrics();
   if (m) metricsView.render(m);
   eventsContainer.innerHTML = `<ul class="event-list">${eventListHTML(sim.worldEvents)}</ul>`;
-  inspectorView.render(sim.config, sim.selectedPerson, renderer.selectedSlot);
+  inspectorView.render(sim.config, sim.selectedPerson, renderer.selectedSlot, sim.selectedStory);
   historyView.render(sim.getHistorySamples());
 }
 

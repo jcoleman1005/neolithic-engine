@@ -5,6 +5,7 @@ export interface PlaybackCallbacks {
   onStep: () => void;
   onSpeedChange: (speedMultiplier: number) => void;
   onColorModeChange?: (mode: 'status' | 'bands') => void;
+  onAutoCameraChange?: (on: boolean) => void;
 }
 
 export interface SettingsCallbacks {
@@ -36,6 +37,7 @@ export class PlaybackPill {
         <option value="status" selected>Status</option>
         <option value="bands">Bands</option>
       </select>
+      <button id="btn-auto-camera" class="pill-btn" aria-pressed="true" title="Auto-camera follows the story">Cam</button>
       <span id="pill-tps" class="pill-tps">0 tps</span>
     `;
 
@@ -44,6 +46,13 @@ export class PlaybackPill {
     this.speedSelect = container.querySelector('#select-speed')!;
     this.colorSelect = container.querySelector('#select-color-mode');
     this.tpsBadge = container.querySelector('#pill-tps')!;
+
+    const camBtn = container.querySelector<HTMLButtonElement>('#btn-auto-camera');
+    camBtn?.addEventListener('click', () => {
+      const on = camBtn.getAttribute('aria-pressed') !== 'true';
+      camBtn.setAttribute('aria-pressed', String(on));
+      callbacks.onAutoCameraChange?.(on);
+    });
 
     this.playBtn.addEventListener('click', () => callbacks.onPlayPause());
     this.stepBtn.addEventListener('click', () => callbacks.onStep());
