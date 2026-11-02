@@ -92,6 +92,9 @@ export interface SimulationConfig {
   climbEnabled: boolean;
   copyEnabled: boolean;
   touchEnabled: boolean;
+  cultureTouchEnabled: boolean;
+  cultureToleranceThreshold: number;
+  cultureClashSlope: number;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
 

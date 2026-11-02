@@ -38,7 +38,38 @@ export interface ClashStats {
   kin: number;
 }
 
+/** Observer counts of belligerent non-allied encounters, binned by habit distance (Agent rule 11) */
+export interface CultureStats {
+  distanceBins: number[]; // 20 bins over 0..1
+  tolerated: number;
+  contested: number;
+}
+
 export class Rules {
+  public static cultureStats: CultureStats = {
+    distanceBins: new Array(20).fill(0),
+    tolerated: 0,
+    contested: 0,
+  };
+
+  public static resetCultureStats(): void {
+    Rules.cultureStats.distanceBins.fill(0);
+    Rules.cultureStats.tolerated = 0;
+    Rules.cultureStats.contested = 0;
+  }
+
+  /** Mean absolute habit difference, normalised to 0..1 */
+  public static habitDistance(slotA: number, slotB: number, people: People): number {
+    const a = slotA * HABIT_COUNT;
+    const b = slotB * HABIT_COUNT;
+    let sum = 0;
+    for (let h = 0; h < HABIT_COUNT; h++) {
+      const d = people.habits[a + h] - people.habits[b + h];
+      sum += d < 0 ? -d : d;
+    }
+    return sum / (HABIT_COUNT * 255);
+  }
+
   /** Observer tracking of physical clashes by relationship (Agent rule 11) */
   public static clashStats: ClashStats = {
     strangers: 0,
@@ -482,6 +513,24 @@ export class Rules {
       const bellB = people.habits[hOffB + HABIT_BELLIGERENCE] + people.genes[gOffB + GENE_CRUELTY];
 
       if (bellA > 180 || bellB > 180) {
+        // Culture similarity: near habits tolerate; far habits clash with rising chance
+        if (config.cultureTouchEnabled ?? true) {
+          const dist = Rules.habitDistance(slotA, slotB, people);
+          const bin = Math.min(19, Math.floor(dist * 20));
+          Rules.cultureStats.distanceBins[bin]++;
+          const threshold = config.cultureToleranceThreshold ?? 0.08;
+          if (dist <= threshold) {
+            Rules.cultureStats.tolerated++;
+            return;
+          }
+          const slope = config.cultureClashSlope ?? 4.0;
+          if (prng.next() >= Math.min(1, slope * (dist - threshold))) {
+            Rules.cultureStats.tolerated++;
+            return;
+          }
+          Rules.cultureStats.contested++;
+        }
+
         const idA = people.idOf(slotA);
         const idB = people.idOf(slotB);
         const leaderA = people.leaderId[slotA];

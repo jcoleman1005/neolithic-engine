@@ -228,6 +228,7 @@ describe('Phase 3 Rules & Invariants', () => {
       terrainEnabled: false,
       clashLossShare: 0.25,
       clashLootEfficiency: 0.8,
+      cultureTouchEnabled: false,
     };
     const people = new People(10);
     const land = new Land(config);
@@ -277,6 +278,54 @@ describe('Phase 3 Rules & Invariants', () => {
       const moved = people.x[slotWeak] !== 20 || people.y[slotWeak] !== 20;
       expect(moved).toBe(true);
     }
+  });
+
+  describe('culture similarity in touch', () => {
+    const setup = (cultureTouchEnabled: boolean, habitsB: number[], seed = 5) => {
+      const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled };
+      const people = new People(10);
+      const land = new Land(config);
+      const fields = new ScentFields();
+      const spatial = new SpatialIndex();
+      const ledger = new EnergyLedger();
+      const prng = new PRNG(seed);
+      const genes = new Uint8Array(GENE_COUNT).fill(128);
+      const habitsA = new Uint8Array(HABIT_COUNT).fill(128);
+      habitsA[3] = 220; // Belligerence
+      const a = slotFromId(people.spawn(20, 20, 80, 1, 0, 0, 0, genes, habitsA, 0));
+      const b = slotFromId(people.spawn(20, 20, 60, 0, 0, 0, 0, genes, Uint8Array.from(habitsB), 0));
+      spatial.build(people);
+      const energyBefore = people.energy[a] + people.energy[b];
+      Rules.touch(a, b, people, land, fields, spatial, ledger, config, prng);
+      return { people, a, b, ledger, energyBefore, prng };
+    };
+    const near = [128, 128, 128, 200, 128, 128, 128, 128]; // distance ~0.01
+    const far = [0, 255, 0, 20, 255, 0, 255, 0]; // distance ~0.7
+
+    it('habitDistance is symmetric, zero for equal habits and bounded by 1', () => {
+      const { people, a, b } = setup(true, near);
+      expect(Rules.habitDistance(a, a, people)).toBe(0);
+      expect(Rules.habitDistance(a, b, people)).toBe(Rules.habitDistance(b, a, people));
+      expect(Rules.habitDistance(a, b, people)).toBeLessThanOrEqual(1);
+    });
+
+    it('similar strangers tolerate each other and draw no random numbers', () => {
+      const { people, a, b, energyBefore, prng } = setup(true, near);
+      expect(people.energy[a] + people.energy[b]).toBe(energyBefore);
+      expect(people.energy[a]).toBe(80);
+      expect(people.energy[b]).toBe(60);
+      expect(prng.next()).toBe(new PRNG(5).next());
+    });
+
+    it('distant strangers clash, and with culture off similar strangers clash too', () => {
+      const distant = setup(true, far);
+      expect(distant.people.energy[distant.a] + distant.people.energy[distant.b] + distant.ledger.attack).toBeCloseTo(
+        distant.energyBefore,
+        6
+      );
+      const off = setup(false, near);
+      expect(off.people.energy[off.a]).not.toBe(80);
+    });
   });
 
   it('incumbency bonus protects current leader against marginal competitors', () => {

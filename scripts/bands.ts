@@ -5,6 +5,7 @@ interface CliArgs {
   seed: number;
   years: number;
   touch: boolean;
+  culture: boolean;
 }
 
 function parseArgs(): CliArgs {
@@ -12,6 +13,7 @@ function parseArgs(): CliArgs {
   let seed = 42;
   let years = 200;
   let touch = true;
+  let culture = true;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--seed' && i + 1 < args.length) {
@@ -20,6 +22,10 @@ function parseArgs(): CliArgs {
       years = parseInt(args[++i], 10);
     } else if (args[i] === '--touch' && i + 1 < args.length) {
       touch = args[++i].toLowerCase() !== 'off' && args[i].toLowerCase() !== 'false';
+    } else if (args[i] === '--culture=off') {
+      culture = false;
+    } else if (args[i] === '--culture=on') {
+      culture = true;
     } else if (args[i] === '--touch=off' || args[i] === '--no-touch') {
       touch = false;
     } else if (args[i] === '--touch=on') {
@@ -27,14 +33,14 @@ function parseArgs(): CliArgs {
     }
   }
 
-  return { seed, years, touch };
+  return { seed, years, touch, culture };
 }
 
 function runBands(): void {
-  const { seed, years, touch } = parseArgs();
-  console.log(`\n=== Band Measurement: Seed ${seed}, ${years} Years, Touch: ${touch ? 'ON' : 'OFF'} ===\n`);
+  const { seed, years, touch, culture } = parseArgs();
+  console.log(`\n=== Band Measurement: Seed ${seed}, ${years} Years, Touch: ${touch ? 'ON' : 'OFF'}, Culture: ${culture ? 'ON' : 'OFF'} ===\n`);
 
-  const world = new World({ touchEnabled: touch }, seed);
+  const world = new World({ touchEnabled: touch, cultureTouchEnabled: culture }, seed);
   const ticksPerYear = world.config.ticksPerYear || 360;
   const decisionInterval = world.config.decisionStaggerInterval || 8;
 
@@ -59,6 +65,7 @@ function runBands(): void {
   let decadeRetained = 0;
   let decadeEvaluated = 0;
   Rules.resetClashStats();
+  Rules.resetCultureStats();
 
   for (let y = 1; y <= years; y++) {
     for (let t = 0; t < ticksPerYear; t++) {
@@ -143,6 +150,8 @@ function runBands(): void {
     }
   }
 
+  const bins = Rules.cultureStats.distanceBins;
+  console.log(`\nHabit-distance histogram of belligerent stranger encounters (last decade, 20 bins 0..1): ${bins.join(' ')}`);
   console.log(`\nFinished ${years} years. Final state hash: ${world.stateHash()}\n`);
 }
 
