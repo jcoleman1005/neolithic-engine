@@ -32,10 +32,11 @@ const ZOOM_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32] as const;
 const COLOR_FARM_RGB = 0x3068a8; // rgb(168, 104, 48), warm terracotta
 const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
 const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
-const COLOR_HEAP_RGB = 0x28b0e8; // rgb(232, 176, 40), golden grain
+const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food heap never reads as brown
+const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
+const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
 const COLOR_GRANARY = 0xff284e7a; // rgb(122, 78, 40), plank floor, opaque
 const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
-const COLOR_BRUSH_RGB = 0x32828c; // rgb(140, 130, 50), olive brush
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
 // WorldBox Terrain 32-bit ABGR Palette
@@ -699,11 +700,9 @@ export class CanvasRenderer {
         const st = structures ? structures[i] : 0;
         if (st !== 0) {
           const form = (st >> 3) & 3;
-          const bLevel = st >> 5;
           if (form === 2) c = COLOR_GRANARY;
           else if (form === 3) c = COLOR_NEST;
           else if ((st & 7) > 0) c = ((170 + (st & 7) * 12) << 24) | COLOR_HEAP_RGB;
-          else if (bLevel > 0) c = ((150 + bLevel * 14) << 24) | COLOR_BRUSH_RGB;
         }
         out[i] = c >>> 0;
       }
@@ -906,15 +905,18 @@ export class CanvasRenderer {
           continue;
         }
         if (bLevel > 0 && level === 0 && form === 1) {
-          // Brush heap: a loose bundle of sticks, wider and taller with the heap
-          const rows = Math.min(5, 1 + Math.ceil(bLevel * 0.6));
-          const baseW = Math.min(7, 3 + bLevel);
-          for (let r = 0; r < rows; r++) {
-            const w = Math.max(2, baseW - 2 * r);
-            const rx = x0 + Math.round((cs - w * ap) / 2);
-            const ry = y0 + cs - Math.round((r + 1.5) * ap);
-            ctx.fillStyle = r % 2 === 0 ? '#7a6a2c' : '#9a8a3c';
-            ctx.fillRect(rx, ry, Math.round(w * ap), Math.max(1, Math.round(ap)));
+          // Brush heap: a loose crisscross of thin sticks, more of them with a bigger heap
+          const n = Math.min(9, 3 + bLevel);
+          const len = Math.max(4, Math.round(cs * 0.55));
+          const th = Math.max(1, Math.round(ap * 0.6));
+          for (let k = 0; k < n; k++) {
+            const h = ((wx * 73856093) ^ (wy * 19349663) ^ (k * 83492791)) >>> 0;
+            const sx = x0 + Math.round(cs * 0.15 + ((h % 1000) / 1000) * cs * 0.5);
+            const sy = y0 + Math.round(cs * 0.6 + (((h >> 10) % 1000) / 1000) * cs * 0.3);
+            const dir = h & 1 ? 1 : -1;
+            const slope = 0.4 + ((h >> 20) & 3) * 0.3;
+            ctx.fillStyle = STICK_COLORS[(h >> 22) % STICK_COLORS.length];
+            for (let i = 0; i < len; i += th) ctx.fillRect(sx + dir * i, sy - Math.round(i * slope), th, th);
           }
           continue;
         }
@@ -930,16 +932,25 @@ export class CanvasRenderer {
         }
 
         if (level > 0) {
-          // Mound: stacked rows, narrower toward the top, taller and wider with the heap
-          const rows = Math.min(6, 1 + Math.ceil(level * 0.7));
-          const baseW = Math.min(7, 3 + level);
+          // Food heap: a pyramid of round gathered food (berries, roots, fruit, greens), so it
+          // reads as produce and not as a swirl. Taller and wider with the heap.
+          const rows = Math.min(4, 1 + Math.ceil(level * 0.45));
+          const d = Math.max(2, Math.round(ap * 1.5));
           const floorY = form === 2 ? y0 + cs - Math.round(1.5 * ap) : y0 + cs - Math.round(0.5 * ap);
           for (let r = 0; r < rows; r++) {
-            const w = Math.max(2, baseW - 2 * r);
-            const rx = x0 + Math.round((cs - w * ap) / 2);
-            const ry = floorY - Math.round((r + 1) * ap);
-            ctx.fillStyle = r === 0 ? '#b07818' : r === rows - 1 ? '#f6d060' : '#e8b028';
-            ctx.fillRect(rx, ry, Math.round(w * ap), Math.max(1, Math.round(ap)));
+            const n = rows - r + 1;
+            const rowW = n * d;
+            const rx = x0 + Math.round((cs - rowW) / 2);
+            const ry = floorY - (r + 1) * d;
+            for (let k = 0; k < n; k++) {
+              const col = FOOD_DOT_COLORS[(wx * 7 + wy * 3 + r * 2 + k) % FOOD_DOT_COLORS.length];
+              ctx.fillStyle = col;
+              ctx.fillRect(rx + k * d, ry, d - (d > 2 ? 1 : 0), d - (d > 2 ? 1 : 0));
+              if (ap >= 2) {
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.fillRect(rx + k * d, ry, 1, 1);
+              }
+            }
           }
         }
       }

@@ -220,7 +220,8 @@ export class LifeSystem {
       // A carrier resting where people congregate unloads brush on the spot too.
       if (nestsOn && stockOn && dir === 4 && carryKind[slot] === CARRY_BRUSH && people.carry[slot] > 0) {
         const c = (py[slot] << 8) | px[slot];
-        if (spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
+        // Brush is carried out of the woods to where people gather, never unloaded among the trees.
+        if (land.wooded[c] === 0 && spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
           land.dropBrush(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;
@@ -252,7 +253,10 @@ export class LifeSystem {
           px[slot] = nx;
           py[slot] = ny;
           // Carrying food is heavy: the more carried, the dearer each step.
-          const stepCost = carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / foodCarryMax) : moveCost;
+          const stepCost =
+            carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / foodCarryMax)
+            : carryKind[slot] === CARRY_BRUSH ? moveCost * (1 + carryDrag * people.carry[slot] / brushCarryMax)
+            : moveCost;
           energy[slot] -= stepCost;
           ledger.move += stepCost;
 
