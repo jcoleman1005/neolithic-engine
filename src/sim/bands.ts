@@ -30,7 +30,7 @@ export type BandChange =
   | { readonly kind: 'founded'; readonly band: number }
   | { readonly kind: 'split'; readonly band: number; readonly parent: number }
   | { readonly kind: 'succession'; readonly band: number; readonly from: number }
-  | { readonly kind: 'died'; readonly band: number; readonly lastSize: number };
+  | { readonly kind: 'died'; readonly band: number; readonly lastSize: number; readonly record: BandRecord };
 
 export class BandTracker {
   public readonly bands = new Map<number, BandRecord>();
@@ -152,7 +152,7 @@ export class BandTracker {
         continue;
       }
       this.bands.delete(id);
-      changes.push({ kind: 'died', band: id, lastSize: rec.size });
+      changes.push({ kind: 'died', band: id, lastSize: rec.size, record: rec });
     }
 
     for (let s = 0; s < cap; s++) {

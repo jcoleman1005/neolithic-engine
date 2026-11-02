@@ -1,9 +1,19 @@
-import type { WorldEvent } from '../sim/events';
+import type { ChronicleType, WorldEvent } from '../sim/events';
 
 export interface EventLine {
   readonly text: string;
   readonly colour: string;
 }
+
+const CHRONICLE_COLOURS: Record<ChronicleType, string> = {
+  battle: '#f87171',
+  split: '#fbbf24',
+  founded: '#fbbf24',
+  leaderDeath: '#c4b5fd',
+  migration: '#67e8f9',
+  famine: '#fb923c',
+  boom: '#86efac',
+};
 
 export function describeEvent(e: WorldEvent): EventLine {
   switch (e.kind) {
@@ -11,6 +21,8 @@ export function describeEvent(e: WorldEvent): EventLine {
       return { text: `Year ${e.year} begins`, colour: '#86efac' };
     case 'populationRecord':
       return { text: `Population reaches ${e.population}`, colour: '#38bdf8' };
+    case 'chronicle':
+      return { text: e.text, colour: CHRONICLE_COLOURS[e.type] };
     case 'extinction':
       return { text: 'All people have died', colour: '#f87171' };
     default:

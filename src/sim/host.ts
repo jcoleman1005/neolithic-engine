@@ -1,7 +1,7 @@
 import { World } from './world';
 import type { FromWorker, PanelData, SavedWorld, ToWorker } from './protocol';
-import { WorldEventDetector, type WorldEvent } from './events';
-import { BandTracker } from './bands';
+import { EVENT_LOG_SIZE, WorldEventDetector, type WorldEvent } from './events';
+import { Chronicle } from './chronicle';
 import type { SimulationConfig, WorldMetrics } from './types';
 
 /** How often panel data (metrics, history) is sent while running. */
@@ -42,8 +42,10 @@ export class SimulationHost {
   private nextViewerId = 1;
 
   private events = new WorldEventDetector();
-  private bandTracker = new BandTracker();
+  private chronicle = new Chronicle();
   private pendingEvents: WorldEvent[] = [];
+  /** Recent events kept for new viewers and for saves. */
+  private eventLog: WorldEvent[] = [];
   private readonly tickTimes: number[] = [];
 
   constructor(env: HostEnvironment, config?: Partial<SimulationConfig>) {
@@ -167,7 +169,8 @@ export class SimulationHost {
       version: 1,
       savedAt: new Date().toISOString(),
       world: this.world.exportState(),
-      events: [],
+      events: this.eventLog.slice(),
+      chronicle: this.chronicle.exportState(),
     };
   }
 
@@ -184,6 +187,9 @@ export class SimulationHost {
     this.stopTimer();
     this.world = world;
     this.resetObservers();
+    if (saved.chronicle) this.chronicle.importState(saved.chronicle);
+    this.eventLog = saved.events.slice(-EVENT_LOG_SIZE);
+    this.events = new WorldEventDetector(this.eventLog);
     this.tickTimes.length = 0;
     for (const v of this.viewers.values()) v.selectedId = null;
     this.postStatic();
@@ -192,14 +198,20 @@ export class SimulationHost {
 
   private stepWorld(): void {
     this.world.step();
-    this.pendingEvents.push(...this.events.record(this.world));
-    this.bandTracker.update(this.world);
+    const fresh = this.events.record(this.world);
+    for (const body of this.chronicle.record(this.world)) fresh.push(this.events.stamp(this.world, body));
+    if (fresh.length > 0) {
+      this.pendingEvents.push(...fresh);
+      this.eventLog.push(...fresh);
+      if (this.eventLog.length > EVENT_LOG_SIZE) this.eventLog.splice(0, this.eventLog.length - EVENT_LOG_SIZE);
+    }
   }
 
   private resetObservers(): void {
     this.events = new WorldEventDetector();
-    this.bandTracker = new BandTracker();
+    this.chronicle = new Chronicle();
     this.pendingEvents = [];
+    this.eventLog = [];
   }
 
   private scheduleNext(): void {
@@ -231,7 +243,7 @@ export class SimulationHost {
       ...(world.getElevation() ? { elevation: world.getElevation()!.exportView() } : {}),
       ...(world.getTerrain() ? { terrain: world.getTerrain()!.exportState(true) } : {}),
       foodRegions: world.foodRegions.map((r) => ({ ...r })),
-      events: [],
+      events: this.eventLog.slice(),
     };
     for (const v of only ? [only] : this.viewers.values()) v.post(message);
   }

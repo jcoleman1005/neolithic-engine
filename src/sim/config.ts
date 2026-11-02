@@ -51,6 +51,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   touchEnabled: true,
   cultureTouchEnabled: true,
   bandTrackEnabled: true,
+  chronicleEnabled: true,
   farmingEnabled: true,
   ritualEnabled: true,
 
@@ -103,6 +104,21 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // Phase 4: Chronicle band tracking (observer)
   bandTrackInterval: 60, // ticks between passes (1/6 year)
   bandTrackMinSize: 10, // a band is tracked from this size, dropped below half of it
+
+  // Phase 4: Chronicle thresholds (tuned in docs/findings.md; ticks are days, 360 to a year)
+  chronicleBattleClashes: 14, // clashes between the same two bands inside the window
+  chronicleBattleWindow: 5, // ticks
+  chronicleBattleCooldown: 360, // ticks before the same pair can make another battle entry
+  chronicleBattleMinSize: 20, // both bands must be this big
+  chronicleSplitMinSize: 30, // a band that splits off is announced once it reaches this
+  chronicleFoundMinSize: 70, // a band gathered around a loner is announced at this size
+  chronicleLeaderMinFollowers: 80, // a leader's death is recorded when the band had this many
+  chronicleMigrationDistance: 110, // net cells a band moves inside the window
+  chronicleMigrationWindow: 1440, // ticks
+  chronicleFamineDrop: 0.15, // fraction of population lost inside the window
+  chronicleBoomRise: 0.3, // fraction of population gained inside the window
+  chronicleWindowYears: 1,
+  chronicleCooldownYears: 5,
 };
 
 export const WORLD_SIZES = [

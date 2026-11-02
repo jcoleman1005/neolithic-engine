@@ -2,6 +2,7 @@ import type { ElevationField, ElevationState } from './elevation';
 import type { HistorySample } from './history';
 import type { TerrainField, TerrainState } from './terrain';
 import type { WorldEvent } from './events';
+import type { ChronicleState } from './chronicle';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
@@ -186,6 +187,8 @@ export interface SavedWorld {
   readonly savedAt: string;
   readonly world: WorldState;
   readonly events: readonly WorldEvent[];
+  /** Band tracker, notables and chronicle bookkeeping; absent in older saves. */
+  readonly chronicle?: ChronicleState;
 }
 
 export function isSavedWorld(value: unknown): value is SavedWorld {

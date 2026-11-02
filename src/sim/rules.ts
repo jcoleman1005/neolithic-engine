@@ -45,7 +45,32 @@ export interface CultureStats {
   contested: number;
 }
 
+/**
+ * Observer ring of recent clashes between different bands, drained by the chronicle.
+ * Fixed typed arrays, no allocation; overwrites the oldest when full (Agent rules 7 and 11).
+ */
+export const CLASH_RING = 8192;
+export class ClashLog {
+  public readonly rootA = new Uint32Array(CLASH_RING);
+  public readonly rootB = new Uint32Array(CLASH_RING);
+  public readonly x = new Uint8Array(CLASH_RING);
+  public readonly y = new Uint8Array(CLASH_RING);
+  /** Total clashes ever pushed; entry n lives at index n % CLASH_RING. */
+  public head = 0;
+
+  public push(a: number, b: number, x: number, y: number): void {
+    const i = this.head % CLASH_RING;
+    this.rootA[i] = a;
+    this.rootB[i] = b;
+    this.x[i] = x;
+    this.y[i] = y;
+    this.head++;
+  }
+}
+
 export class Rules {
+  public static clashLog = new ClashLog();
+
   public static cultureStats: CultureStats = {
     distanceBins: new Array(20).fill(0),
     tolerated: 0,
@@ -557,6 +582,10 @@ export class Rules {
 
         const px = people.x[slotA];
         const py = people.y[slotA];
+
+        if ((config.chronicleEnabled ?? true) && rootA !== rootB) {
+          Rules.clashLog.push(rootA !== 0 ? rootA : idA, rootB !== 0 ? rootB : idB, px, py);
+        }
 
         // Combat scores: strength + nearby allies + PRNG noise
         const alliesA = Rules.countNearbyAllies(slotA, px, py, people, spatial);

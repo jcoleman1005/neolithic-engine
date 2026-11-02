@@ -1,14 +1,15 @@
 ## Current State
-Phase 4 step 4a (naming and band tracking) done on branch `phase-4a-naming`. Steps 4b (chronicle detectors, ticker) and 4c (auto-camera, inspector text, "while you were away") are next, each on its own branch.
+Phase 4 step 4b (chronicle detectors, ticker, saving) done on branch `phase-4b-chronicle`. Step 4c (auto-camera, inspector text, "while you were away") is next.
 
-- **Naming (`src/core/naming.ts`)**: pure hash functions, no simulation random stream. Tongues (6 distinct syllables) seeded from lineage; `driftTongue` replaces one syllable for a split band. `personName`, `bandName`, `fullName` ("Kesh of the Varn"), `epithet` (deeds before traits, e.g. "Twice-Exiled", "the Cruel"), `landformFor` and `placeName` ("Varn Ridge").
-- **Band tracker (`src/sim/bands.ts`)**: observer, grouped by `rootLeaderId`, one pass every `bandTrackInterval` = 60 ticks. Per band: founder, parent, size, peak, wrapping centroid, distance travelled, tongue. Tells succession (old root leader dead, new root takes over) from a real split. Returns `BandChange` lists (founded / split / succession / died) for 4b. Export/import for saving. Wired into `host.ts`; switch `bandTrackEnabled`.
-- **Probe, seed 1, 20 years**: 154 bands tracked at the end; 223 founded, 70 died, 11 successions, 1 split. Splits are rare because most bands gather around loners, so 4b will need to check how "band split or new band" should be counted. About 1.2 ms per pass.
-- **Not yet done**: band tracker state is not yet in the save file (4b, with the event log); no events or UI use the names yet; no notables list; no clash-pair counters.
-- **Verify**: `npm run verify` passes. New tests: `tests/naming.test.ts`, `tests/bands.test.ts` (same seed gives the same fingerprint with the tracker on or off).
-- **Perf**: 13,736 people, 47.153 ms/tick, **3.433 us / person / tick** (budget 15.0). The benchmark does not run the host, so the tracker adds about 1.2 ms every 60 ticks on top.
+- **Chronicle (`src/sim/chronicle.ts`)**: observer on top of the band tracker. Entry types: battle, split, founded, leaderDeath (also covers a band scattering after its leader dies), migration, famine, boom. Each entry carries text, camera priority (battle 4, split or new band 3, leader death 2, migration 1, famine and boom 0), position and band key, ready for 4c.
+- **Clash log (`src/sim/rules.ts`)**: fixed typed ring of clashes between different bands, written in `touch`, drained by the chronicle. No allocation, no random draws.
+- **Notables**: leaders are remembered (genes, exiles, peak followers) so epithets and death entries work after the person is gone; capped at 512.
+- **Events and UI**: `chronicle` event kind; `events-view.ts` shows it in the ticker. `host.ts` keeps a log of the last 100 events, sends it to new viewers, and saves it with the tracker and notables in `SavedWorld.chronicle` (optional, so older saves load).
+- **Tuning**: `npm run chronicle -- --years 90 --seed N`. Seeds 1, 2, 3: **22.3, 25.3 and 20.0 entries per real hour at 1x** (1x is 3 ticks a second, 30 years an hour). Target 10-30. Values logged in `docs/findings.md`.
+- **Verify**: `npm run verify` passes. New tests in `tests/chronicle.test.ts`: same fingerprint with the chronicle on or off, reproducible entries, switch off, battle threshold and cooldown, ring overwrite, save round trip, sequence numbers after load.
+- **Perf**: 13,736 people, 47.471 ms/tick, **3.456 us / person / tick** (budget 15.0). The benchmark does not run the host.
+- **Not confirmed**: the roadmap check "an hour yields 10 to 30 entries that match what was on screen" is not ticked; the rate is measured headless but nobody has watched an hour in the browser.
 
 ## Next Steps
-1. Merge `phase-4a-naming` into `main` after the user's go-ahead.
-2. 4b: chronicle detectors (battle, split or new band, leader death, migration, famine, boom), clash-pair counters, notables, ticker, save of tracker and event log; tune thresholds to 10-30 entries per hour.
-3. 4c: auto-camera, inspector text, "while you were away" summary.
+1. 4c: auto-camera (follow the oldest large band, hold shots 30 s, priority order, idle drift), plain-English inspector text, "while you were away" summary.
+2. Watch an hour in the browser, then tick the Phase 4 check.
