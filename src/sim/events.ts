@@ -28,8 +28,6 @@ export const EVENT_LOG_SIZE = 100;
 
 export class WorldEventDetector {
   private nextSeq = 1;
-  private lastYear = 0;
-  private peakPopulation = 0;
 
   constructor(recentEvents: readonly WorldEvent[] = []) {
     if (recentEvents.length > 0) {
@@ -42,31 +40,11 @@ export class WorldEventDetector {
     return { ...body, seq: this.nextSeq++, tick: world.tick };
   }
 
-  public record(world: World): WorldEvent[] {
-    const events: WorldEvent[] = [];
-    const year = Math.floor(world.tick / (world.config.ticksPerYear || 360));
-
-    if (year > this.lastYear) {
-      this.lastYear = year;
-      events.push({
-        seq: this.nextSeq++,
-        tick: world.tick,
-        kind: 'year',
-        year,
-      });
-    }
-
-    const pop = world.population;
-    if (pop > this.peakPopulation && pop >= 10) {
-      this.peakPopulation = pop;
-      events.push({
-        seq: this.nextSeq++,
-        tick: world.tick,
-        kind: 'populationRecord',
-        population: pop,
-      });
-    }
-
-    return events;
+  /**
+   * The ticker shows chronicle entries only, so the plain "year begins" and "population
+   * reaches N" notes are no longer recorded (they also crowded the 100-entry log).
+   */
+  public record(_world: World): WorldEvent[] {
+    return [];
   }
 }

@@ -5,7 +5,7 @@ import {
 } from '../src/core/naming';
 
 const calm: EpithetFacts = {
-  strength: 100, cruelty: 100, charisma: 100, wisdom: 100, bravery: 100, exiles: 0, peakFollowers: 0, ageYears: 20,
+  strength: 100, cruelty: 100, charisma: 100, wisdom: 100, bravery: 100, departures: 0, peakFollowers: 0, ageYears: 20,
 };
 
 describe('Phase 4 naming', () => {
@@ -43,12 +43,42 @@ describe('Phase 4 naming', () => {
     }
   });
 
-  it('epithets come from deeds before traits, and are null when nothing stands out', () => {
+  it('names never repeat a sound ("Mama", "Lolo", "Shushush")', () => {
+    for (let lineage = 1; lineage < 40; lineage++) {
+      const t = makeTongue(lineage);
+      // 'hu' inside 'shu' would read as a repeat that is not one; skip such tongues.
+      if (t.some((a) => t.some((b) => a !== b && b.endsWith(a)))) continue;
+      for (let id = 1; id < 300; id++) {
+        for (const name of [personName(id, t), bandName(id, t)]) {
+          const lower = name.toLowerCase();
+          for (const syl of t) expect(lower).not.toContain(syl + syl);
+          const coda = /[^aeiou]+$/.exec(lower)?.[0] ?? '';
+          // A closing consonant that is also the start of an earlier syllable is an echo.
+          if (coda) {
+            const body = lower.slice(0, lower.length - coda.length);
+            for (const syl of t) if (body.includes(syl) && syl.startsWith(coda)) expect(`${name}`).toBe('no echo');
+          }
+        }
+      }
+    }
+  });
+
+  it('epithets: null when nothing stands out, and a pool that varies by person', () => {
     expect(epithet(1, calm)).toBeNull();
-    expect(epithet(1, { ...calm, exiles: 2, cruelty: 255 })).toBe('Twice-Exiled');
-    expect(epithet(1, { ...calm, exiles: 1 })).toBe('the Exiled');
     expect(epithet(1, { ...calm, cruelty: 250 })).toBe('the Cruel');
-    expect(epithet(1, { ...calm, peakFollowers: 150 })).toBe('the Great');
+    expect(epithet(1, { ...calm, departures: 1 })).toBe('the Leaver');
+    expect(epithet(1, { ...calm, departures: 2 })).toBe('the Restless');
+    // Nobody is "exiled": leading a split is leaving.
+    const seen = new Set<string>();
+    for (let id = 1; id < 200; id++) {
+      const e = epithet(id, { ...calm, departures: 1, cruelty: 250, strength: 250, wisdom: 250, peakFollowers: 200, battles: 3, founder: true });
+      expect(e).not.toBeNull();
+      expect(e).not.toMatch(/Exile/);
+      seen.add(e!);
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(5);
+    // Same person, same epithet.
+    expect(epithet(7, { ...calm, cruelty: 250, wisdom: 250 })).toBe(epithet(7, { ...calm, cruelty: 250, wisdom: 250 }));
   });
 
   it('landform and place names', () => {

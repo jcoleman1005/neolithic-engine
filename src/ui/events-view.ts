@@ -15,12 +15,13 @@ const CHRONICLE_COLOURS: Record<ChronicleType, string> = {
   boom: '#86efac',
 };
 
+/** Only chronicle entries (and extinction) reach the ticker; older saves may still hold others. */
+function isTickerEvent(e: WorldEvent): boolean {
+  return e.kind === 'chronicle' || e.kind === 'extinction';
+}
+
 export function describeEvent(e: WorldEvent): EventLine {
   switch (e.kind) {
-    case 'year':
-      return { text: `Year ${e.year} begins`, colour: '#86efac' };
-    case 'populationRecord':
-      return { text: `Population reaches ${e.population}`, colour: '#38bdf8' };
     case 'chronicle':
       return { text: e.text, colour: CHRONICLE_COLOURS[e.type] };
     case 'extinction':
@@ -31,20 +32,23 @@ export function describeEvent(e: WorldEvent): EventLine {
 }
 
 export function latestEventHTML(events: readonly WorldEvent[]): string {
-  if (events.length === 0) return '<span class="event-empty">The world is quiet.</span>';
-  const last = events[events.length - 1];
+  const shown = events.filter(isTickerEvent);
+  if (shown.length === 0) return '<span class="event-empty">The world is quiet.</span>';
+  const last = shown[shown.length - 1];
   const { text, colour } = describeEvent(last);
   return `<span class="event-dot" style="background: ${colour}"></span><span class="event-text">${text}</span>`;
 }
 
-export function eventListHTML(events: readonly WorldEvent[]): string {
-  if (events.length === 0) return '<li class="event-empty">No events yet.</li>';
-  return events
+export function eventListHTML(events: readonly WorldEvent[], ticksPerYear = 360): string {
+  const shown = events.filter(isTickerEvent);
+  if (shown.length === 0) return '<li class="event-empty">Nothing has happened yet.</li>';
+  return shown
     .slice()
     .reverse()
     .map((e) => {
       const { text, colour } = describeEvent(e);
-      return `<li class="event-row"><span class="event-tick">Tick ${e.tick}</span><span class="event-dot" style="background: ${colour}"></span><span class="event-text">${text}</span></li>`;
+      const year = Math.floor(e.tick / ticksPerYear);
+      return `<li class="event-row"><span class="event-tick">Year ${year}</span><span class="event-dot" style="background: ${colour}"></span><span class="event-text">${text}</span></li>`;
     })
     .join('');
 }

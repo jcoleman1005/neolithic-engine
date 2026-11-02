@@ -104,6 +104,8 @@ export interface SimulationConfig {
   chronicleBattleWindow: number;
   chronicleBattleCooldown: number;
   chronicleBattleMinSize: number;
+  chronicleBattleSize: number;
+  chronicleGreatBattleSize: number;
   chronicleSplitMinSize: number;
   chronicleFoundMinSize: number;
   chronicleLeaderMinFollowers: number;
@@ -117,6 +119,16 @@ export interface SimulationConfig {
   bandTrackMinSize: number;
   cultureToleranceThreshold: number;
   cultureClashSlope: number;
+  experienceHabitsEnabled: boolean;
+  habitInnovationRate: number;
+  habitInnovationRange: number;
+  habitWinStep: number;
+  habitLoseStep: number;
+  habitHungerStep: number;
+  habitFedStep: number;
+  habitHelpStep: number;
+  habitHungerEnergy: number;
+  habitFedEnergy: number;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
 

@@ -294,6 +294,7 @@ function onFrame(): void {
   rememberSeen();
   isRunning = sim.running;
   pill.update(sim.running, sim.ticksPerSecond);
+  pill.showServerSpeed(sim.targetTicksPerSecond);
   const m = sim.getMetrics();
   if (m) {
     peekPop.textContent = `${m.population} alive`;
@@ -306,7 +307,7 @@ function onFrame(): void {
 function refreshPanels(): void {
   const m = sim.getMetrics();
   if (m) metricsView.render(m);
-  eventsContainer.innerHTML = `<ul class="event-list">${eventListHTML(sim.worldEvents)}</ul>`;
+  eventsContainer.innerHTML = `<ul class="event-list">${eventListHTML(sim.worldEvents, sim.config.ticksPerYear || 360)}</ul>`;
   inspectorView.render(sim.config, sim.selectedPerson, renderer.selectedSlot, sim.selectedStory);
   historyView.render(sim.getHistorySamples());
 }
