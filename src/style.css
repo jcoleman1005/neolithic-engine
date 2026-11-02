@@ -2968,3 +2968,6 @@ button {
     padding: 0 8px;
   }
 }
+
+[data-go] { cursor: pointer; }
+.event-row[data-go]:hover, .peek-event [data-go]:hover { text-decoration: underline; }
