@@ -223,3 +223,24 @@ Key outcomes:
 | 18 |   6407 |  78.3% |  326 |   57 |   320 |  99.6% |     0.0 /  0.0 /  0.0 /  0.0 |
 | 19 |   6311 |  79.1% |  339 |   55 |   210 |  99.6% |     0.0 /  0.0 /  0.0 /  0.0 |
 | 20 |   6355 |  76.9% |  348 |   52 |   150 |  99.6% |     0.0 /  0.0 /  0.0 /  0.0 |
+
+## Culture similarity in touch (pre-Phase 4)
+
+New tunables in `src/sim/config.ts`, switch `cultureTouchEnabled` (default on).
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `cultureToleranceThreshold` | none (all belligerent strangers clash) | 0.08 | Mean absolute habit difference (0..1). About the median of belligerent stranger encounters (1.8M / 7.3M / 2.0M / 0.25M in bins 0-0.05 / 0.05-0.10 / 0.10-0.15 / 0.15-0.20). A first try at 0.15 tolerated about 96% of encounters and cut clashes to about 90 a year, which was too strong. |
+| `cultureClashSlope` | none | 4.0 | Above the threshold, clash chance is `min(1, 4 × (distance − threshold))`. Observed distances top out near 0.25, so the chance reaches about 0.7 at the far end. |
+
+Stranger clashes per year, seed 1, 50 years (`npm run bands -- --seed 1 --years 50 --culture=on|off`):
+
+| Decade | Culture off | Culture on (0.08) |
+|:--:|:--:|:--:|
+| 1 | not recorded | 7267 |
+| 2 | 44603 | 14732 |
+| 3 | 59815 | 12882 |
+| 4 | 60706 | 7987 |
+| 5 | 61042 | 4792 |
+
+Bands of 20+ at decade 5: 99 with culture off, 112 with culture on. Leader retention stays at 99.6%. Only seed 1 was measured; seeds 2 and 3 were not run.

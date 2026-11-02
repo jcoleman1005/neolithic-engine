@@ -1,41 +1,12 @@
-# Neolithic Engine — Status
-
 ## Current State
-Phase 3 (People) fully implemented, refined for cohesion and decisive clashes, and verified on branch `fix-phase-3-cohesion`.
+Pre-Phase 4 task done on branch `feat-culture-touch`: culture similarity in touch.
 
-### Key Enhancements & Fixes
-- **Allies in Touch & Cached Root Leaders (`src/sim/people.ts`, `src/sim/rules.ts`)**:
-  - `Rules.isAllied` prevents violence between allies: direct leader/follower (`A->B` or `B->A`), shared `rootLeaderId`, mates, maternal siblings (`same motherId`), and parent-child.
-  - Added cached `rootLeaderId: Uint32Array` refreshed in staggered time-slices (1/8th slice per tick) with 16-hop cycle breaker.
-- **Decisive Clashes with Conservation (`src/sim/rules.ts`)**:
-  - Combat score compares strength (dominant weight) + nearby allies + PRNG noise.
-  - Loser loses energy share (`clashLossShare = 0.25`); winner loots up to capacity (`clashLootEfficiency = 0.8`); struggle waste and excess over capacity are booked to `ledger.attack`. Loser retreats.
-- **Unbiased Leader Choice & Incumbency Bonus (`src/sim/rules.ts`)**:
-  - Incumbency bonus (`incumbencyBonus = 0.35`) applies only against the current leader or self to stabilize allegiance.
-  - Candidates compared via plain `>`; randomized spatial scan offset eliminates north/directional scan bias; closure-free and zero heap allocations.
-- **Full Cell Pairing (`src/sim/rules.ts`)**:
-  - `touchCell` pairs all co-located people in a cell in a rotating disjoint order, not just the first two.
-- **Band Visibility & Stats (`src/render/renderer.ts`, `src/ui/controls.ts`, `src/ui/metrics-view.ts`)**:
-  - Added "Colour by band" mode: each person colored by a deterministic hash of `rootLeaderId`, loners grey.
-  - Metric panel displays active band count ($\ge 2$) and largest band.
-- **Measurement Script & Verification (`scripts/bands.ts`)**:
-  - `npm run bands` prints per-decade statistics (% following, bands 5+, bands 20+, largest band, retention rate, clash relationship breakdown).
-  - 200-year runs across 3 seeds (Touch ON vs OFF) confirm:
-    - Leader retention: **99.5%–99.9%** per decision cycle.
-    - Clashes by relationship: Stranger clashes ~50k–65k/year; In-band / Leader / Kin clashes: **0.0 / year**.
-    - Band scale: Largest bands grow to **339–378** people.
-
-### Verification & Performance
-- **Automated Verification (`npm run verify`)**:
-  - TypeScript type check (`npm run check`): 0 errors.
-  - 55 automated tests across 9 test suites passing cleanly with 0 errors.
-  - Save/restore round trip reproduces bit-identical `stateHash`.
-  - Energy ledger balance maintains 0 residual across all ticks.
-- **Performance Benchmark (`npm run perf`)**:
-  - Population: **12,731** people.
-  - Tick duration: **38.257 ms** / tick.
-  - **Perf: 3.005 µs / person / tick** on desktop (budget: $\le 15.0$ µs; 5× faster than budget).
+- **Culture similarity (`src/sim/rules.ts`, switch `cultureTouchEnabled`)**: non-allied belligerent pairs with mean habit distance <= 0.08 tolerate each other; above it, clash chance is `min(1, 4 x (distance - 0.08))`. Off runs draw no extra random numbers.
+- **Stranger clashes/yr, seed 1** (`npm run bands`): culture off about 45k-61k (decades 2-5); culture on 14.7k, 12.9k, 8.0k, 4.8k. Bands of 20+ at decade 5: 99 off, 112 on. Retention 99.6%. Seeds 2 and 3 not measured.
+- Threshold and slope logged in `docs/findings.md`. Phase 4 naming, camera and chronicle decisions recorded in `docs/decisions.md`.
+- **Verify**: `npm run verify` passes (check, test, build).
+- **Perf**: 13,736 people, 46.287 ms/tick, **3.370 us / person / tick** (budget 15.0).
 
 ## Next Steps
-1. Merge branch `fix-phase-3-cohesion` into `main`.
+1. Merge `feat-culture-touch` into `main` (it needs the user's go-ahead). `fix-phase-3-cohesion` may already be merged; check.
 2. Begin Phase 4 (Chronicle): event detectors (famine, boom, migration, group split, clash, notable deaths), naming system, ticker, and auto-camera.

@@ -49,6 +49,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   climbEnabled: true,
   copyEnabled: true,
   touchEnabled: true,
+  cultureTouchEnabled: true,
   farmingEnabled: true,
   ritualEnabled: true,
 
@@ -95,6 +96,8 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   rootLeaderSliceCount: 8,
   shareEnergyMinSurplus: 15.0,
   shareEnergyAmount: 5.0,
+  cultureToleranceThreshold: 0.08,
+  cultureClashSlope: 4.0,
 };
 
 export const WORLD_SIZES = [
