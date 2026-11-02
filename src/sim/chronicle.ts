@@ -4,7 +4,7 @@ import { BandTracker, type BandChange, type BandRecord } from './bands';
 import { CLASH_RING, Rules } from './rules';
 import { slotFromId, GENE_STRENGTH, GENE_CRUELTY, GENE_CHARISMA, GENE_WISDOM, GENE_BRAVERY, GENE_COUNT } from './people';
 import {
-  bandName, epithet, landformFor, personName, placeName, placeRoot, type EpithetFacts,
+  bandName, epithet, landformFor, makeTongue, personName, placeName, placeRoot, type EpithetFacts, type Tongue,
 } from '../core/naming';
 
 /**
@@ -39,6 +39,22 @@ interface Mark {
   x: number;
   y: number;
   tick: number;
+}
+
+/** What the camera needs to know about a band. */
+export interface BandView {
+  readonly id: number;
+  readonly name: string;
+  readonly size: number;
+  readonly cx: number;
+  readonly cy: number;
+  readonly foundedTick: number;
+}
+
+/** Plain-English lines about one person for the inspector. */
+export interface PersonStory {
+  readonly headline: string;
+  readonly detail: string;
 }
 
 export interface ChronicleState {
@@ -127,7 +143,7 @@ export class Chronicle {
         const B = this.tracker.bands.get(hi);
         if (A && B && A.size >= minSize && B.size >= minSize) {
           p.lastReported = tick;
-          const text = `Battle: the ${bandName(A.id, A.tongue)} and the ${bandName(B.id, B.tongue)} fight near ${this.placeAt(world, p.x, p.y, A)} (${p.count} clashes in ${tick - p.firstTick + 1} days)`;
+          const text = `Battle: the ${bandName(A.id, A.tongue)} and the ${bandName(B.id, B.tongue)} fight near ${this.placeAt(world, p.x, p.y, A.tongue)} (${p.count} clashes in ${tick - p.firstTick + 1} days)`;
           out.push(this.entry('battle', text, p.x, p.y, A.id));
         }
       }
@@ -228,7 +244,7 @@ export class Chronicle {
       const parent = this.tracker.bands.get(rec.parentId);
       const leader = this.notables.get(key);
       const name = leader ? this.titled(leader, rec) : `the ${bandName(rec.id, rec.tongue)}`;
-      const place = this.placeAt(world, rec.cx, rec.cy, rec);
+      const place = this.placeAt(world, rec.cx, rec.cy, rec.tongue);
       if (p.kind === 'split' && parent) {
         out.push(this.entry('split',
           `${name} leads ${rec.size} people away from the ${bandName(parent.id, parent.tongue)} to ${place}`,
@@ -256,8 +272,8 @@ export class Chronicle {
       const dx = wrap(rec.cx - m.x, size);
       const dy = wrap(rec.cy - m.y, size);
       if (Math.hypot(dx, dy) >= dist) {
-        const from = this.placeAt(world, m.x, m.y, rec);
-        const to = this.placeAt(world, rec.cx, rec.cy, rec);
+        const from = this.placeAt(world, m.x, m.y, rec.tongue);
+        const to = this.placeAt(world, rec.cx, rec.cy, rec.tongue);
         out.push(this.entry('migration',
           `The ${bandName(rec.id, rec.tongue)} (${rec.size}) leave ${from} and settle near ${to}`, rec.cx, rec.cy, rec.id));
         this.marks.set(rec.id, { x: rec.cx, y: rec.cy, tick: world.tick });
@@ -295,6 +311,46 @@ export class Chronicle {
     }
   }
 
+  // ---- views -------------------------------------------------------------
+
+  /** Bands of at least `minSize` people, biggest first, capped for the wire. */
+  public bandViews(minSize: number, cap = 64): BandView[] {
+    const out: BandView[] = [];
+    for (const b of this.tracker.bands.values()) {
+      if (b.size >= minSize) {
+        out.push({ id: b.id, name: bandName(b.id, b.tongue), size: b.size, cx: b.cx, cy: b.cy, foundedTick: b.foundedTick });
+      }
+    }
+    out.sort((a, b) => b.size - a.size || a.id - b.id);
+    return out.slice(0, cap);
+  }
+
+  public describePerson(
+    world: World,
+    p: { id: number; x: number; y: number; motherId: number; rootLeaderId?: number }
+  ): PersonStory {
+    const root = p.rootLeaderId || p.id;
+    const band = this.tracker.bands.get(root);
+    const tongue: Tongue = band ? band.tongue : makeTongue(p.motherId || p.id);
+    const place = this.placeAt(world, p.x, p.y, tongue);
+    const nameOf = (id: number): string => {
+      const n = this.notables.get(id);
+      const ep = n ? epithet(id, n) : null;
+      return `${personName(id, tongue)}${ep ? ` ${ep}` : ''}`;
+    };
+    if (!band) {
+      return { headline: nameOf(p.id), detail: `Belongs to no large band and wanders near ${place}.` };
+    }
+    const bn = bandName(band.id, tongue);
+    if (root === p.id) {
+      return { headline: `${nameOf(p.id)} of the ${bn}`, detail: `Leads ${band.size - 1} followers near ${place}.` };
+    }
+    return {
+      headline: `${nameOf(p.id)} of the ${bn}`,
+      detail: `Follows ${nameOf(root)}, with ${Math.max(0, band.size - 2)} others, near ${place}.`,
+    };
+  }
+
   // ---- helpers -----------------------------------------------------------
 
   private prune(world: World): void {
@@ -315,7 +371,7 @@ export class Chronicle {
     return `${personName(n.id, rec.tongue)}${ep ? ` ${ep}` : ''} of the ${bandName(rec.id, rec.tongue)}`;
   }
 
-  private placeAt(world: World, x: number, y: number, band: BandRecord): string {
+  private placeAt(world: World, x: number, y: number, tongue: Tongue): string {
     const cx = Math.max(0, Math.min(world.land.width - 1, Math.round(x)));
     const cy = Math.max(0, Math.min(world.land.height - 1, Math.round(y)));
     const elev = world.land.elevation;
@@ -337,7 +393,7 @@ export class Chronicle {
       nearWater,
     });
     // The place takes a root word from the band's tongue and the 16-cell block it lies in.
-    return placeName(placeRoot((cx >> 4) * 64 + (cy >> 4), band.tongue), land);
+    return placeName(placeRoot((cx >> 4) * 64 + (cy >> 4), tongue), land);
   }
 
   private entry(type: ChronicleType, text: string, x: number, y: number, band: number): WorldEventBody {

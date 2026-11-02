@@ -2,7 +2,7 @@ import type { ElevationField, ElevationState } from './elevation';
 import type { HistorySample } from './history';
 import type { TerrainField, TerrainState } from './terrain';
 import type { WorldEvent } from './events';
-import type { ChronicleState } from './chronicle';
+import type { BandView, ChronicleState, PersonStory } from './chronicle';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
@@ -140,6 +140,9 @@ export interface PanelData {
   readonly selected?: OrganismView | null;
   readonly selectedPerson?: PersonDetail | null;
   readonly selectedId?: number | string | null;
+  /** Large bands, for the auto-camera. */
+  readonly bands?: readonly BandView[];
+  readonly selectedStory?: PersonStory | null;
   readonly history?: readonly HistorySample[];
 }
 

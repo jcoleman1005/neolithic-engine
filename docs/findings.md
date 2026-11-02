@@ -280,3 +280,14 @@ Entries per real hour at 1x, 90 years each:
 | 1 | 7.3 | 5.7 | 1.7 | 5.3 | 2.0 | 0.3 | 22.3 |
 | 2 | 11.3 | 3.7 | 1.3 | 6.3 | 2.3 | 0.3 | 25.3 |
 | 3 | 7.7 | 3.0 | 1.7 | 5.7 | 1.7 | 0.3 | 20.0 |
+
+## Auto-camera (Phase 4c)
+
+New tunables in `src/sim/config.ts`, switch `autoCameraEnabled` (default on). They are viewer settings in real seconds. Not yet tuned by watching.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `cameraHoldSeconds` | none | 30 | Decided: each shot lasts at least 30 s. |
+| `cameraResumeSeconds` | none | 20 | Agreed: resume 20 s after the last manual input. |
+| `cameraDriftCellsPerSecond` | none | 0.6 | Slow drift when idle; a guess to adjust by eye. |
+| `cameraMinBandSize` | none | 20 | Same size as battles: only bands of 20+ are followed. |

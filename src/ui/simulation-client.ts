@@ -3,6 +3,7 @@ import type { HistorySample } from '../sim/history';
 import { TerrainField } from '../sim/terrain';
 import { ElevationField } from '../sim/elevation';
 import { EVENT_LOG_SIZE, type WorldEvent } from '../sim/events';
+import type { BandView, PersonStory } from '../sim/chronicle';
 import { fastBase64Decode } from '../sim/base64';
 import type {
   EggView,
@@ -67,6 +68,9 @@ export class SimulationClient implements WorldView {
   public peopleCount = 0;
   public packedPeopleBuffer: Uint8Array = new Uint8Array(0);
   public selectedPerson: PersonDetail | null = null;
+  public selectedStory: PersonStory | null = null;
+  /** Large bands from the latest panels, for the auto-camera. */
+  public bands: readonly BandView[] = [];
   public organisms = new Map<string, OrganismView>();
   public foodPatches = new Map<string, FoodPatch>();
   public carrion = new Map<string, CarrionPatch>();
@@ -225,6 +229,8 @@ export class SimulationClient implements WorldView {
 
   private applyPanels(panels: PanelData): void {
     this.metrics = panels.metrics;
+    if (panels.bands) this.bands = panels.bands;
+    this.selectedStory = panels.selectedStory ?? null;
     if (panels.history) this.history = panels.history;
     if (panels.selectedPerson !== undefined) {
       this.selectedPerson = panels.selectedPerson;

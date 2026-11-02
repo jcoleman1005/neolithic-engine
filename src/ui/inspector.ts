@@ -1,4 +1,5 @@
 import type { PersonDetail } from '../sim/protocol';
+import type { PersonStory } from '../sim/chronicle';
 import type { SimulationConfig } from '../sim/types';
 
 export interface InspectorCallbacks {
@@ -21,7 +22,8 @@ export class InspectorView {
   public render(
     config: Readonly<SimulationConfig>,
     person: PersonDetail | null = null,
-    selectedId: number | string | null = null
+    selectedId: number | string | null = null,
+    story: PersonStory | null = null
   ): void {
     if (!person && !selectedId) {
       this.container.innerHTML = `
@@ -96,6 +98,7 @@ export class InspectorView {
             </div>
           </div>
 
+          ${story ? `<div class="person-story"><strong>${escapeHtml(story.headline)}</strong><br>${escapeHtml(story.detail)}</div>` : ''}
           <div class="person-card-body">
             <div class="stat-bar-group">
               <div class="stat-bar-label">
@@ -208,4 +211,8 @@ export class InspectorView {
   public clear(): void {
     this.container.innerHTML = '<div class="inspector-empty"><p class="hint">Tap any person to inspect them.</p></div>';
   }
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }

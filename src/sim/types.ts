@@ -95,6 +95,11 @@ export interface SimulationConfig {
   cultureTouchEnabled: boolean;
   bandTrackEnabled: boolean;
   chronicleEnabled: boolean;
+  autoCameraEnabled: boolean;
+  cameraHoldSeconds: number;
+  cameraResumeSeconds: number;
+  cameraDriftCellsPerSecond: number;
+  cameraMinBandSize: number;
   chronicleBattleClashes: number;
   chronicleBattleWindow: number;
   chronicleBattleCooldown: number;

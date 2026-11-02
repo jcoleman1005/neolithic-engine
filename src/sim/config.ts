@@ -52,6 +52,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   cultureTouchEnabled: true,
   bandTrackEnabled: true,
   chronicleEnabled: true,
+  autoCameraEnabled: true,
   farmingEnabled: true,
   ritualEnabled: true,
 
@@ -117,6 +118,12 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   chronicleMigrationWindow: 1440, // ticks
   chronicleFamineDrop: 0.15, // fraction of population lost inside the window
   chronicleBoomRise: 0.3, // fraction of population gained inside the window
+  // Phase 4c: auto-camera (viewer side, real seconds)
+  cameraHoldSeconds: 30, // a shot lasts at least this long
+  cameraResumeSeconds: 20, // after a manual pan or zoom, wait this long before resuming
+  cameraDriftCellsPerSecond: 0.6, // slow drift when nothing is happening
+  cameraMinBandSize: 20, // only bands this big are followed
+
   chronicleWindowYears: 1,
   chronicleCooldownYears: 5,
 };
