@@ -9,6 +9,7 @@ import { BottomSheet } from './ui/sheet';
 import { LEGEND_HTML } from './ui/legend';
 import { eventListHTML, latestEventHTML } from './ui/events-view';
 import { AutoCamera } from './ui/auto-camera';
+import { seasonName } from './sim/seasons';
 import { awayHTML, readLastSeen, summariseAway, writeLastSeen } from './ui/away-view';
 import { APP_VERSION, APP_CODENAME } from './version';
 
@@ -307,7 +308,7 @@ function onFrame(): void {
   const m = sim.getMetrics();
   if (m) {
     peekPop.textContent = `${m.population} alive`;
-    peekYear.textContent = `Year ${m.year}`;
+    peekYear.textContent = `Year ${m.year} · ${seasonName(m.tick, sim.config)}`;
   }
   peekEvent.innerHTML = latestEventHTML(sim.worldEvents);
   refreshPanels();

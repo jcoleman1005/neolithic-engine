@@ -324,3 +324,13 @@ Chronicle entries per 30-year hour, 200 years (last hour is 20 years):
 | 2 | 29, 17, 11, 14, 19, 9, 11 |
 
 All within 10 to 30 except seed 2 hour 6 (9). Not tuned further to avoid fitting one seed.
+
+## Seasons (Phase 5a)
+
+No new state: a season factor is computed from the tick and multiplies plant regrowth. Switch `seasonsEnabled` (default on). Spring 0 to 90, summer 90 to 180, autumn 180 to 270, winter 270 to 360 ticks.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `seasonAmplitude` | none | 0.8 | Regrowth swings from 0.2x (mid-winter) to 1.8x (mid-summer) and averages 1 over a year, so the food balance stays near the seasonless one. A first try, not yet tuned by watching. |
+
+Seed 1, population at year 30 / 60 / 100: seasons on 7,245 / 7,427 / 7,517; off 7,959 / 8,381 / 8,231. About 9% fewer people, stable, no collapse. Perf 4.0 to 5.1 us / person / tick at 13.5k people (machine busy; budget 15).

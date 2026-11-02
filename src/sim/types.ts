@@ -129,6 +129,8 @@ export interface SimulationConfig {
   habitHelpStep: number;
   habitHungerEnergy: number;
   habitFedEnergy: number;
+  seasonsEnabled: boolean;
+  seasonAmplitude: number;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
 

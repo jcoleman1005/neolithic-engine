@@ -53,6 +53,8 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   bandTrackEnabled: true,
   chronicleEnabled: true,
   autoCameraEnabled: true,
+  seasonsEnabled: true,
+  seasonAmplitude: 0.8, // regrowth swings +/- this fraction around 1: summer 1.8x, winter 0.2x
   farmingEnabled: true,
   ritualEnabled: true,
 

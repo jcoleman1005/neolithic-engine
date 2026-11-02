@@ -1,4 +1,5 @@
 import type { SimulationConfig } from './types';
+import { seasonGrowthFactor } from './seasons';
 import {
   type People,
   GENE_COUNT,
@@ -32,7 +33,7 @@ export class LifeSystem {
     tick: number
   ): void {
     // 1. Land food regrowth
-    land.step(config);
+    land.step(config, seasonGrowthFactor(tick, config));
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
     const diffInterval = config.scentDiffusionInterval ?? 4;
