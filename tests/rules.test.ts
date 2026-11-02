@@ -11,7 +11,7 @@ import { DEFAULT_CONFIG } from '../src/sim/config';
 
 describe('Phase 3 Rules & Invariants', () => {
   it('climb directs person towards high food scent and avoids danger scent', () => {
-    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false };
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, calmMovementEnabled: false };
     const people = new People(10);
     const land = new Land(config);
     const fields = new ScentFields();

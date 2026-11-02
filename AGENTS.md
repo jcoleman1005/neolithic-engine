@@ -1,6 +1,6 @@
 # Agent rules
 
-Twelve rules for the coding agent; paste this section into `AGENTS.md` as it stands.
+Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it stands.
 
 1. At the start of a session, read `AGENTS.md`, `docs/STATUS.md` and the current phase in `docs/ROADMAP.md`. At the end, update `docs/STATUS.md`: what was done, what is next.
 2. Work one phase at a time, on a branch per task off `main`. Merge when `npm run verify` passes; tick a phase's checks only when a run or the S21 confirms them.
@@ -14,3 +14,4 @@ Twelve rules for the coding agent; paste this section into `AGENTS.md` as it sta
 10. Tests check mechanisms and invariants: energy balances, wrapping, slot reuse, save round trip, same seed gives the same fingerprint. Never assert that a behavior emerges.
 11. Observers (chronicle, tribes, city-state detection, names) only read the world, draw no random numbers, and change no outcome.
 12. Ideas outside the current phase go to the Parking lot. Agree bigger changes with the user first and record them in `docs/decisions.md`. Keep chat output short: summary tables, not logs.
+13. Every phase names a visible consequence, something you can point at on the map, and closes only when someone has watched it happen. Metrics alone do not close a phase.

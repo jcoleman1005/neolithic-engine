@@ -93,8 +93,8 @@ export class Land {
    * Advances plant food regrowth across all cells.
    * Regrowth follows a logistic recovery curve above the grazing floor.
    */
-  public step(config: Readonly<SimulationConfig>): void {
-    const rate = config.landRegrowthRate ?? 0.05;
+  public step(config: Readonly<SimulationConfig>, growthFactor = 1): void {
+    const rate = (config.landRegrowthRate ?? 0.05) * growthFactor;
     const floor = config.landGrazingFloor ?? 1.0;
 
     for (let i = 0; i < TOTAL_CELLS; i++) {

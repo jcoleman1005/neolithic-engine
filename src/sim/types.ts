@@ -90,6 +90,10 @@ export interface SimulationConfig {
 
   // Feature Switches
   climbEnabled: boolean;
+  calmMovementEnabled: boolean;
+  stayFoodFraction: number;
+  hungerStayPenalty: number;
+  reversalOverride: number;
   copyEnabled: boolean;
   touchEnabled: boolean;
   cultureTouchEnabled: boolean;
@@ -129,6 +133,8 @@ export interface SimulationConfig {
   habitHelpStep: number;
   habitHungerEnergy: number;
   habitFedEnergy: number;
+  seasonsEnabled: boolean;
+  seasonAmplitude: number;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
 

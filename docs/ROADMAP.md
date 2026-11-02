@@ -4,15 +4,15 @@ Oct 31, 2026 · @Joshua Coleman
 
 ## Goal
 
-Build a self-running fantasy world on a dedicated Galaxy S21, where about 700 years of history play out over one real day. Stick-figure bands forage, settle, farm, raid, worship and form city-states, and you follow it through quick glances and a written chronicle.
+Build a toy-physics antfarm on a dedicated Galaxy S21: stick-figure bands forage, settle, farm, burn, flood, raid and rebuild, and you watch the consequences happen on the map (and poke it with a brush). About 30 years pass per real hour; a written chronicle and the auto-camera help you follow along.
 
-The bar to clear: history has to feel like it is happening and stay readable, even though the rules underneath are simple. Nothing at the level of raids, tribes or states is scripted; it all has to grow out of individual people.
+The bar to clear: consequences must be visible and dramatic on the ground, even though the rules underneath are simple. Nothing at the level of raids, tribes or states is scripted, and nothing is gated behind unlock flags; it all has to grow out of land, bodies, costs and rewards. Drama comes from physics (fields, fuel, soil, stockpiles), never from scripted events.
 
 The work is done by a coding agent (Claude Code or Antigravity) in a new repo, `neolithic-engine`, seeded from `artificial-life` at commit `ca3e97f`. Export this doc to Markdown as `docs/ROADMAP.md`, and paste the Agent rules section into the new `AGENTS.md`.
 
 ## Locked decisions
 
-Eighteen decisions are settled; change one only on purpose, record why in `docs/decisions.md`, and update this table.
+These decisions are settled; change one only on purpose, record why in `docs/decisions.md`, and update this table.
 
 | Area | Decision | Notes |
 | --- | --- | --- |
@@ -28,12 +28,12 @@ Eighteen decisions are settled; change one only on purpose, record why in `docs/
 | Behavior | Three local rules: climb, copy, touch | Following, raiding and tribute are names for patterns, not code |
 | Jobs | None; labels come from what someone has done recently | Skill grows with practice |
 | Genes | Eight inherited traits: strength, bravery, greed, piety, charisma, curiosity, wisdom, cruelty | Blended from both parents, plus mutation |
-| Culture | Habits blended from parents and neighbors, medium stickiness | One tunable number |
+| Culture | Each habit inherited from one parent at random, plus drift and rare innovations; habits also shift with experience (winning, hunger, help received) | Replaces blending, which halved differences every generation. Tunables in `config.ts` |
 | Groups | Leader links only, no group table | A tribe is everyone under the same root leader, computed |
 | Combat | Abstract clashes for groups, individual injury up close |  |
-| Resources | Food, wood, stone and gold, carried one at a time | Like Age of Empires II villagers |
+| Resources | Food, seeds, wood and stone, carried one at a time; meat piles from dead animals are food on the land | Like Age of Empires II villagers. Gold only if raids need loot. No ability is locked behind a flag; things appear when their physics exists |
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
-| Viewer | Watch only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out |
+| Viewer | Watch, plus a poke brush: zoom, pan, tap to inspect, auto-camera; brush drops grain now, fire and water in Phase 6 | Stick figures up close; dots and colored regions zoomed out. The brush changes land and items only, never people's rules, and goes through the host in a fixed, seeded order |
 
 ## Starting point
 
@@ -48,7 +48,7 @@ Keep the plumbing of `artificial-life`, adapt its geography and observers, and r
 | Energy ledger | `src/sim/ledger.ts` | Keep | No imports; wire it to people in Phase 1 |
 | Saving | `exportState()` / `fromState()` pattern, `server/store.ts`, `src/ui/saved-worlds.ts` | Adapt | New save format at version 1; old saves don't load |
 | Geography | `src/sim/terrain.ts`, `elevation.ts`, `src/render/terrain-paint.ts`, `elevation-paint.ts` | Adapt | Plates, rivers, lakes and ocean; built for 60 x 60 with no wrapping |
-| Land physics | `src/sim/grazing.ts`, `seasons.ts` | Adapt | Cell health that drops when bitten and recovers with rest; `grazing.ts` depends on a type in `plants.ts` |
+| Land physics | `src/sim/grazing.ts`, `seasons.ts` | Adapt (seasons done in Phase 5a) | Cell health that drops when bitten and recovers with rest; `grazing.ts` depends on a type in `plants.ts` |
 | Names and events | `src/ui/names.ts`, `src/sim/events.ts`, `history.ts`, `src/ui/events-view.ts`, `history-view.ts` | Adapt | Become the chronicle, the ticker and the trend charts |
 | Kin | `src/sim/lineage.ts`, `family.ts` | Adapt | Move to slot-plus-generation IDs |
 | Page shell | `src/main.ts`, `src/ui/sheet.ts`, `controls.ts`, `dom.ts`, `inspector.ts`, `legend.ts`, `metrics-view.ts`, `src/style.css` | Adapt | Strip organism-specific panels |
@@ -56,7 +56,7 @@ Keep the plumbing of `artificial-life`, adapt its geography and observers, and r
 | Groups | `src/sim/groups.ts` | Replace | Colour buckets become root-leader tribes |
 | Organism core | `src/sim/world.ts`, organism parts of `types.ts`, `brain.ts`, `brain-trace.ts`, `dna.ts`, `policy.ts`, `sensors.ts`, `memory.ts`, `traits.ts`, `lifehistory.ts`, `sex.ts`, `growth.ts`, `plants.ts`, `genes.ts`, `tags.ts`, `species.ts`, `speciation.ts`, `activity.ts`, `metrics.ts` | Replace | New flat-array people world |
 | Organism views | `src/ui/brain-view.ts`, `species-view.ts`, `species-settings.ts`, `lineage-view.ts`, `organism-card.ts`, `peek-view.ts` | Delete | A new person card replaces `organism-card.ts` |
-| Weather | `src/sim/weather.ts` | Delete | Written for the 60 x 60 grid; in the parking lot |
+| Weather | `src/sim/weather.ts` | Reuse ideas | Written for the 60 x 60 grid; rewritten for 256 x 256 wrapped in Phase 6 |
 | Tests | 51 files in `tests/` | Delete most | Keep the patterns in `prng`, `snapshot`, `server` and `host` tests |
 | Docs | `AGENTS.md`, `WORLD_RULES.md`, `docs/*` | Replace | New `AGENTS.md`, `docs/ROADMAP.md`, `STATUS.md`, `decisions.md`, `findings.md` |
 
@@ -124,7 +124,7 @@ neolithic-engine/
 
 ## Agent rules
 
-Twelve rules for the coding agent; paste this section into `AGENTS.md` as it stands.
+Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it stands.
 
 1. At the start of a session, read `AGENTS.md`, `docs/STATUS.md` and the current phase in `docs/ROADMAP.md`. At the end, update `docs/STATUS.md`: what was done, what is next.
 2. Work one phase at a time, on a branch per task off `main`. Merge when `npm run verify` passes; tick a phase's checks only when a run or the S21 confirms them.
@@ -138,6 +138,7 @@ Twelve rules for the coding agent; paste this section into `AGENTS.md` as it sta
 10. Tests check mechanisms and invariants: energy balances, wrapping, slot reuse, save round trip, same seed gives the same fingerprint. Never assert that a behavior emerges.
 11. Observers (chronicle, tribes, city-state detection, names) only read the world, draw no random numbers, and change no outcome.
 12. Ideas outside the current phase go to the Parking lot. Agree bigger changes with the user first and record them in `docs/decisions.md`. Keep chat output short: summary tables, not logs.
+13. Every phase names a visible consequence, something you can point at on the map, and closes only when someone has watched it happen. Metrics alone do not close a phase.
 
 ## Roadmap at a glance
 
@@ -188,6 +189,8 @@ Goal: watch Phase 1 on the S21, running for hours.
 - Page: year, population and ticks-per-second readout, speed dial, a person card in place of the organism card.
 - On the phone: install with `scripts/termux-boot.sh`, set `ALIFE_MAX_SPEED` for about 3 ticks a second, open Chrome at `localhost`, run `npm run perf` in Termux.
 
+Ongoing audit gate: it does not block later phases; tick each check only when the S21 confirms it.
+
 * [ ] 8 hours on the S21 without a crash or a temperature collapse.
 * [ ] The world resumes after a force-close and after a reboot.
 * [ ] At most 30 µs per person per tick on the S21 at 10,000 people.
@@ -209,6 +212,8 @@ Goal: groups form, follow and clash with no group code.
 
 Goal: an hour of watching produces a readable history.
 
+Frozen after this phase: no more work on names, epithets or thresholds. A new chronicle detector is added only with a visible physical event (fire, flood, drought, famine, a settlement founded or lost).
+
 - `src/sim/chronicle.ts` from `events.ts`: detectors for famine, boom, migration, group split, clash, and the death of a notable person.
 - Names from `names.ts` for people, groups and places; a tracked list of notable people.
 - Ticker from `events-view.ts`, a plain-English inspector, and an auto-camera that drifts to the most interesting event.
@@ -218,26 +223,56 @@ Goal: an hour of watching produces a readable history.
 
 ### Phase 5: Settle and farm
 
-Goal: some groups settle while others stay nomadic, in the same run.
+Goal: some groups settle while others stay nomadic, in the same run, and you can see why.
 
-- Seasons from `seasons.ts`. Light, repeated harvesting raises a cell's regrowth, so farming is physics; farming knowledge is discovered and spreads by contact.
-- Home anchors, food stockpiles, houses and granaries as land state; sprites for trees and buildings.
+Visible consequence: farmland, houses and granaries on the map; overworked land turning to desert.
+
+- Seasons from `seasons.ts` (5a, done): regrowth swings with the year.
+- Calm movement (fix, built): people stay and graze on rich tiles so repeated harvesting is real.
+- Farming is 100% physics, with no unlock flag and no discovery step: trampled or worked soil regrows faster, overgrazed soil degrades, seeds are an ordinary carried item, and a tired person who rests drops the seeds they carry. Whatever grows from dropped seeds is farming. (5b)
+- Home anchors, food stockpiles, houses and granaries as land state; sprites for trees and buildings; overgrazed land drawn as desert. (5c)
+- Poke brush, first tool only: "Drop grain" in the inspector, so you can test stockpiles, soil regrowth and dragging by hand. Handled by the host in a fixed order, seeded, saved. (built with 5b)
 
 * [ ] Settled and nomadic groups coexist for 100 years or more.
 * [ ] Land recovery time is tuned against how long a migration front takes to circle the map.
+* [ ] A farm is visible as a patch on the map, and overworked land is visible as desert.
 
-### Phase 6: Raids and defense
+### Phase 6: Weather and disaster
+
+Goal: the sky and the ground act on people, and you can read what happened from the ground.
+
+Visible consequence: dry brown grass in drought, flooded riverbanks, black scorch marks after fire.
+
+- A moving weather field (rain fronts, dry spells), flooding along rivers and lakes, and fire that spreads through grass and forest from seeded lightning, all as fields and costs. Rewritten from the ideas in `artificial-life` `weather.ts` for 256 x 256 wrapped. No scripted disaster events.
+- Legibility rule: consequences are drawn on the terrain. Never an opaque cloud or rain overlay that hides people; any front indicator is faint and never covers figures.
+- Poke brush adds "Light fire" and "Spawn water".
+- Chronicle detectors for fire, flood and drought come with it.
+
+* [ ] A drought, a flood and a fire each happen in a typical run and leave marks you can see.
+* [ ] Burned ground regrows; floodplains are richer afterwards.
+* [ ] Bands visibly flee or suffer, with no group rule saying so.
+
+### Phase 6b: Animals and hunting
+
+Goal: other living things add food and danger to the land.
+
+- Dumb herbivores that wander and flee, and leave a meat pile (food on the land) when they die; simple wolves that wander and emit danger scent. Rules stay at wander-and-flee: no pack tactics, no scripted hunts.
+
+* [ ] Herds and wolves persist for 50 years or more without taking over the map.
+* [ ] Hunting and wolf danger visibly change where people go.
+
+### Phase 7: Raids and defense
 
 Goal: stored wealth attracts raids, and defense makes them costly.
 
-- Wood, stone and gold, a stockpile per resource, walls and towers.
+- Wood and stone (gold only if loot needs it), a stockpile per resource, walls and towers.
 - Abstract clashes for groups, health and injury for individuals, loot carried home, danger marked in the scent field.
 
 * [ ] Raids target stockpiles rather than random people.
 * [ ] Walled settlements survive more raids than open ones.
 * [ ] Raiding is neither universal nor absent.
 
-### Phase 7: Leaders and city-states
+### Phase 8: Leaders and city-states
 
 Goal: polities spanning several settlements rise and fall.
 
@@ -247,15 +282,15 @@ Goal: polities spanning several settlements rise and fall.
 
 * [ ] A typical run produces at least one multi-settlement polity that later breaks apart.
 
-### Phase 8: Religion
+### Phase 9: Religion (optional)
 
-Goal: shared ritual lets groups grow larger before they split.
+Optional: decide after Phase 8 whether it earns its place. Goal: shared ritual lets groups grow larger before they split.
 
 - Shrines, ritual gatherings that cost time and food and raise similarity and loyalty, piety, punishing defectors, and standing for leaders who host rituals.
 
 * [ ] Groups that practice ritual hold together at larger sizes than groups that don't.
 
-### Phase 9: On the shelf
+### Phase 10: On the shelf
 
 Goal: the phone runs worlds for weeks unattended.
 
@@ -267,22 +302,20 @@ Goal: the phone runs worlds for weeks unattended.
 
 ## Open creative questions
 
-Seven calls are still yours to make; each is needed by the phase in brackets. The agent should ask when it reaches one.
+These calls were yours to make; each is needed by the phase in brackets. The agent should ask when it reaches one.
 
 - [x] Does `artificial-life` keep running on the S21, or does Neolithic take the phone over? Two servers can share it, but they split one CPU core's worth of headroom. (Phase 2) — *Neolithic Engine takes over exclusively; artificial-life stopped.*
 - [x] Art direction: palette, sprite size, and how the zoomed-out view looks. (Phase 2) — *WorldBox game style art: vibrant terrain, miniature pixel figures up close, crisp dots zoomed out.*
 - [x] Final trait list: keep the six, or add something like cruelty or wisdom, up to eight. (Phase 3) — *Expanded to 8 traits: strength, bravery, greed, piety, charisma, curiosity, wisdom, cruelty.*
 - [x] What mostly makes people follow someone: food, strength, kin or charisma? All four will count; pick the one weighted most. (Phase 3) — *Balanced multi-attribute utility: equal base weights in config; observer's own genes modulate respect (greed respects wealth, piety respects wisdom).*
-- [ ] What the auto-camera treats as interesting: battles, foundings, deaths of leaders, migrations? (Phase 4)
-- [ ] Naming style for people and places: an invented language, or English compounds like Ashford? (Phase 4)
-- [ ] Which abilities start locked and must be discovered: farming, walls, ritual, crafting? (Phase 5)
+- [x] What the auto-camera treats as interesting: battles, foundings, deaths of leaders, migrations? (Phase 4) — *Settled in `decisions.md`: battles > split or new band > leader death > migration.*
+- [x] Naming style for people and places: an invented language, or English compounds like Ashford? (Phase 4) — *Invented names plus English descriptive words; see `decisions.md`.*
+- [x] Which abilities start locked and must be discovered: farming, walls, ritual, crafting? (Phase 5) — *None. No unlock flags; farming and building are physics.*
 
 ## Parking lot
 
-These ideas are deferred on purpose; revisit them after Phase 9 or when a phase clearly needs one.
+These ideas are deferred on purpose; revisit them after Phase 10 or when a phase clearly needs one.
 
-- Weather fronts (`weather.ts` from `artificial-life` is built for 60 x 60)
-- Animals and hunting
 - Seas, rivers you can sail, and boats
 - Trade, markets and debt networks
 - Healing, teaching and burying the dead
