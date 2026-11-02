@@ -186,7 +186,8 @@ export class Land {
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) { out[i] = 0; continue; }
       const dmg = Math.min(7, Math.round(((1 - this.soilHealth[i]) / span) * 7));
-      const farmLevel = Math.min(7, Math.round(Math.min(1, this.tilled[i]) * 7));
+      // Square-root scale so lightly worked soil still shows.
+      const farmLevel = Math.min(7, Math.round(Math.sqrt(Math.min(1, this.tilled[i])) * 7));
       const seedLevel = Math.min(3, Math.round((this.seeds[i] / seedCap) * 3));
       out[i] = dmg | (farmLevel << 3) | (seedLevel << 6);
     }

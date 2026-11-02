@@ -29,9 +29,9 @@ export interface ViewInsets {
 // Whole-number integer zoom scales
 const ZOOM_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32] as const;
 // Land overlay colours, as ABGR with alpha added per cell: farmland brown, desert sand, seeds yellow.
-const COLOR_FARM_RGB = 0x1f6a9a; // rgb(154, 106, 31)
-const COLOR_DESERT_RGB = 0x96c8e6; // rgb(230, 200, 150)
-const COLOR_SEEDS = 0xff50e6ff; // rgb(255, 230, 80), opaque
+const COLOR_FARM_RGB = 0x3068a8; // rgb(168, 104, 48), warm terracotta
+const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
+const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
 // WorldBox Terrain 32-bit ABGR Palette
@@ -676,9 +676,12 @@ export class CanvasRenderer {
         const farm = (b >> 3) & 7;
         const seeds = b >> 6;
         let c = 0;
-        if (seeds > 0) c = COLOR_SEEDS; // grain on the ground: bright yellow
-        else if (farm > desert) c = (farm * 22 + 30) << 24 | COLOR_FARM_RGB; // worked soil: rich brown
-        else if (desert > 0) c = (desert * 22 + 30) << 24 | COLOR_DESERT_RGB; // stripped land: pale sand
+        // A faint checker on worked soil reads as tilled ground, distinct from smooth desert.
+        const checker = ((i + (i >> 8)) & 1) * 10;
+        if (seeds > 0) c = ((110 + seeds * 40) << 24) | COLOR_SEEDS_RGB; // grain: translucent gold
+        else if (farm >= 2 && farm >= desert) c = ((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB; // worked soil: dark brown
+        else if (desert >= 2) c = ((85 + desert * 20) << 24) | COLOR_DESERT_RGB; // stripped land: pale sand
+        else if (farm === 1) c = ((70 + checker) << 24) | COLOR_FARM_RGB; // barely worked
         out[i] = c >>> 0;
       }
       this.overlayCtx.putImageData(this.overlayImg, 0, 0);
