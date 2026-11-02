@@ -9,6 +9,7 @@ Phase 5 step 5a (seasons) built on branch `phase-5a-seasons`, not yet merged. Ph
 - **Not looked at in a browser**: the season label, and whether movement now reads as calmer.
 
 ## Next Steps
-1. Watch the app: does movement look calmer, does the peek bar show the season? Then merge `fix-movement-jitter` (it contains 5a).
-2. 5b: farming as land physics. Light, repeated harvesting raises a cell's regrowth; heavy grazing degrades it; knowledge starts locked and is discovered by repetition and spreads by contact.
-3. 5c: home anchors, stockpiles, houses and granaries, with sprites.
+1. Merge `fix-movement-jitter` (contains 5a seasons and calm movement).
+2. 5b: farming as pure physics, with no unlock flags: worked soil regrows faster, overgrazed soil degrades, seeds are carried and dropped by tired people. Plus the poke brush's first tool, "Drop grain".
+3. 5c: home anchors, stockpiles, houses and granaries, with sprites and visible desert.
+4. Phase 6 weather and disaster, 6b animals, then raids; see `docs/ROADMAP.md` (direction changed to a toy-physics antfarm, recorded in `docs/decisions.md`).
