@@ -6,6 +6,8 @@ import type { SimulationConfig, WorldMetrics } from './types';
 
 /** How often panel data (metrics, history) is sent while running. */
 export const PANEL_INTERVAL_MS = 200;
+/** The land overlay (desert, farmland, seeds) changes slowly, so it goes out this often. */
+export const OVERLAY_INTERVAL_MS = 2000;
 /** Ticks never pile up beyond this much lag (e.g. after the tab was hidden). */
 const MAX_LAG_MS = 250;
 
@@ -225,6 +227,9 @@ export class SimulationHost {
     this.timer = null;
   }
 
+  private overlayDirty = true;
+  private overlaySentAt = -Infinity;
+
   private terrainSentFor: ReturnType<World['getTerrain']> = null;
   private terrainSentVersion = -1;
   private terrainSentAt = 0;
@@ -243,6 +248,7 @@ export class SimulationHost {
       ...(world.getElevation() ? { elevation: world.getElevation()!.exportView() } : {}),
       ...(world.getTerrain() ? { terrain: world.getTerrain()!.exportState(true) } : {}),
       foodRegions: world.foodRegions.map((r) => ({ ...r })),
+      landOverlay: world.packLandOverlay(),
       events: this.eventLog.slice(),
     };
     for (const v of only ? [only] : this.viewers.values()) v.post(message);
@@ -304,7 +310,16 @@ export class SimulationHost {
       withPanels &&
       (this.terrainSentFor !== terrain || this.terrainSentVersion !== terrain.version) &&
       this.env.now() - this.terrainSentAt >= 1000;
-    const base = { ...this.baseFrame(fromStep), ...(terrainDue ? { terrain: terrain.exportState() } : {}) };
+    const overlayDue = withPanels && (this.overlayDirty || this.env.now() - this.overlaySentAt >= OVERLAY_INTERVAL_MS);
+    const base = {
+      ...this.baseFrame(fromStep),
+      ...(terrainDue && terrain ? { terrain: terrain.exportState() } : {}),
+      ...(overlayDue ? { landOverlay: this.world.packLandOverlay() } : {}),
+    };
+    if (overlayDue) {
+      this.overlayDirty = false;
+      this.overlaySentAt = this.env.now();
+    }
     if (terrainDue) {
       this.terrainSentFor = terrain;
       this.terrainSentVersion = terrain.version;

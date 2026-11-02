@@ -353,3 +353,30 @@ An investigation found people reversing their last step 65% of the time (random 
 | On | 39.7% / 37.5% | 22.8% / 19.6% | 74.8 / 82.3 | 2.57 / 2.46 |
 
 Reversals are still above the random walk; the leader pull is the likely rest, left alone. Seed 1 population at year 10 / 30 / 60: on 4,719 / 7,080 / 7,025; off 4,934 / 7,245 / 7,427. Slightly lower, no inflation, so no retune of `birthTax` or `forageBite`. Perf 4.4 us / person / tick at about 13k people (busy machine; budget 15).
+
+## Farming physics (Phase 5b), tuned
+
+Switch `farmingPhysicsEnabled` (default on). No unlock flags. State: land `tilled`, `seeds`, `soilHealth`; person `carry`. Tilling now counts only when the person stayed on the cell the tick before. The viewer gets a one-byte-per-cell overlay (desert, farmland, seeds) every 2 s; the viewer is watch-only.
+
+First pass (all bites till, strong seeds) was far too strong: about 97% of land tilled, 58% desert, population 5 to 10% under the off run. Retuned with `npm run farming-sweep` (value sets in one process, one table). Targets set before sweeping: worked soil (tilled > 0.1) 10 to 35% of land, desert (soil < 0.6) under 15%, seeds on under 20% of land, population within 5% of the farming-off run.
+
+| Value | First try | New | Why |
+|:--|:--|:--|:--|
+| `tillGain` | 0.02 | 0.015 | Per bite while standing still. |
+| `tillDecay` | 0.001 | 0.002 | Tilling fades with a half-life of about 1 year. |
+| `soilWearRate` | 0.004 | 0.0012 | Stripping a cell wears soil more slowly. |
+| `soilRecoveryRate` | 0.0006 | 0.0015 | Stripped soil recovers faster when left alone. |
+| `seedPickupPerBite` | 0.1 | 0.05 | Fewer seeds per bite. |
+| `seedRegrowBoost` / `seedCapacityBoost` | 1.5 / 0.6 | 0.8 / 0.3 | Seeds were the dominant effect (population up to 35% over off). |
+| `seedDecay` | 0.002 | 0.004 | Seed banks fade faster. |
+| unchanged | | | `seedCarryMax` 3, `seedDropEnergy` 0.4, `seedCap` 10, `tillRegrowBoost` 1.0, `soilMin` 0.2. |
+
+Eight sets screened at 20 years on seed 1 (off pop 6,168); first pass was M, then confirmed over 50 years on seeds 1 to 3:
+
+| Seed | Pop vs off | Worked | Farm (> 0.3) | Desert | Seeds |
+|:--:|--:|--:|--:|--:|--:|
+| 1 | +1.2% | 17.7% | 2.7% | 6.1% | 15.3% |
+| 2 | +1.6% | 16.2% | 2.2% | 6.1% | 15.5% |
+| 3 | +2.7% | 18.7% | 2.8% | 7.1% | 16.3% |
+
+All pass. Note: two earlier sweeps passed the seed values through an unquoted shell variable, so they never took effect; their results (including an apparent tilling-versus-desert feedback) are not used. Not yet looked at on screen: the farm overlay is brown, desert sand, seeds yellow.

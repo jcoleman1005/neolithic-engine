@@ -114,6 +114,10 @@ export interface WorldView {
   readonly peopleCount: number;
   readonly terrain?: TerrainField | null;
   readonly elevation?: ElevationField | null;
+  /** Desert, farmland and seed levels, one byte per cell (see Land.packOverlay). */
+  readonly landOverlay?: Uint8Array | null;
+  /** Changes whenever landOverlay does. */
+  readonly landOverlayVersion?: number;
   readonly selectedPerson?: PersonDetail | null;
   readonly organisms?: ReadonlyMap<string, OrganismView>;
   readonly foodPatches?: ReadonlyMap<string, any>;
@@ -130,6 +134,7 @@ export interface WorldStatic {
   readonly terrain?: TerrainState;
   readonly elevation?: ElevationState;
   readonly foodRegions: readonly FoodRegion[];
+  readonly landOverlay?: string;
   readonly events: readonly WorldEvent[];
 }
 
@@ -154,6 +159,7 @@ export type FromWorker =
       readonly packedPeople: string;
       readonly peopleCount: number;
       readonly terrain?: TerrainState;
+      readonly landOverlay?: string;
       readonly ticksPerSecond: number;
       readonly running: boolean;
       readonly targetTicksPerSecond: number;

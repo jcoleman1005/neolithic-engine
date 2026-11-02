@@ -135,6 +135,20 @@ export interface SimulationConfig {
   habitFedEnergy: number;
   seasonsEnabled: boolean;
   seasonAmplitude: number;
+  farmingPhysicsEnabled: boolean;
+  tillGain: number;
+  tillDecay: number;
+  tillRegrowBoost: number;
+  seedPickupPerBite: number;
+  seedCarryMax: number;
+  seedDropEnergy: number;
+  seedCap: number;
+  seedDecay: number;
+  seedRegrowBoost: number;
+  seedCapacityBoost: number;
+  soilWearRate: number;
+  soilRecoveryRate: number;
+  soilMin: number;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
 

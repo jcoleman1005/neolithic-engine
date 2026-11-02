@@ -106,17 +106,25 @@ export class LifeSystem {
       }
     }
 
-    // 4. Foraging
+    // 4. Foraging (a little seed comes away with each bite)
+    const farmOn = config.farmingPhysicsEnabled !== false;
+    const seedPickup = config.seedPickupPerBite ?? 0.1;
+    const seedCarryMax = config.seedCarryMax ?? 3.0;
+    const seedDropBelow = (config.seedDropEnergy ?? 0.4) * maxEnergy;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
 
       const curE = energy[slot];
       if (curE < maxEnergy) {
         const want = Math.min(forageBite, maxEnergy - curE);
-        const eaten = land.graze(px[slot], py[slot], want, config);
+        const eaten = land.graze(px[slot], py[slot], want, config, people.prevDir[slot] === 4);
         if (eaten > 0) {
           energy[slot] = curE + eaten;
           ledger.plantMeal += eaten;
+          if (farmOn) {
+            const c = people.carry[slot] + seedPickup;
+            people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
+          }
         }
       }
     }
@@ -134,6 +142,11 @@ export class LifeSystem {
       }
 
       people.prevDir[slot] = dir;
+      // A tired person resting where they stand drops the seeds they carry.
+      if (farmOn && dir === 4 && people.carry[slot] > 0 && energy[slot] < seedDropBelow) {
+        land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
+        people.carry[slot] = 0;
+      }
       if (dir < 4) {
         let dx = 0;
         let dy = 0;

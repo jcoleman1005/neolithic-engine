@@ -21,7 +21,7 @@ Decisions are settled; change one only on purpose, record why here, and update t
 | Combat | Abstract clashes for groups, individual injury up close | |
 | Resources | Food, seeds, wood and stone, carried one at a time; meat piles are food on the land | Like Age of Empires II villagers. Gold only if raids need loot |
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
-| Viewer | Watch, plus a poke brush: zoom, pan, tap to inspect, auto-camera; brush drops grain (Phase 5), fire and water (Phase 6) | Stick figures up close; dots and colored regions zoomed out. Brush acts on land and items only |
+| Viewer | Strictly watch-only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out. No input reaches the simulation |
 | Phone Host | Neolithic Engine takes over S21 exclusively | Stop `artificial-life` service while Neolithic runs to claim full CPU headroom |
 | Art Style | WorldBox pixel art (procedural atlas) | Procedural sprite atlas in code, crisp pixels (smoothing off, integer zoom steps 1x, 2x, 3x...), 1 px/cell terrain offscreen cache with elevation shading and dirty redraws, small tree sprites on forest cells zoomed in, direct ImageData blit zoomed out, stick-figure sprites with deterministic ID offsets zoomed in, 30 FPS cap |
 | Phase 4: Naming | Invented names + English descriptive words | Each band has a "tongue" (small syllable set) seeded from founder's lineage; split bands inherit tongue with slight drift. People: "Kesh of the Varn". Notable leaders get English epithet from traits/deeds ("the Tall", "the Cruel", "Twice-Exiled"). Places: invented root + English landform from terrain ("Varn Ridge", "Oshel Marsh"). Derived purely by hashing IDs (never simulation PRNG). |
@@ -35,5 +35,5 @@ Decisions are settled; change one only on purpose, record why here, and update t
 | Weather legibility | Consequences drawn on the ground | Dry brown grass, flooded riverbanks, black scorch marks. No opaque overlay over people |
 | Animals | Phase 6b: dumb herbivores (meat piles) and simple wolves (danger emitters) | Wander-and-flee only |
 | Phase 2 gate | Ongoing audit, does not block | Ticked only when the S21 confirms |
-| Poke brush | Initial infrastructure in Phase 5 with Drop grain; fire and water in Phase 6 | Host handles pokes in a fixed seeded order; saved with the world |
+| No player tools | The poke brush was approved and then dropped before it shipped | The engine runs as a completely autonomous, untouched terrarium. Keeps determinism pure, removes reverse input plumbing, keeps the focus on autonomous toy-physics emergence |
 | Calm movement | People on a tile with at least half its food stay and graze; a 180 degree step back needs a strong pull | Fixes jitter (65% reversals); `prevDir` is saved and hashed; switch `calmMovementEnabled` |

@@ -4,7 +4,7 @@ Oct 31, 2026 · @Joshua Coleman
 
 ## Goal
 
-Build a toy-physics antfarm on a dedicated Galaxy S21: stick-figure bands forage, settle, farm, burn, flood, raid and rebuild, and you watch the consequences happen on the map (and poke it with a brush). About 30 years pass per real hour; a written chronicle and the auto-camera help you follow along.
+Build a toy-physics antfarm on a dedicated Galaxy S21: stick-figure bands forage, settle, farm, burn, flood, raid and rebuild, and you watch the consequences happen on the map. It is a sealed terrarium: you watch, you never touch. About 30 years pass per real hour; a written chronicle and the auto-camera help you follow along.
 
 The bar to clear: consequences must be visible and dramatic on the ground, even though the rules underneath are simple. Nothing at the level of raids, tribes or states is scripted, and nothing is gated behind unlock flags; it all has to grow out of land, bodies, costs and rewards. Drama comes from physics (fields, fuel, soil, stockpiles), never from scripted events.
 
@@ -33,7 +33,7 @@ These decisions are settled; change one only on purpose, record why in `docs/dec
 | Combat | Abstract clashes for groups, individual injury up close |  |
 | Resources | Food, seeds, wood and stone, carried one at a time; meat piles from dead animals are food on the land | Like Age of Empires II villagers. Gold only if raids need loot. No ability is locked behind a flag; things appear when their physics exists |
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
-| Viewer | Watch, plus a poke brush: zoom, pan, tap to inspect, auto-camera; brush drops grain now, fire and water in Phase 6 | Stick figures up close; dots and colored regions zoomed out. The brush changes land and items only, never people's rules, and goes through the host in a fixed, seeded order |
+| Viewer | Strictly watch-only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out. The engine is an untouched, autonomous terrarium: no input reaches the simulation, which keeps determinism pure |
 
 ## Starting point
 
@@ -231,7 +231,6 @@ Visible consequence: farmland, houses and granaries on the map; overworked land 
 - Calm movement (fix, built): people stay and graze on rich tiles so repeated harvesting is real.
 - Farming is 100% physics, with no unlock flag and no discovery step: trampled or worked soil regrows faster, overgrazed soil degrades, seeds are an ordinary carried item, and a tired person who rests drops the seeds they carry. Whatever grows from dropped seeds is farming. (5b)
 - Home anchors, food stockpiles, houses and granaries as land state; sprites for trees and buildings; overgrazed land drawn as desert. (5c)
-- Poke brush, first tool only: "Drop grain" in the inspector, so you can test stockpiles, soil regrowth and dragging by hand. Handled by the host in a fixed order, seeded, saved. (built with 5b)
 
 * [ ] Settled and nomadic groups coexist for 100 years or more.
 * [ ] Land recovery time is tuned against how long a migration front takes to circle the map.
@@ -245,7 +244,6 @@ Visible consequence: dry brown grass in drought, flooded riverbanks, black scorc
 
 - A moving weather field (rain fronts, dry spells), flooding along rivers and lakes, and fire that spreads through grass and forest from seeded lightning, all as fields and costs. Rewritten from the ideas in `artificial-life` `weather.ts` for 256 x 256 wrapped. No scripted disaster events.
 - Legibility rule: consequences are drawn on the terrain. Never an opaque cloud or rain overlay that hides people; any front indicator is faint and never covers figures.
-- Poke brush adds "Light fire" and "Spawn water".
 - Chronicle detectors for fire, flood and drought come with it.
 
 * [ ] A drought, a flood and a fire each happen in a typical run and leave marks you can see.

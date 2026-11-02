@@ -199,6 +199,14 @@ export class World {
     return [];
   }
 
+  private overlayBuffer = new Uint8Array(256 * 256);
+
+  /** Desert, farmland and seed levels for the viewer, base64 (see Land.packOverlay). */
+  public packLandOverlay(): string {
+    this.land.packOverlay(this.overlayBuffer, this.config);
+    return fastBase64Encode(this.overlayBuffer);
+  }
+
   private frameBuffer: Uint8Array = new Uint8Array(2048 * PERSON_FRAME_BYTES);
 
   public packPeopleFrame(): { base64: string; count: number } {
@@ -362,6 +370,7 @@ export class World {
         h.updateInt(leaderId[slot]);
         h.updateInt(people.rootLeaderId[slot]);
         h.updateInt(people.prevDir[slot]);
+        h.updateFloat(people.carry[slot]);
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;
@@ -374,6 +383,9 @@ export class World {
     h.updateFloatArray(land.food);
     h.updateFloatArray(land.maxFood);
     h.updateFloatArray(land.fertility);
+    h.updateFloatArray(land.tilled);
+    h.updateFloatArray(land.seeds);
+    h.updateFloatArray(land.soilHealth);
     h.updateIntArray(land.isWater);
 
     // 4. Scent fields

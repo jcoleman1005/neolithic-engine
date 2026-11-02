@@ -2971,3 +2971,5 @@ button {
 
 [data-go] { cursor: pointer; }
 .event-row[data-go]:hover, .peek-event [data-go]:hover { text-decoration: underline; }
+
+.pill-menu-item[aria-pressed="true"] { outline: 2px solid #facc15; }

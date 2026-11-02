@@ -13,6 +13,8 @@
     "verify": "bash scripts/verify.sh",
     "sim": "vite-node scripts/run.ts --",
     "bands": "vite-node scripts/bands.ts --",
+    "farming-sweep": "vite-node scripts/farming-sweep.ts --",
+    "farming": "vite-node scripts/farming.ts --",
     "movement": "vite-node scripts/movement.ts --",
     "culture": "vite-node scripts/culture.ts --",
     "chronicle": "vite-node scripts/chronicle.ts --",
