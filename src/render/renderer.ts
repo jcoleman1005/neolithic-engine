@@ -28,6 +28,10 @@ export interface ViewInsets {
 
 // Whole-number integer zoom scales
 const ZOOM_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32] as const;
+// Land overlay colours, as ABGR with alpha added per cell: farmland brown, desert sand, seeds yellow.
+const COLOR_FARM_RGB = 0x1f6a9a; // rgb(154, 106, 31)
+const COLOR_DESERT_RGB = 0x96c8e6; // rgb(230, 200, 150)
+const COLOR_SEEDS = 0xff50e6ff; // rgb(255, 230, 80), opaque
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
 // WorldBox Terrain 32-bit ABGR Palette
@@ -118,6 +122,11 @@ export class CanvasRenderer {
   private lastTerrainVersion = -1;
 
   // Zoomed-out people blit overlay canvas (fixed 256x256, 1 px/cell)
+  private readonly overlayCanvas: HTMLCanvasElement;
+  private readonly overlayCtx: CanvasRenderingContext2D;
+  private readonly overlayImg: ImageData;
+  private readonly overlayData32: Uint32Array;
+  private lastOverlayVersion = -1;
   private readonly peopleCanvas: HTMLCanvasElement;
   private readonly peopleCtx: CanvasRenderingContext2D;
   private readonly peopleImgData: ImageData;
@@ -191,6 +200,13 @@ export class CanvasRenderer {
     this.terrainData32 = new Uint32Array(this.terrainImgData.data.buffer);
 
     // Initialize 256x256 overlay canvas for direct 1px/cell ImageData blitting
+    this.overlayCanvas = document.createElement('canvas');
+    this.overlayCanvas.width = 256;
+    this.overlayCanvas.height = 256;
+    this.overlayCtx = this.overlayCanvas.getContext('2d')!;
+    this.overlayCtx.imageSmoothingEnabled = false;
+    this.overlayImg = this.overlayCtx.createImageData(256, 256);
+    this.overlayData32 = new Uint32Array(this.overlayImg.data.buffer);
     this.peopleCanvas = document.createElement('canvas');
     this.peopleCanvas.width = 256;
     this.peopleCanvas.height = 256;
@@ -622,6 +638,15 @@ export class CanvasRenderer {
       }
     }
 
+    // 3. Farmland, desert and seeds, drawn on the ground in the same tiled copies
+    if (this.updateOverlayCache()) {
+      for (let ty = this.panY; ty < (this.wrapY ? height : this.panY + 1); ty += worldPxH) {
+        for (let tx = this.panX; tx < (this.wrapX ? width : this.panX + 1); tx += worldPxW) {
+          this.ctx.drawImage(this.overlayCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
+        }
+      }
+    }
+
     // 4. Render Forest Trees when zoomed in
     const isZoomedIn = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
     if (isZoomedIn) {
@@ -632,6 +657,33 @@ export class CanvasRenderer {
     this.renderPeople(width, height, w, h, isZoomedIn);
 
     this.ctx.restore();
+  }
+
+  /**
+   * Paints the land overlay (one byte per cell: desert 3 bits, farmland 3 bits, seeds 2 bits)
+   * into a transparent 256x256 canvas, only when it has changed. False when there is nothing to draw.
+   */
+  private updateOverlayCache(): boolean {
+    const data = this.world.landOverlay;
+    if (!data) return false;
+    const version = this.world.landOverlayVersion ?? 0;
+    if (version !== this.lastOverlayVersion) {
+      this.lastOverlayVersion = version;
+      const out = this.overlayData32;
+      for (let i = 0; i < 65536; i++) {
+        const b = data[i];
+        const desert = b & 7;
+        const farm = (b >> 3) & 7;
+        const seeds = b >> 6;
+        let c = 0;
+        if (seeds > 0) c = COLOR_SEEDS; // grain on the ground: bright yellow
+        else if (farm > desert) c = (farm * 22 + 30) << 24 | COLOR_FARM_RGB; // worked soil: rich brown
+        else if (desert > 0) c = (desert * 22 + 30) << 24 | COLOR_DESERT_RGB; // stripped land: pale sand
+        out[i] = c >>> 0;
+      }
+      this.overlayCtx.putImageData(this.overlayImg, 0, 0);
+    }
+    return true;
   }
 
   /**

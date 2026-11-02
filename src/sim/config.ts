@@ -61,6 +61,22 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   autoCameraEnabled: true,
   seasonsEnabled: true,
   seasonAmplitude: 0.8, // regrowth swings +/- this fraction around 1: summer 1.8x, winter 0.2x
+  // Phase 5b: farming as physics (no unlock flags). Worked soil regrows faster, seeds are carried
+  // and dropped by tired people, overgrazed soil degrades (see docs/findings.md).
+  farmingPhysicsEnabled: true,
+  tillGain: 0.02, // per bite: tilled += gain * (1 - tilled)
+  tillDecay: 0.001, // per tick, fraction of tilling lost
+  tillRegrowBoost: 1.0, // regrowth x (1 + boost * tilled)
+  seedPickupPerBite: 0.1, // seeds picked up per bite of plant food
+  seedCarryMax: 3.0, // most one person carries
+  seedDropEnergy: 0.4, // tired: below this fraction of maxEnergy
+  seedCap: 10.0, // most seeds a cell holds
+  seedDecay: 0.002, // per tick, fraction of the seed bank lost
+  seedRegrowBoost: 1.5, // regrowth x (1 + boost * seed fraction)
+  seedCapacityBoost: 0.6, // food capacity x (1 + boost * seed fraction)
+  soilWearRate: 0.004, // soil health lost per bite that strips a cell
+  soilRecoveryRate: 0.0006, // per tick, fraction of the missing health regained when not stripped
+  soilMin: 0.2, // soil health never drops below this
   farmingEnabled: true,
   ritualEnabled: true,
 

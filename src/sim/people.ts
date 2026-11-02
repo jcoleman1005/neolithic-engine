@@ -50,6 +50,7 @@ export interface PackedPerson {
   readonly habits?: readonly number[];
   readonly leaderId?: number;
   readonly prevDir?: number;
+  readonly carry?: number;
   readonly rootLeaderId?: number;
 }
 
@@ -81,6 +82,8 @@ export class People {
   public rootLeaderId: Uint32Array;
   /** Last step taken: 0 E, 1 W, 2 S, 3 N, 4 none. Used to damp 180 degree reversals. */
   public prevDir: Uint8Array;
+  /** Seeds being carried, 0 up to seedCarryMax. Not energy. */
+  public carry: Float32Array;
   public genes: Uint8Array; // capacity * GENE_COUNT
   public habits: Uint8Array; // capacity * HABIT_COUNT
 
@@ -104,6 +107,7 @@ export class People {
     this.leaderId = new Uint32Array(this.capacity);
     this.rootLeaderId = new Uint32Array(this.capacity);
     this.prevDir = new Uint8Array(this.capacity).fill(4);
+    this.carry = new Float32Array(this.capacity);
     this.genes = new Uint8Array(this.capacity * GENE_COUNT);
     this.habits = new Uint8Array(this.capacity * HABIT_COUNT);
 
@@ -119,6 +123,7 @@ export class People {
       this.leaderId[i] = 0;
       this.rootLeaderId[i] = 0;
       this.prevDir[i] = 4;
+      this.carry[i] = 0;
     }
   }
 
@@ -177,6 +182,7 @@ export class People {
     this.leaderId = copyU32(this.leaderId);
     this.rootLeaderId = copyU32(this.rootLeaderId);
     this.prevDir = copyU8(this.prevDir);
+    this.carry = copyF32(this.carry);
     this.genes = copyGenes(this.genes);
     this.habits = copyHabits(this.habits);
 
@@ -221,6 +227,7 @@ export class People {
     this.fatherId[slot] = fatherId;
     this.leaderId[slot] = leaderId;
     this.prevDir[slot] = 4;
+    this.carry[slot] = 0;
     const personId = makePersonId(slot, slotGen);
     this.rootLeaderId[slot] = leaderId !== 0 ? leaderId : personId;
 
@@ -254,6 +261,7 @@ export class People {
     if (this.alive[slot] === 0) return;
     this.alive[slot] = 0;
     this.prevDir[slot] = 4;
+    this.carry[slot] = 0;
     this.leaderId[slot] = 0;
     this.rootLeaderId[slot] = 0;
     this.freeList[this.freeCount++] = slot;
@@ -365,6 +373,7 @@ export class People {
           leaderId: this.leaderId[slot],
           rootLeaderId: this.rootLeaderId[slot],
           prevDir: this.prevDir[slot],
+          carry: this.carry[slot],
           genes: Array.from(this.genes.subarray(gOff, gOff + GENE_COUNT)),
           habits: Array.from(this.habits.subarray(hOff, hOff + HABIT_COUNT)),
         });
@@ -414,6 +423,7 @@ export class People {
       this.fatherId[slot] = p.fatherId;
       this.leaderId[slot] = p.leaderId ?? 0;
       this.prevDir[slot] = p.prevDir ?? 4;
+      this.carry[slot] = p.carry ?? 0;
       this.rootLeaderId[slot] = p.rootLeaderId ?? p.leaderId ?? makePersonId(slot, genFromId(p.id));
 
       const gOff = slot * GENE_COUNT;

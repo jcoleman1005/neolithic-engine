@@ -205,7 +205,7 @@ export class Rules {
     const calm = config.calmMovementEnabled ?? true;
     if (calm && !leaderPulling) {
       const cell = (py << 8) | px;
-      const max = land.maxFood[cell];
+      const max = land.capacityAt(cell, config);
       if (max > 0) {
         const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
         const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);

@@ -353,3 +353,28 @@ An investigation found people reversing their last step 65% of the time (random 
 | On | 39.7% / 37.5% | 22.8% / 19.6% | 74.8 / 82.3 | 2.57 / 2.46 |
 
 Reversals are still above the random walk; the leader pull is the likely rest, left alone. Seed 1 population at year 10 / 30 / 60: on 4,719 / 7,080 / 7,025; off 4,934 / 7,245 / 7,427. Slightly lower, no inflation, so no retune of `birthTax` or `forageBite`. Perf 4.4 us / person / tick at about 13k people (busy machine; budget 15).
+
+## Farming physics (Phase 5b), first pass, NOT yet tuned
+
+Switch `farmingPhysicsEnabled` (default on). No unlock flags. New state: land `tilled`, `seeds`, `soilHealth`; person `carry`. The viewer gets a one-byte-per-cell overlay (desert, farmland, seeds) every 2 s. No player tools: the viewer is watch-only.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| `tillGain` / `tillDecay` | none | 0.02 / 0.001 | Each bite tills a cell; tilling fades with a half-life of about 2 years. |
+| `tillRegrowBoost` | none | 1.0 | Fully worked soil regrows twice as fast. |
+| `seedPickupPerBite` / `seedCarryMax` | none | 0.1 / 3.0 | A little seed comes away with each bite. |
+| `seedDropEnergy` | none | 0.4 | Tired = below 40% of max energy, and resting = standing still. |
+| `seedCap` / `seedDecay` | none | 10 / 0.002 | Seeds per cell, and fade rate. |
+| `seedRegrowBoost` / `seedCapacityBoost` | none | 1.5 / 0.6 | Seeds speed regrowth and raise capacity. |
+| `soilWearRate` / `soilRecoveryRate` / `soilMin` | none | 0.004 / 0.0006 / 0.2 | A bite that strips a cell wears the soil; it recovers slowly. |
+
+Seeds 1 and 2, 60 years, on vs off (`npm run farming`):
+
+| | Pop y60 | Farm cells (tilled > 0.3) | Desert cells (soil < 0.6) | Cells with seeds | Mean food |
+|:--|--:|--:|--:|--:|--:|
+| Seed 1 off | 7,025 | 0 | 0 | 0 | 4.74 |
+| Seed 1 on | 6,664 | 32,346 of 33,255 | 19,418 | 15,019 | 3.05 |
+| Seed 2 off | 7,026 | 0 | 0 | 0 | 4.25 |
+| Seed 2 on | 6,345 | 30,910 of 31,628 | 18,961 | 14,308 | 2.89 |
+
+**Problem:** the mechanics work but are far too strong. About 97% of land counts as farmland, 58% as desert and 45% holds seeds, so the map would be one colour rather than patches, and the population is 5 to 10% lower than with farming off (desert costs more than farming gains). Next: lower `tillGain`, raise `tillDecay`, make wear need a longer strip, and count tilling only for a person who stays. Perf 4.4 us / person / tick at 14.7k people (budget 15).
