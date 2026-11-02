@@ -50,6 +50,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   copyEnabled: true,
   touchEnabled: true,
   cultureTouchEnabled: true,
+  bandTrackEnabled: true,
   farmingEnabled: true,
   ritualEnabled: true,
 
@@ -98,6 +99,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   shareEnergyAmount: 5.0,
   cultureToleranceThreshold: 0.08,
   cultureClashSlope: 4.0,
+
+  // Phase 4: Chronicle band tracking (observer)
+  bandTrackInterval: 60, // ticks between passes (1/6 year)
+  bandTrackMinSize: 10, // a band is tracked from this size, dropped below half of it
 };
 
 export const WORLD_SIZES = [

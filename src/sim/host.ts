@@ -1,6 +1,7 @@
 import { World } from './world';
 import type { FromWorker, PanelData, SavedWorld, ToWorker } from './protocol';
 import { WorldEventDetector, type WorldEvent } from './events';
+import { BandTracker } from './bands';
 import type { SimulationConfig, WorldMetrics } from './types';
 
 /** How often panel data (metrics, history) is sent while running. */
@@ -41,6 +42,7 @@ export class SimulationHost {
   private nextViewerId = 1;
 
   private events = new WorldEventDetector();
+  private bandTracker = new BandTracker();
   private pendingEvents: WorldEvent[] = [];
   private readonly tickTimes: number[] = [];
 
@@ -191,10 +193,12 @@ export class SimulationHost {
   private stepWorld(): void {
     this.world.step();
     this.pendingEvents.push(...this.events.record(this.world));
+    this.bandTracker.update(this.world);
   }
 
   private resetObservers(): void {
     this.events = new WorldEventDetector();
+    this.bandTracker = new BandTracker();
     this.pendingEvents = [];
   }
 

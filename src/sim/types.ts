@@ -93,6 +93,9 @@ export interface SimulationConfig {
   copyEnabled: boolean;
   touchEnabled: boolean;
   cultureTouchEnabled: boolean;
+  bandTrackEnabled: boolean;
+  bandTrackInterval: number;
+  bandTrackMinSize: number;
   cultureToleranceThreshold: number;
   cultureClashSlope: number;
   farmingEnabled: boolean;
