@@ -253,6 +253,7 @@ Steps:
 - Calm movement (done): people stay and graze on rich tiles so repeated work is real.
 - 5b Farming as physics (done): no unlock flag, no discovery step; seeds are an ordinary carried item.
 - 5c Mounds and nests (built, being watched): food heaps that grow where people gather, tamping, granary floors, brush nests. Stigmergic: nothing is ordered.
+- 5-pre Finite wild resources (prototyped on `exp-finite-resources`, to be ported, not merged as is): finite trees (wood), seasonal berries, fish, fresh water with thirst, and roving herbivore herds that graze, breed and can be hunted. The branch diverged from the 5c code in `land.ts`, `life.ts`, `people.ts` and `world.ts`, so it is re-applied on top of 5c in pieces: trees become the brush source (replacing the free woodland rule), berries/fish/water go in as land arrays, and herds are the first half of Phase 6a. Each piece keeps its switch, its test and its on/off comparison.
 - 5d Cold, caves and campfires: a seasonal cold that raises upkeep for anyone unsheltered; natural caves as shelter cells; campfire hearths as fuelled, glowing, communal places that warm a radius and draw people in.
 - 5e Crop clearings you can read: worked cells turn golden as they ripen; hearths anchor settlements.
 - 5f Stone and dry-stone huts: a stone resource from rocky ground, carried one at a time, dumped and tamped into wall cells; closed rooms emerge as cells with walls around them; stone granaries.
@@ -267,6 +268,7 @@ Steps:
 
 Goal: hunter-gatherers have something to hunt, and something that hunts them.
 
+- Prototype exists on `exp-finite-resources` (herds as animals in the people arrays, grazing, breeding, hunting, meat yield, herd sprites); port it onto the current code first, then add wolves.
 - Dumb herbivores that wander and flee, and leave a meat pile (food on the land) when they die; simple wolves that wander and emit danger scent. Rules stay at wander-and-flee: no pack tactics, no scripted hunts. Promoted ahead of weather so the Stone Age start has meat.
 
 * [ ] Herds and wolves persist for 50 years or more without taking over the map.
