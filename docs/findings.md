@@ -255,3 +255,28 @@ New tunables in `src/sim/config.ts`, switch `bandTrackEnabled` (default on).
 | `bandTrackMinSize` | none | 10 | A band is tracked from 10 members and dropped below 5, so a band near the line does not flicker. The 20+ rule for battles is applied by the chronicle in 4b. |
 
 Seed 1, 20 years: 223 bands founded, 70 died, 11 successions, 1 split. Splits are rare, so 4b must decide what counts as "band split or new band" for the camera priority.
+
+## Chronicle thresholds (Phase 4b)
+
+New tunables in `src/sim/config.ts`, switch `chronicleEnabled` (default on). Ticks are days; 1x is 3 ticks a second, so one real hour is 10,800 ticks, 30 years. Target: 10 to 30 entries per hour.
+
+| Value | First try | New | Why |
+|:--|:--|:--|:--|
+| `chronicleBattleClashes` | 12 | 14 | 12 gave 31 battles an hour; 20 gave 0.7 and 30 gave none. 14 gives 7 to 11. |
+| `chronicleBattleWindow` | none | 5 ticks | "A few days". |
+| `chronicleBattleCooldown` | none | 360 ticks | One entry per pair per year. |
+| `chronicleBattleMinSize` | none | 20 | Only bands of 20+ count, as decided. |
+| `chronicleSplitMinSize` | 20 | 30 | 20 gave 7.5 splits an hour. |
+| `chronicleFoundMinSize` | 40 | 70 | 40 gave 10.5 new bands an hour. |
+| `chronicleLeaderMinFollowers` | 20 | 80 | 20 gave 122 scattered and 24 leader deaths an hour; 40 gave 42. 80 gives about 6. |
+| `chronicleMigrationDistance` | 60 | 110 | 60 gave 37 migrations an hour. |
+| `chronicleMigrationWindow` | 720 | 1440 | Two years to cover the distance. |
+| `chronicleFamineDrop` / `chronicleBoomRise` | none | 0.15 / 0.3 | Of the population over one year, with a five-year cooldown. No famine appeared in 90 years on seeds 1 to 3. |
+
+Entries per real hour at 1x, 90 years each:
+
+| Seed | battle | split | founded | leaderDeath | migration | boom | all |
+|:--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | 7.3 | 5.7 | 1.7 | 5.3 | 2.0 | 0.3 | 22.3 |
+| 2 | 11.3 | 3.7 | 1.3 | 6.3 | 2.3 | 0.3 | 25.3 |
+| 3 | 7.7 | 3.0 | 1.7 | 5.7 | 1.7 | 0.3 | 20.0 |

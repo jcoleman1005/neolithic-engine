@@ -10,9 +10,9 @@
 
 export type Tongue = readonly string[];
 
-const ONSETS = ['k', 'v', 'sh', 'm', 't', 'r', 'n', 'z', 'd', 'h', 'l', 'b', 'g', 'os'];
-const NUCLEI = ['a', 'e', 'i', 'o', 'u', 'ar', 'el', 'an', 'esh', 'or'];
-const CODAS = ['', '', '', 'n', 'l', 'sh', 'k', 'm', 'r'];
+const ONSETS = ['k', 'v', 'sh', 'm', 't', 'r', 'n', 'z', 'd', 'h', 'l', 'b', 'g', 's', 'th'];
+const NUCLEI = ['a', 'e', 'i', 'o', 'u', 'a', 'e', 'o'];
+const CODAS = ['sh', 'rn', 'n', 'l', 'k', 'm', 'r', 'th', '', ''];
 
 export const TONGUE_SIZE = 6;
 
@@ -35,13 +35,11 @@ export function hash32(a: number, b = 0, salt = 0): number {
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** A consonant-vowel syllable; a word gets one closing consonant at its end. */
 function syllable(h: number): string {
   const o = ONSETS[h % ONSETS.length];
   h = Math.floor(h / ONSETS.length);
-  const n = NUCLEI[h % NUCLEI.length];
-  h = Math.floor(h / NUCLEI.length);
-  const c = CODAS[h % CODAS.length];
-  return o + n + c;
+  return o + NUCLEI[h % NUCLEI.length];
 }
 
 /** A fresh tongue of distinct syllables from a lineage seed. */
@@ -76,7 +74,7 @@ function word(tongue: Tongue, h: number, syllables: number): string {
     out += tongue[h % tongue.length];
     h = Math.floor(h / tongue.length) + 1;
   }
-  return capitalise(out);
+  return capitalise(out + CODAS[h % CODAS.length]);
 }
 
 /** A given name for a person, one or two syllables: "Kesh". */
@@ -88,6 +86,11 @@ export function personName(personId: number, tongue: Tongue): string {
 /** A name for a band, two syllables: "Varn". */
 export function bandName(bandKey: number, tongue: Tongue): string {
   return word(tongue, hash32(bandKey, 0, 0xba4d), 2);
+}
+
+/** A root word for a place, from the tongue of whoever is naming it and a coarse map cell. */
+export function placeRoot(cellKey: number, tongue: Tongue): string {
+  return word(tongue, hash32(cellKey, 0, 0x91ace), 2);
 }
 
 /** "Kesh of the Varn". */

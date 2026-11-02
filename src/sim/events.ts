@@ -7,7 +7,20 @@ import type { World } from './world';
 export type WorldEventBody =
   | { readonly kind: 'year'; readonly year: number }
   | { readonly kind: 'populationRecord'; readonly population: number }
-  | { readonly kind: 'extinction' };
+  | { readonly kind: 'extinction' }
+  | {
+      readonly kind: 'chronicle';
+      readonly type: ChronicleType;
+      readonly text: string;
+      /** Camera priority: 4 battle, 3 split or new band, 2 leader death, 1 migration, 0 ticker only. */
+      readonly priority: number;
+      readonly x: number;
+      readonly y: number;
+      /** Key of the band the entry is about; 0 for the whole world. */
+      readonly band: number;
+    };
+
+export type ChronicleType = 'battle' | 'split' | 'founded' | 'leaderDeath' | 'migration' | 'famine' | 'boom';
 
 export type WorldEvent = WorldEventBody & { readonly seq: number; readonly tick: number };
 
@@ -22,6 +35,11 @@ export class WorldEventDetector {
     if (recentEvents.length > 0) {
       this.nextSeq = Math.max(...recentEvents.map((e) => e.seq)) + 1;
     }
+  }
+
+  /** Stamps a body from another observer with the next sequence number. */
+  public stamp(world: World, body: WorldEventBody): WorldEvent {
+    return { ...body, seq: this.nextSeq++, tick: world.tick };
   }
 
   public record(world: World): WorldEvent[] {
