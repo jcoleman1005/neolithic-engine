@@ -1,13 +1,15 @@
 ## Current State
-Phase 5b (farming physics) built on branch `phase-5b-farming`, **retuned, not merged (waiting for you to watch it)**. `main` has Phase 4, seasons, calm movement and the antfarm roadmap.
+Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built and tested, not yet watched on screen. `main` has Phase 4, seasons, calm movement and 5b farming. Project identity updated: an autonomous colony sim from primitive hunter-gatherers (see `docs/ROADMAP.md` and `docs/decisions.md`).
 
-- **Farming physics**: no unlock flags. Grazing tills a cell; tilled soil and seeds regrow faster; tired people resting drop the seeds they carry; stripped soil wears down to desert and recovers slowly. Switch `farmingPhysicsEnabled`.
-- **Viewer**: strictly watch-only (the poke brush was dropped). A land overlay shows farmland brown, desert sand and seeds yellow on the ground. Not yet looked at in a browser.
-- **Verify**: passes. Tests: `tests/farming.test.ts` (9). `npm run farming` measures it.
-- **Perf**: about 14k people, **5.1 us / person / tick** (budget 15; load average about 3 from other jobs).
-- **Tuning**: values from `npm run farming-sweep`, confirmed over 50 years on seeds 1 to 3: population +1.2 to +2.7% against farming off, worked soil 16 to 19% of land, desert 6 to 7%, seeds on 15 to 16%. Details in `docs/findings.md`.
+- **Stockpiles**: well-fed people gather surplus food and unload it where people congregate; hungry people eat from heaps; idle fed people tamp a heap; a big compacted heap becomes a granary floor. Switch `stockpilesEnabled`.
+- **Nests**: brush from woodland, unloaded and tamped the same way, becomes a nest that cuts upkeep to 70%. Switch `nestsEnabled`. Code name `nest` (the Stage 1 shelter); `hut` is reserved for dry-stone.
+- **Viewer**: heaps and granary floors as coloured cells zoomed out and pixel-art mounds and plank floors zoomed in; nests as brush lean-tos. Not yet looked at.
+- **Tools**: `npm run sweep -- --kind farming|stockpiles` (checkpoint warm-up, early abort, per-year progress), `npm run stockpiles`, `npm run farming`.
+- **Verify**: see the commit; tests `tests/stockpiles.test.ts`, `tests/farming.test.ts`.
+- **Perf**: about 14k people, **5.8 us / person / tick** (budget 15).
+- **Known**: nests keep growing (about 100 a year) with nothing limiting them; granary floors marginal at 5 on one seed. Both for the combined tuning pass.
 
 ## Next Steps
-1. You watch 5b (server rebuilt from this branch): do the brown farm patches, sandy desert and yellow seeds read clearly with people on top? Then merge.
-2. 5c: stigmergic stockpiles and building: items dropped by resting, full or burdened people grow into visible heaps; idle fed people work them in place (a per-person step in the touch phase, separate from the pair rule) until a tile snaps to a heap, granary floor or hovel. No build orders. Food and seeds only; stone and mud with walls in Phase 7.
-3. Phase 6 weather and disaster, 6b animals, then raids; see `docs/ROADMAP.md`.
+1. You watch 5c (restart the server from this branch): do heaps, nests and granary floors read on the map and zoomed in?
+2. Merge 5c, then 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts.
+3. A combined tuning pass over 5b to 5f once the features are in; decide the starting population (open question in the roadmap).

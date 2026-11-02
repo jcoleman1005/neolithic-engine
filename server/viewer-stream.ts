@@ -81,6 +81,7 @@ function merge(older: Frame, newer: Frame): Frame {
     events: older.events.length > 0 ? [...older.events, ...newer.events] : newer.events,
     ...(newer.panels ? {} : older.panels ? { panels: older.panels } : {}),
     ...(newer.landOverlay ? {} : older.landOverlay ? { landOverlay: older.landOverlay } : {}),
+    ...(newer.landStructures ? {} : older.landStructures ? { landStructures: older.landStructures } : {}),
   };
 }
 

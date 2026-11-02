@@ -4,9 +4,13 @@ Oct 31, 2026 · @Joshua Coleman
 
 ## Goal
 
-Build a toy-physics antfarm on a dedicated Galaxy S21: stick-figure bands forage, settle, farm, burn, flood, raid and rebuild, and you watch the consequences happen on the map. It is a sealed terrarium: you watch, you never touch. About 30 years pass per real hour; a written chronicle and the auto-camera help you follow along.
+Build an autonomous, self-running colony sim on a dedicated Galaxy S21, starting from primitive hunter-gatherers: a self-playing RimWorld or Dawn of Man terrarium that begins in the deep Stone Age. Year 0 is small nomadic bands with no structures, no advanced tools and no farming; natural caves and campfires are the only early shelters. You watch, you never touch. About 30 years pass per real hour; a written chronicle and the auto-camera help you follow along.
 
-The bar to clear: consequences must be visible and dramatic on the ground, even though the rules underneath are simple. Nothing at the level of raids, tribes or states is scripted, and nothing is gated behind unlock flags; it all has to grow out of land, bodies, costs and rewards. Drama comes from physics (fields, fuel, soil, stockpiles), never from scripted events.
+Zero player management: no blueprints, no build orders, no assigned jobs. Colonists self-organize from internal drives (hunger, cold, rest), physical affordances (a heap, a forest, a hearth, a stone) and local imitation. Shelters and stores are built stigmergically: people drop, stack and tamp material where they live, and a heap that is big and worked enough snaps into a built form on its own.
+
+The architectural arc grows out of the land and bodies in three stages. Stage 1: nomadic brush nests, lean-tos and cave shelters. Stage 2: trampled, domestic crop clearings and communal campfire hearths. Stage 3: dry-stone huts, preserved granaries and defensive barricades.
+
+The bar to clear: the colony must be readable on screen as pixel-art top-down: you can see campfires glowing, stone structures forming closed rooms, food mounds piling up, and crop patches turning golden. Consequences are visible and dramatic on the ground even though the rules underneath are simple. Nothing at the level of raids, tribes or states is scripted, and nothing is gated behind unlock flags; it all grows out of land, bodies, costs and rewards. Drama comes from physics (fields, fuel, soil, stockpiles, cold), never from scripted events.
 
 The work is done by a coding agent (Claude Code or Antigravity) in a new repo, `neolithic-engine`, seeded from `artificial-life` at commit `ca3e97f`. Export this doc to Markdown as `docs/ROADMAP.md`, and paste the Agent rules section into the new `AGENTS.md`.
 
@@ -31,7 +35,7 @@ These decisions are settled; change one only on purpose, record why in `docs/dec
 | Culture | Each habit inherited from one parent at random, plus drift and rare innovations; habits also shift with experience (winning, hunger, help received) | Replaces blending, which halved differences every generation. Tunables in `config.ts` |
 | Groups | Leader links only, no group table | A tribe is everyone under the same root leader, computed |
 | Combat | Abstract clashes for groups, individual injury up close |  |
-| Resources | Food, seeds, wood and stone, carried one at a time; meat piles from dead animals are food on the land | Like Age of Empires II villagers. Gold only if raids need loot. No ability is locked behind a flag; things appear when their physics exists |
+| Resources | Food, seeds, brush and stone, carried one at a time; wood only if a later phase needs it; meat piles from dead animals are food on the land | Like Age of Empires II villagers. Gold only if raids need loot. No ability is locked behind a flag; things appear when their physics exists |
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
 | Viewer | Strictly watch-only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out. The engine is an untouched, autonomous terrarium: no input reaches the simulation, which keeps determinism pure |
 
@@ -221,28 +225,60 @@ Frozen after this phase: no more work on names, epithets or thresholds. A new ch
 
 * [x] An hour yields 10 to 30 entries that match what was on screen.
 
-### Phase 5: Settle and farm
+### Phase 5: Primitive to settled
 
-Goal: some groups settle while others stay nomadic, in the same run, and you can see why.
+Goal: from nomadic hunter-gatherer bands in the deep Stone Age to some settled villages, in the same run, with every shelter and store built by self-organizing individuals and never by orders.
 
-Visible consequence: farmland, houses and granaries on the map; overworked land turning to desert.
+Visible consequence: campfires glow, food mounds pile up, crop clearings turn golden, shelters and stone rooms form where people live.
 
-- Seasons from `seasons.ts` (5a, done): regrowth swings with the year.
-- Calm movement (fix, built): people stay and graze on rich tiles so repeated harvesting is real.
-- Farming is 100% physics, with no unlock flag and no discovery step: trampled or worked soil regrows faster, overgrazed soil degrades, seeds are an ordinary carried item, and a tired person who rests drops the seeds they carry. Whatever grows from dropped seeds is farming. (5b)
-- Home anchors, food stockpiles, houses and granaries as land state; sprites for trees and buildings; overgrazed land drawn as desert. (5c)
+Year 0: small nomadic bands. Zero structures, zero farmland, zero stockpiles, zero advanced tools. Natural caves and campfires are the only early shelters.
 
+Zero player management: no blueprints, no build orders, no assigned jobs. Colonists act on internal drives (hunger, cold, rest), physical affordances (heaps, woodland, hearths, stone) and local imitation (the copy rule).
+
+The architectural arc, and where each piece lives:
+
+| Stage | What appears | How (physics only) | Step | State |
+| --- | --- | --- | --- | --- |
+| 1 Nomadic | Brush nests and lean-tos | Brush gathered in woodland, dropped where people sleep and congregate, tamped by idle fed people; a big compacted heap snaps to a nest that cuts upkeep (code: `nest`) | 5c | built |
+| 1 Nomadic | Cave shelters | Natural caves in hills; sheltered cells cut the cold | 5d | planned |
+| 1 Nomadic | Campfire hearths | Fuel (brush) carried to where people gather in the cold and burned; warmth radius, glow | 5d | planned |
+| 2 Domestic | Trampled crop clearings | Tilled soil and dropped seeds regrow faster; overgrazed soil goes to desert | 5b | built |
+| 2 Domestic | Golden ripe crops | Ripeness drawn on worked cells; communal hearths persist where people settle | 5e | planned |
+| 3 Dry-stone | Preserved granaries | Compacted food heaps become a granary floor that spoils slowly; stone granary later | 5c / 5f | floor built |
+| 3 Dry-stone | Dry-stone huts, closed rooms | Stone gathered, dumped and tamped into wall cells; shelter grows with the walls around a cell | 5f | planned |
+| 3 Dry-stone | Defensive barricades | Walls against raiders | Phase 7 | planned |
+
+Steps:
+- 5a Seasons (done): regrowth swings with the year.
+- Calm movement (done): people stay and graze on rich tiles so repeated work is real.
+- 5b Farming as physics (done): no unlock flag, no discovery step; seeds are an ordinary carried item.
+- 5c Mounds and nests (built, being watched): food heaps that grow where people gather, tamping, granary floors, brush nests. Stigmergic: nothing is ordered.
+- 5d Cold, caves and campfires: a seasonal cold that raises upkeep for anyone unsheltered; natural caves as shelter cells; campfire hearths as fuelled, glowing, communal places that warm a radius and draw people in.
+- 5e Crop clearings you can read: worked cells turn golden as they ripen; hearths anchor settlements.
+- 5f Stone and dry-stone huts: a stone resource from rocky ground, carried one at a time, dumped and tamped into wall cells; closed rooms emerge as cells with walls around them; stone granaries.
+- Readable visuals throughout: top-down pixel art, campfire glow, food mounds, golden crops, stone walls closing into rooms.
+
+* [ ] Year 0 has zero structures, zero farmland and zero stockpiles (a test checks the arrays are empty at tick 0).
 * [ ] Settled and nomadic groups coexist for 100 years or more.
 * [ ] Land recovery time is tuned against how long a migration front takes to circle the map.
-* [ ] A farm is visible as a patch on the map, and overworked land is visible as desert.
+* [ ] Watched: a clearing is visible as a patch, a campfire glows, food mounds pile up, and stone walls form closed rooms.
 
-### Phase 6: Weather and disaster
+### Phase 6a: Animals and hunting
+
+Goal: hunter-gatherers have something to hunt, and something that hunts them.
+
+- Dumb herbivores that wander and flee, and leave a meat pile (food on the land) when they die; simple wolves that wander and emit danger scent. Rules stay at wander-and-flee: no pack tactics, no scripted hunts. Promoted ahead of weather so the Stone Age start has meat.
+
+* [ ] Herds and wolves persist for 50 years or more without taking over the map.
+* [ ] Hunting and wolf danger visibly change where people go.
+
+### Phase 6b: Weather and disaster
 
 Goal: the sky and the ground act on people, and you can read what happened from the ground.
 
 Visible consequence: dry brown grass in drought, flooded riverbanks, black scorch marks after fire.
 
-- A moving weather field (rain fronts, dry spells), flooding along rivers and lakes, and fire that spreads through grass and forest from seeded lightning, all as fields and costs. Rewritten from the ideas in `artificial-life` `weather.ts` for 256 x 256 wrapped. No scripted disaster events.
+- A moving weather field (rain fronts, dry spells), flooding along rivers and lakes, and fire that spreads through grass and forest from seeded lightning, all as fields and costs. Rewritten from the ideas in `artificial-life` `weather.ts` for 256 x 256 wrapped. No scripted disaster events. It builds on 5d's cold and fire.
 - Legibility rule: consequences are drawn on the terrain. Never an opaque cloud or rain overlay that hides people; any front indicator is faint and never covers figures.
 - Chronicle detectors for fire, flood and drought come with it.
 
@@ -250,20 +286,11 @@ Visible consequence: dry brown grass in drought, flooded riverbanks, black scorc
 * [ ] Burned ground regrows; floodplains are richer afterwards.
 * [ ] Bands visibly flee or suffer, with no group rule saying so.
 
-### Phase 6b: Animals and hunting
-
-Goal: other living things add food and danger to the land.
-
-- Dumb herbivores that wander and flee, and leave a meat pile (food on the land) when they die; simple wolves that wander and emit danger scent. Rules stay at wander-and-flee: no pack tactics, no scripted hunts.
-
-* [ ] Herds and wolves persist for 50 years or more without taking over the map.
-* [ ] Hunting and wolf danger visibly change where people go.
-
 ### Phase 7: Raids and defense
 
 Goal: stored wealth attracts raids, and defense makes them costly.
 
-- Wood and stone (gold only if loot needs it), a stockpile per resource, walls and towers.
+- Stone and brush barricades (Stage 3 defense), walls and towers; gold only if loot needs it; a stockpile per resource.
 - Abstract clashes for groups, health and injury for individuals, loot carried home, danger marked in the scent field.
 
 * [ ] Raids target stockpiles rather than random people.
@@ -309,6 +336,9 @@ These calls were yours to make; each is needed by the phase in brackets. The age
 - [x] What the auto-camera treats as interesting: battles, foundings, deaths of leaders, migrations? (Phase 4) — *Settled in `decisions.md`: battles > split or new band > leader death > migration.*
 - [x] Naming style for people and places: an invented language, or English compounds like Ashford? (Phase 4) — *Invented names plus English descriptive words; see `decisions.md`.*
 - [x] Which abilities start locked and must be discovered: farming, walls, ritual, crafting? (Phase 5) — *None. No unlock flags; farming and building are physics.*
+
+- [ ] Starting population: today 1,000 founders; the identity says small bands. Default proposal: 150 to 300 founders in a few bands, retuned in Phase 1 terms. Needs your call. (Phase 5)
+- [ ] How closed rooms work: default proposal is physical (shelter rises with the number of wall neighbours around a cell), not an observer that detects rooms. (Phase 5f)
 
 ## Parking lot
 

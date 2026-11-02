@@ -79,6 +79,8 @@ export class SimulationClient implements WorldView {
   public obstacles: ReadonlySet<string> = new Set();
   public landOverlay: Uint8Array | null = null;
   public landOverlayVersion = 0;
+  public landStructures: Uint8Array | null = null;
+  public landStructuresVersion = 0;
   public terrain: TerrainField | null = null;
   public elevation: ElevationField | null = null;
 
@@ -186,6 +188,7 @@ export class SimulationClient implements WorldView {
         this.elevation = message.elevation ? ElevationField.forView(message.elevation) : null;
         this.foodRegions = message.foodRegions;
         if (message.landOverlay) this.setOverlay(message.landOverlay);
+        if (message.landStructures) this.setStructures(message.landStructures);
         this.worldEvents = [...message.events];
         this.events.reset();
         break;
@@ -194,6 +197,7 @@ export class SimulationClient implements WorldView {
         this.tick = message.tick;
         if (message.terrain) this.terrain = TerrainField.forView(message.terrain, this.terrain?.originalFields());
         if (message.landOverlay) this.setOverlay(message.landOverlay);
+        if (message.landStructures) this.setStructures(message.landStructures);
         this.peopleCount = message.peopleCount;
         if (message.packedPeople) {
           this.packedPeopleBuffer = fastBase64Decode(message.packedPeople);
@@ -263,6 +267,10 @@ export class SimulationClient implements WorldView {
   public setConfig(config: Partial<SimulationConfig>): void {
     Object.assign(this.config, config);
     this.send({ kind: 'config', config });
+  }
+  private setStructures(b64: string): void {
+    this.landStructures = fastBase64Decode(b64);
+    this.landStructuresVersion++;
   }
   private setOverlay(b64: string): void {
     this.landOverlay = fastBase64Decode(b64);

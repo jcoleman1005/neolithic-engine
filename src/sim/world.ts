@@ -207,6 +207,14 @@ export class World {
     return fastBase64Encode(this.overlayBuffer);
   }
 
+  private structuresBuffer = new Uint8Array(256 * 256);
+
+  /** Heap sizes and forms (heap, granary floor) for the viewer, base64 (see Land.packStructures). */
+  public packLandStructures(): string {
+    this.land.packStructures(this.structuresBuffer, this.config);
+    return fastBase64Encode(this.structuresBuffer);
+  }
+
   private frameBuffer: Uint8Array = new Uint8Array(2048 * PERSON_FRAME_BYTES);
 
   public packPeopleFrame(): { base64: string; count: number } {
@@ -371,6 +379,7 @@ export class World {
         h.updateInt(people.rootLeaderId[slot]);
         h.updateInt(people.prevDir[slot]);
         h.updateFloat(people.carry[slot]);
+        h.updateInt(people.carryKind[slot]);
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;
@@ -386,6 +395,10 @@ export class World {
     h.updateFloatArray(land.tilled);
     h.updateFloatArray(land.seeds);
     h.updateFloatArray(land.soilHealth);
+    h.updateFloatArray(land.pile);
+    h.updateFloatArray(land.compaction);
+    h.updateIntArray(land.form);
+    h.updateFloatArray(land.brush);
     h.updateIntArray(land.isWater);
 
     // 4. Scent fields

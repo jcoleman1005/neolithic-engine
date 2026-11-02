@@ -380,3 +380,24 @@ Eight sets screened at 20 years on seed 1 (off pop 6,168); first pass was M, the
 | 3 | +2.7% | 18.7% | 2.8% | 7.1% | 16.3% |
 
 All pass. Note: two earlier sweeps passed the seed values through an unquoted shell variable, so they never took effect; their results (including an apparent tilling-versus-desert feedback) are not used. Not yet looked at on screen: the farm overlay is brown, desert sand, seeds yellow.
+
+## Mounds and nests (Phase 5c), first pass
+
+Stigmergic, no build orders (switches `stockpilesEnabled`, `nestsEnabled`). A well-fed person on a rich tile gathers surplus food; a well-fed person passing through woodland (cover 0.5 or more) picks up brush; hands hold one thing at a time (seeds are set down first). A resting carrier unloads where at least `dropCrowd` people stand. Hungry people eat what they carry, then any heap underfoot. Idle, well-fed people tamp a heap (`workCost` energy each). A food heap that is big and compacted becomes a granary floor; a brush heap becomes a nest that cuts upkeep to 70% for anyone in it. Heaps spoil; built forms spoil at 20% of that. Piled food and carried food sit outside the energy ledger until eaten (eating is a plant meal), so no new ledger account.
+
+Tested with `npm run sweep` (a feature-off warm-up checkpoint, then candidates, early abort). Targets set first: heaps on 0.3 to 5% of land, granary floors on at least 5 cells and under 1% of land, population within 5% of the stockpiles-off run, under 20% of heaps at the cap.
+
+| Value | First try | New | Why |
+|:--|:--|:--|:--|
+| `foodBite` | 2.0 | 1.0 | Gathering at 2 per tick made heaps cover about 20% of land. |
+| `hoardLandFraction` / `hoardEnergy` | 0.5 / 0.85 | 0.7 / 0.9 | Gather only on rich tiles by the very well fed. |
+| `dropCrowd` | 3 | 4 | Unload where people congregate. A full sack no longer drops on the spot (`dropWhenFull` false): that made heaps sprawl. |
+| `workGain` | 0.03 | 0.02 | Slower tamping. |
+| `pileSpoil` | 0.003 | 0.004 | Heaps rot a bit faster. |
+| `granaryMass` / `granaryCompaction` | 15 / 1.0 | 30 / 1.5 | Granary floors were on 2% of land at first. |
+| `compactionDecay` | 0.0005 | 0.0003 | Granary floors faded to a handful by year 40 at the old rate. |
+| `granaryKeepMass` / `granaryKeepCompaction` | 3 / 0.5 | 2 / 0.3 | A built floor stays a little longer. |
+| nest values | | `brushEnergy` 0.6, `brushBite` 1, `brushCarryMax` 10, `brushCap` 100, `brushDecay` 0.002, `nestMass` 12, `nestCompaction` 1.0, `nestKeepMass` 3, `nestKeepCompaction` 0.5, `nestUpkeep` 0.7 | Untuned first guesses. |
+| unchanged | | `pileEatBelow` 0.5, `pileEatBite` 5, `foodCarryMax` 20, `carryDrag` 0.5, `pileCap` 200, `workEnergy` 0.7, `workMinPile` 4, `compactionCap` 2 | |
+
+Results. Stockpiles only, 40 years from scratch with S2 values: heaps 0.6 to 0.8% of land, granary floors 4 to 9, population +3.5 to +6.4% over off (two of three seeds missed). Retuned by screening on seed 3 (8 years warm-up, 20 years): T1 +5.2% (just over), T2 +4.5% with 5 granary floors (the first pass, adopted). Not yet confirmed on other seeds. With nests on (seed 1, 10 years after an 8-year warm-up): population +3.8% over off, heaps 1.6%, 13 granary floors, 958 nests and still rising by about 100 a year with 108,000 brush stored. Nothing limits nests yet; needs a cap or faster decay in the tuning pass. Perf 5.8 us / person / tick at about 14k people (budget 15).

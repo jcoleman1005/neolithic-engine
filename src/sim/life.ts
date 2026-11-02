@@ -1,5 +1,7 @@
 import type { SimulationConfig } from './types';
 import { seasonGrowthFactor } from './seasons';
+import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH } from './people';
+import { FORM_NEST } from './land';
 import {
   type People,
   GENE_COUNT,
@@ -64,6 +66,8 @@ export class LifeSystem {
     const gen = people.generation;
 
     const metabolism = config.metabolismCost ?? 0.25;
+    const nestsOn = config.nestsEnabled !== false;
+    const nestUpkeep = config.nestUpkeep ?? 0.7;
     const maxAge = config.maxAge ?? 21600;
     const maxEnergy = config.maxEnergy ?? 100.0;
     const forageBite = config.forageBite ?? 1.0;
@@ -84,8 +88,10 @@ export class LifeSystem {
       people.clearStaleLeader(slot);
 
       age[slot]++;
-      energy[slot] -= metabolism;
-      ledger.upkeep += metabolism;
+      // Standing in a nest is warmer and drier: upkeep is lower.
+      const upkeep = nestsOn && land.form[(py[slot] << 8) | px[slot]] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
+      energy[slot] -= upkeep;
+      ledger.upkeep += upkeep;
 
       // Starvation death
       if (energy[slot] <= 0) {
@@ -111,21 +117,84 @@ export class LifeSystem {
     const seedPickup = config.seedPickupPerBite ?? 0.1;
     const seedCarryMax = config.seedCarryMax ?? 3.0;
     const seedDropBelow = (config.seedDropEnergy ?? 0.4) * maxEnergy;
+    const stockOn = config.stockpilesEnabled !== false;
+    const hoardAbove = (config.hoardEnergy ?? 0.85) * maxEnergy;
+    const hoardLandFrac = config.hoardLandFraction ?? 0.5;
+    const foodBite = config.foodBite ?? 2.0;
+    const foodCarryMax = config.foodCarryMax ?? 20.0;
+    const pileEatBelow = (config.pileEatBelow ?? 0.5) * maxEnergy;
+    const pileEatBite = config.pileEatBite ?? 5.0;
+    const carryKind = people.carryKind;
+    const brushAbove = (config.brushEnergy ?? 0.6) * maxEnergy;
+    const brushBite = config.brushBite ?? 1.0;
+    const brushCarryMax = config.brushCarryMax ?? 10.0;
+    const dropCrowd = config.dropCrowd ?? 3;
+    const dropWhenFull = config.dropWhenFull ?? false;
+    const carryDrag = config.carryDrag ?? 0.5;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
 
       const curE = energy[slot];
       if (curE < maxEnergy) {
-        const want = Math.min(forageBite, maxEnergy - curE);
-        const eaten = land.graze(px[slot], py[slot], want, config, people.prevDir[slot] === 4);
+        let eaten = 0;
+        if (stockOn && curE < pileEatBelow) {
+          // Hungry: eat what is carried, then any heap underfoot.
+          if (carryKind[slot] === CARRY_FOOD && people.carry[slot] > 0) {
+            const own = Math.min(pileEatBite, people.carry[slot], maxEnergy - curE);
+            people.carry[slot] -= own;
+            if (people.carry[slot] <= 0.001) {
+              people.carry[slot] = 0;
+              carryKind[slot] = CARRY_NONE;
+            }
+            eaten += own;
+          }
+          if (eaten < maxEnergy - curE) {
+            eaten += land.takePile(px[slot], py[slot], Math.min(pileEatBite, maxEnergy - curE - eaten));
+          }
+        }
+        if (eaten < Math.min(forageBite, maxEnergy - curE)) {
+          eaten += land.graze(px[slot], py[slot], Math.min(forageBite, maxEnergy - curE) - eaten, config, people.prevDir[slot] === 4);
+          if (eaten > 0 && farmOn && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_BRUSH) {
+            const c = people.carry[slot] + seedPickup;
+            people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
+            carryKind[slot] = CARRY_SEED;
+          }
+        }
         if (eaten > 0) {
           energy[slot] = curE + eaten;
           ledger.plantMeal += eaten;
-          if (farmOn) {
-            const c = people.carry[slot] + seedPickup;
-            people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
+        }
+      }
+      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCarryMax && carryKind[slot] !== CARRY_BRUSH) {
+        // Well fed and standing on plenty: gather a little surplus to carry. Hands are full of
+        // one thing at a time, so any seeds are set down on the spot first.
+        const cell = (py[slot] << 8) | px[slot];
+        if (land.food[cell] >= hoardLandFrac * land.capacityAt(cell, config)) {
+          if (carryKind[slot] === CARRY_SEED) {
+            land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
+            people.carry[slot] = 0;
+            carryKind[slot] = CARRY_NONE;
+          }
+          const got = land.graze(px[slot], py[slot], Math.min(foodBite, foodCarryMax - people.carry[slot]), config, false);
+          if (got > 0) {
+            people.carry[slot] += got;
+            carryKind[slot] = CARRY_FOOD;
           }
         }
+      }
+      if (
+        nestsOn && stockOn && energy[slot] >= brushAbove && people.carry[slot] < brushCarryMax &&
+        land.wooded[(py[slot] << 8) | px[slot]] === 1 && carryKind[slot] !== CARRY_FOOD
+      ) {
+        // Well fed and passing through woodland: pick up brush. Hands hold one thing at a time,
+        // so any seeds are set down first.
+        if (carryKind[slot] === CARRY_SEED) {
+          land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
+          people.carry[slot] = 0;
+        }
+        const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
+        people.carry[slot] = Math.min(brushCarryMax, have + brushBite);
+        carryKind[slot] = CARRY_BRUSH;
       }
     }
 
@@ -143,10 +212,31 @@ export class LifeSystem {
 
       people.prevDir[slot] = dir;
       // A tired person resting where they stand drops the seeds they carry.
-      if (farmOn && dir === 4 && people.carry[slot] > 0 && energy[slot] < seedDropBelow) {
+      if (farmOn && dir === 4 && carryKind[slot] === CARRY_SEED && people.carry[slot] > 0 && energy[slot] < seedDropBelow) {
         land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
         people.carry[slot] = 0;
+        carryKind[slot] = CARRY_NONE;
       }
+      // A carrier resting where people congregate unloads brush on the spot too.
+      if (nestsOn && stockOn && dir === 4 && carryKind[slot] === CARRY_BRUSH && people.carry[slot] > 0) {
+        const c = (py[slot] << 8) | px[slot];
+        if (spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
+          land.dropBrush(px[slot], py[slot], people.carry[slot], config);
+          people.carry[slot] = 0;
+          carryKind[slot] = CARRY_NONE;
+        }
+      }
+      // A carrier resting where people congregate (or who is full) unloads the food on the spot.
+      if (stockOn && dir === 4 && carryKind[slot] === CARRY_FOOD && people.carry[slot] > 0) {
+        const c = (py[slot] << 8) | px[slot];
+        const here = spatial.cellStarts[c + 1] - spatial.cellStarts[c];
+        if (here >= dropCrowd || (dropWhenFull && people.carry[slot] >= foodCarryMax - 0.01)) {
+          land.dropFood(px[slot], py[slot], people.carry[slot], config);
+          people.carry[slot] = 0;
+          carryKind[slot] = CARRY_NONE;
+        }
+      }
+
       if (dir < 4) {
         let dx = 0;
         let dy = 0;
@@ -161,8 +251,10 @@ export class LifeSystem {
         if (!land.isWaterAt(nx, ny)) {
           px[slot] = nx;
           py[slot] = ny;
-          energy[slot] -= moveCost;
-          ledger.move += moveCost;
+          // Carrying food is heavy: the more carried, the dearer each step.
+          const stepCost = carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / foodCarryMax) : moveCost;
+          energy[slot] -= stepCost;
+          ledger.move += stepCost;
 
           if (energy[slot] <= 0) {
             if (energy[slot] < 0) {
@@ -282,6 +374,24 @@ export class LifeSystem {
             tick
           );
         }
+      }
+    }
+
+    // 9b. Idle, well-fed people tamp the heap underfoot. This is labour, not a build order: each
+    // tamp costs a little energy and adds compaction; a big enough compacted heap becomes a
+    // granary floor on its own (see Land.step).
+    if (stockOn) {
+      const workAbove = (config.workEnergy ?? 0.7) * maxEnergy;
+      const workMin = config.workMinPile ?? 4.0;
+      const workCost = config.workCost ?? 0.05;
+      const brushWorkMin = nestsOn ? config.brushWorkMin ?? 3.0 : Infinity;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 0 || people.prevDir[slot] !== 4 || energy[slot] < workAbove) continue;
+        const wc = (py[slot] << 8) | px[slot];
+        if (land.pile[wc] < workMin && land.brush[wc] < brushWorkMin) continue;
+        land.tamp(px[slot], py[slot], config);
+        energy[slot] -= workCost;
+        ledger.move += workCost; // labour is booked with the other actions
       }
     }
 

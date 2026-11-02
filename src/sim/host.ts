@@ -249,6 +249,7 @@ export class SimulationHost {
       ...(world.getTerrain() ? { terrain: world.getTerrain()!.exportState(true) } : {}),
       foodRegions: world.foodRegions.map((r) => ({ ...r })),
       landOverlay: world.packLandOverlay(),
+      landStructures: world.packLandStructures(),
       events: this.eventLog.slice(),
     };
     for (const v of only ? [only] : this.viewers.values()) v.post(message);
@@ -314,7 +315,7 @@ export class SimulationHost {
     const base = {
       ...this.baseFrame(fromStep),
       ...(terrainDue && terrain ? { terrain: terrain.exportState() } : {}),
-      ...(overlayDue ? { landOverlay: this.world.packLandOverlay() } : {}),
+      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures() } : {}),
     };
     if (overlayDue) {
       this.overlayDirty = false;

@@ -77,6 +77,50 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   soilWearRate: 0.0012, // soil health lost per bite that strips a cell
   soilRecoveryRate: 0.0015, // per tick, fraction of the missing health regained when not stripped
   soilMin: 0.2, // soil health never drops below this
+  // Phase 5c: stigmergic stockpiles and building. Well-fed people gather surplus food, drop it
+  // where people congregate, eat from it when hungry, and idle fed people tamp it down; a heap
+  // that is big and compacted enough becomes a granary floor (see docs/findings.md).
+  stockpilesEnabled: true,
+  hoardEnergy: 0.9, // gathers surplus only above this fraction of maxEnergy
+  hoardLandFraction: 0.7, // ... from a tile holding at least this fraction of its capacity
+  foodBite: 1.0, // food gathered per tick
+  foodCarryMax: 20.0, // most food one person carries
+  carryDrag: 0.5, // moving costs x (1 + drag * carried / max)
+  dropCrowd: 4, // a resting carrier drops where at least this many people stand
+  dropWhenFull: false, // also unload anywhere once the sack is full (made heaps sprawl)
+  pileEatBelow: 0.5, // hungry below this fraction of maxEnergy: eat from the pile underfoot
+  pileEatBite: 5.0, // food eaten from a pile per tick
+  pileSpoil: 0.004, // fraction of a heap lost per tick
+  granarySpoilFactor: 0.2, // a granary floor loses this fraction of that
+  pileCap: 200.0, // most food one tile holds
+  pileScale: 60.0, // food at which a heap looks full-sized in the viewer
+  workEnergy: 0.7, // idle people above this fraction of maxEnergy tamp a heap
+  workMinPile: 4.0, // ... if the tile holds at least this much
+  workGain: 0.02, // compaction per tamp
+  workCost: 0.05, // energy per tamp
+  compactionCap: 2.0,
+  compactionDecay: 0.0003, // per tick (x10 when the heap is gone)
+  heapMin: 2.0, // food that counts as a heap
+  granaryMass: 30.0, // heap size to become a granary floor ...
+  granaryCompaction: 1.5, // ... once compacted this much
+  granaryKeepMass: 2.0, // a granary floor reverts below this mass ...
+  granaryKeepCompaction: 0.3, // ... or this compaction
+  // Phase 5c: nests. Brush is gathered in woodland by well-fed people with free hands, unloaded
+  // where people congregate and tamped by idle fed people; a big compacted brush heap becomes a
+  // nest, which cuts the upkeep of anyone standing in it (see docs/findings.md).
+  nestsEnabled: true,
+  brushEnergy: 0.6, // gathers brush above this fraction of maxEnergy
+  brushBite: 1.0, // brush gathered per tick in woodland
+  brushCarryMax: 10.0,
+  brushCap: 100.0, // most brush one tile holds
+  brushScale: 30.0, // brush at which a brush heap looks full-sized in the viewer
+  brushDecay: 0.002, // fraction of a brush heap lost per tick (a nest keeps it, x granarySpoilFactor)
+  brushWorkMin: 3.0, // idle people tamp a brush heap of at least this much
+  nestMass: 12.0, // brush needed to become a nest ...
+  nestCompaction: 1.0, // ... once compacted this much
+  nestKeepMass: 3.0, // a nest reverts below this mass ...
+  nestKeepCompaction: 0.5, // ... or this compaction
+  nestUpkeep: 0.7, // upkeep multiplier for anyone standing in a nest
   farmingEnabled: true,
   ritualEnabled: true,
 

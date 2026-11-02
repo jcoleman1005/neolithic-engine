@@ -71,7 +71,7 @@ describe('Phase 5b farming physics', () => {
   });
 
   it('with farming physics off, no land arrays change and carry stays zero', () => {
-    const w = new World({ initialPopulation: 120, farmingPhysicsEnabled: false }, 4);
+    const w = new World({ initialPopulation: 120, farmingPhysicsEnabled: false, stockpilesEnabled: false }, 4);
     for (let t = 0; t < 300; t++) w.step();
     expect(w.land.tilled.every((v) => v === 0)).toBe(true);
     expect(w.land.seeds.every((v) => v === 0)).toBe(true);
@@ -89,7 +89,9 @@ describe('Phase 5b farming physics', () => {
       expect(w.land.soilHealth[i]).toBeGreaterThanOrEqual(cfg.soilMin - 1e-6);
     }
     for (let s = 0; s < w.people.capacity; s++) {
-      expect(w.people.carry[s]).toBeLessThanOrEqual(cfg.seedCarryMax + 1e-4);
+      const kind = w.people.carryKind[s];
+      const limit = kind === 2 ? cfg.foodCarryMax : kind === 3 ? cfg.brushCarryMax : cfg.seedCarryMax;
+      expect(w.people.carry[s]).toBeLessThanOrEqual(limit + 1e-4);
     }
     expect(w.ledger.violations).toBe(0);
   });

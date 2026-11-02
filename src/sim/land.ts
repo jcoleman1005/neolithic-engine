@@ -24,6 +24,11 @@ export function distSqWrap(x1: number, y1: number, x2: number, y2: number): numb
   return dx * dx + dy * dy;
 }
 
+export const FORM_NONE = 0;
+export const FORM_HEAP = 1;
+export const FORM_GRANARY = 2;
+export const FORM_NEST = 3;
+
 export interface LandState {
   readonly width: number;
   readonly height: number;
@@ -31,6 +36,10 @@ export interface LandState {
   readonly tilled?: readonly number[];
   readonly seeds?: readonly number[];
   readonly soilHealth?: readonly number[];
+  readonly pile?: readonly number[];
+  readonly compaction?: readonly number[];
+  readonly form?: readonly number[];
+  readonly brush?: readonly number[];
 }
 
 export class Land {
@@ -46,6 +55,16 @@ export class Land {
   public readonly seeds: Float32Array;
   /** 1 for healthy soil, down to soilMin for stripped land. */
   public readonly soilHealth: Float32Array;
+  /** Food heaped on a cell (plant-side energy: outside the ledger until eaten). */
+  public readonly pile: Float32Array;
+  /** How tamped down the heap is, 0 up to compactionCap. */
+  public readonly compaction: Float32Array;
+  /** FORM_NONE, FORM_HEAP or FORM_GRANARY, derived from pile and compaction. */
+  public readonly form: Uint8Array;
+  /** Brush heaped on a cell (building material, not energy). */
+  public readonly brush: Float32Array;
+  /** 1 on woodland cells (cover 0.5 or more), where brush can be gathered. Derived from the terrain; not saved. */
+  public readonly wooded: Uint8Array;
 
   public terrain: TerrainField | null = null;
   public elevation: ElevationField | null = null;
@@ -58,6 +77,11 @@ export class Land {
     this.tilled = new Float32Array(TOTAL_CELLS);
     this.seeds = new Float32Array(TOTAL_CELLS);
     this.soilHealth = new Float32Array(TOTAL_CELLS).fill(1);
+    this.pile = new Float32Array(TOTAL_CELLS);
+    this.compaction = new Float32Array(TOTAL_CELLS);
+    this.form = new Uint8Array(TOTAL_CELLS);
+    this.brush = new Float32Array(TOTAL_CELLS);
+    this.wooded = new Uint8Array(TOTAL_CELLS);
 
     const gridConfig = (config.gridWidth === GRID_SIZE && config.gridHeight === GRID_SIZE)
       ? config
@@ -66,6 +90,12 @@ export class Land {
     this.terrain = terrain ?? (config.terrainEnabled ? generateTerrain(gridConfig) : null);
 
     this.initFoodCapacities(gridConfig);
+    const cover = this.terrain?.cover;
+    if (cover) {
+      for (let i = 0; i < TOTAL_CELLS && i < cover.length; i++) {
+        if (this.isWater[i] === 0 && cover[i] >= 32768) this.wooded[i] = 1;
+      }
+    }
   }
 
   private initFoodCapacities(config: Readonly<SimulationConfig>): void {
@@ -127,7 +157,50 @@ export class Land {
     const seedCapBoost = config.seedCapacityBoost ?? 0.6;
     const soilRec = config.soilRecoveryRate ?? 0.0006;
 
+    const stock = config.stockpilesEnabled !== false;
+    const spoil = config.pileSpoil ?? 0.003;
+    const granaryFactor = config.granarySpoilFactor ?? 0.2;
+    const compDecay = config.compactionDecay ?? 0.0005;
+    const heapMin = config.heapMin ?? 2;
+    const gMass = config.granaryMass ?? 15;
+    const gComp = config.granaryCompaction ?? 1;
+    const gKeepMass = config.granaryKeepMass ?? 3;
+    const gKeepComp = config.granaryKeepCompaction ?? 0.5;
+    const nests = config.nestsEnabled !== false;
+    const brushDecay = config.brushDecay ?? 0.002;
+    const hMass = config.nestMass ?? 12;
+    const hComp = config.nestCompaction ?? 1;
+    const hKeepMass = config.nestKeepMass ?? 3;
+    const hKeepComp = config.nestKeepCompaction ?? 0.5;
+
     for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (stock && (this.pile[i] > 0 || this.brush[i] > 0 || this.compaction[i] > 0)) {
+        let pl = this.pile[i];
+        let br = this.brush[i];
+        let f = this.form[i];
+        pl *= 1 - spoil * (f === FORM_GRANARY ? granaryFactor : 1);
+        if (pl < 0.05) pl = 0;
+        br *= 1 - brushDecay * (f === FORM_NEST ? granaryFactor : 1);
+        if (br < 0.05) br = 0;
+        this.pile[i] = pl;
+        this.brush[i] = br;
+        let c = this.compaction[i];
+        c *= 1 - compDecay * (pl < heapMin && br < heapMin ? 10 : 1);
+        if (c < 1e-3) c = 0;
+        this.compaction[i] = c;
+        // A built form stays while it holds enough and is kept tamped; otherwise it falls back.
+        if (f === FORM_GRANARY && (pl < gKeepMass || c < gKeepComp)) f = FORM_NONE;
+        if (f === FORM_NEST && (br < hKeepMass || c < hKeepComp)) f = FORM_NONE;
+        if (f === FORM_NONE || f === FORM_HEAP) {
+          const gran = pl >= gMass && c >= gComp;
+          const hov = nests && br >= hMass && c >= hComp;
+          if (gran && hov) f = pl >= br ? FORM_GRANARY : FORM_NEST;
+          else if (gran) f = FORM_GRANARY;
+          else if (hov) f = FORM_NEST;
+          else f = pl >= heapMin || br >= heapMin ? FORM_HEAP : FORM_NONE;
+        }
+        this.form[i] = f;
+      }
       if (this.isWater[i] === 1) continue;
       let cur = this.food[i];
       const max = this.maxFood[i];
@@ -168,6 +241,49 @@ export class Land {
         const delta = rate * effectiveCur * (1 - cur / cap);
         this.food[i] = Math.min(cap, cur + Math.max(0.01, delta));
       }
+    }
+  }
+
+  /** Heaps food on a cell (a carrier unloading). */
+  public dropFood(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    if (this.isWater[i] === 1) return;
+    this.pile[i] = Math.min(config.pileCap ?? 200, this.pile[i] + amount);
+  }
+
+  /** Heaps brush on a cell (a carrier unloading). */
+  public dropBrush(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    if (this.isWater[i] === 1) return;
+    this.brush[i] = Math.min(config.brushCap ?? 100, this.brush[i] + amount);
+  }
+
+  /** Takes up to `want` food from the heap on a cell; returns what came away. */
+  public takePile(x: number, y: number, want: number): number {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    const take = Math.min(want, this.pile[i]);
+    if (take > 0) this.pile[i] -= take;
+    return take > 0 ? take : 0;
+  }
+
+  /** One person tamps the heap underfoot. */
+  public tamp(x: number, y: number, config: Readonly<SimulationConfig>): void {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    const cap = config.compactionCap ?? 2;
+    this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03));
+  }
+
+  /** One byte per cell for the viewer: food heap size 3 bits, form 2 bits, brush heap size 3 bits. */
+  public packStructures(out: Uint8Array, config: Readonly<SimulationConfig>): void {
+    const foodScale = Math.max(1e-6, config.pileScale ?? 60);
+    const brushScale = Math.max(1e-6, config.brushScale ?? 30);
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      const p = this.pile[i];
+      const b = this.brush[i];
+      if (p <= 0 && b <= 0 && this.form[i] === 0) { out[i] = 0; continue; }
+      const level = Math.min(7, Math.round(Math.sqrt(Math.min(1, p / foodScale)) * 7));
+      const bLevel = Math.min(7, Math.round(Math.sqrt(Math.min(1, b / brushScale)) * 7));
+      out[i] = level | (this.form[i] << 3) | (bLevel << 5);
     }
   }
 
@@ -246,6 +362,10 @@ export class Land {
       tilled: Array.from(this.tilled),
       seeds: Array.from(this.seeds),
       soilHealth: Array.from(this.soilHealth),
+      pile: Array.from(this.pile),
+      compaction: Array.from(this.compaction),
+      form: Array.from(this.form),
+      brush: Array.from(this.brush),
     };
   }
 
@@ -258,5 +378,9 @@ export class Land {
     if (state.tilled) for (let i = 0; i < len; i++) this.tilled[i] = state.tilled[i] ?? 0;
     if (state.seeds) for (let i = 0; i < len; i++) this.seeds[i] = state.seeds[i] ?? 0;
     if (state.soilHealth) for (let i = 0; i < len; i++) this.soilHealth[i] = state.soilHealth[i] ?? 1;
+    if (state.pile) for (let i = 0; i < len; i++) this.pile[i] = state.pile[i] ?? 0;
+    if (state.compaction) for (let i = 0; i < len; i++) this.compaction[i] = state.compaction[i] ?? 0;
+    if (state.form) for (let i = 0; i < len; i++) this.form[i] = state.form[i] ?? 0;
+    if (state.brush) for (let i = 0; i < len; i++) this.brush[i] = state.brush[i] ?? 0;
   }
 }

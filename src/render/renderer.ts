@@ -32,6 +32,10 @@ const ZOOM_STEPS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32] as const;
 const COLOR_FARM_RGB = 0x3068a8; // rgb(168, 104, 48), warm terracotta
 const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
 const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
+const COLOR_HEAP_RGB = 0x28b0e8; // rgb(232, 176, 40), golden grain
+const COLOR_GRANARY = 0xff284e7a; // rgb(122, 78, 40), plank floor, opaque
+const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
+const COLOR_BRUSH_RGB = 0x32828c; // rgb(140, 130, 50), olive brush
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
 // WorldBox Terrain 32-bit ABGR Palette
@@ -127,6 +131,7 @@ export class CanvasRenderer {
   private readonly overlayImg: ImageData;
   private readonly overlayData32: Uint32Array;
   private lastOverlayVersion = -1;
+  private lastStructuresVersion = -1;
   private readonly peopleCanvas: HTMLCanvasElement;
   private readonly peopleCtx: CanvasRenderingContext2D;
   private readonly peopleImgData: ImageData;
@@ -653,6 +658,11 @@ export class CanvasRenderer {
       this.renderTrees(width, height, w, h);
     }
 
+    // 4b. Heaps and granary floors as little pixel-art mounds and plank floors
+    if (isZoomedIn) {
+      this.renderStructures(width, height, w, h);
+    }
+
     // 5. Render People (Direct ImageData blit zoomed out; Stick-figure sprites zoomed in)
     this.renderPeople(width, height, w, h, isZoomedIn);
 
@@ -667,8 +677,11 @@ export class CanvasRenderer {
     const data = this.world.landOverlay;
     if (!data) return false;
     const version = this.world.landOverlayVersion ?? 0;
-    if (version !== this.lastOverlayVersion) {
+    const structVersion = this.world.landStructuresVersion ?? 0;
+    if (version !== this.lastOverlayVersion || structVersion !== this.lastStructuresVersion) {
       this.lastOverlayVersion = version;
+      this.lastStructuresVersion = structVersion;
+      const structures = this.world.landStructures;
       const out = this.overlayData32;
       for (let i = 0; i < 65536; i++) {
         const b = data[i];
@@ -682,6 +695,16 @@ export class CanvasRenderer {
         else if (farm >= 2 && farm >= desert) c = ((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB; // worked soil: dark brown
         else if (desert >= 2) c = ((85 + desert * 20) << 24) | COLOR_DESERT_RGB; // stripped land: pale sand
         else if (farm === 1) c = ((70 + checker) << 24) | COLOR_FARM_RGB; // barely worked
+        // Heaps and granary floors sit on top of everything else.
+        const st = structures ? structures[i] : 0;
+        if (st !== 0) {
+          const form = (st >> 3) & 3;
+          const bLevel = st >> 5;
+          if (form === 2) c = COLOR_GRANARY;
+          else if (form === 3) c = COLOR_NEST;
+          else if ((st & 7) > 0) c = ((170 + (st & 7) * 12) << 24) | COLOR_HEAP_RGB;
+          else if (bLevel > 0) c = ((150 + bLevel * 14) << 24) | COLOR_BRUSH_RGB;
+        }
         out[i] = c >>> 0;
       }
       this.overlayCtx.putImageData(this.overlayImg, 0, 0);
@@ -835,6 +858,89 @@ export class CanvasRenderer {
           const dy = Math.round(screenY - spr.anchorY * scale + this.panY);
 
           this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
+        }
+      }
+    }
+  }
+
+  /**
+   * Heaps and granary floors, zoomed in. Pure pixel art from fillRect: a golden mound whose width
+   * and height grow with the heap, and a plank floor (a tamped, built-up heap) with grain on it.
+   */
+  private renderStructures(screenWidth: number, screenHeight: number, worldW: number, worldH: number): void {
+    const data = this.world.landStructures;
+    if (!data) return;
+    const cs = this.cellSize;
+    const ctx = this.ctx;
+    const ap = cs / 8; // one "art pixel"
+    const minCellX = Math.floor(-this.panX / cs) - 1;
+    const maxCellX = Math.ceil((screenWidth - this.panX) / cs) + 1;
+    const minCellY = Math.floor(-this.panY / cs) - 1;
+    const maxCellY = Math.ceil((screenHeight - this.panY) / cs) + 1;
+
+    for (let cy = minCellY; cy <= maxCellY; cy++) {
+      const wy = ((cy % worldH) + worldH) % worldH;
+      for (let cx = minCellX; cx <= maxCellX; cx++) {
+        const wx = ((cx % worldW) + worldW) % worldW;
+        const st = data[wy * worldW + wx];
+        if (st === 0) continue;
+        const level = st & 7;
+        const form = (st >> 3) & 3;
+        const bLevel = st >> 5;
+        const x0 = Math.round(cx * cs + this.panX);
+        const y0 = Math.round(cy * cs + this.panY);
+
+        if (form === 3) {
+          // Nest / lean-to: a thatched brush roof slanting down from a pole, with a dark sheltered gap
+          const px = (n: number) => Math.round(n * ap);
+          ctx.fillStyle = '#241608';
+          ctx.fillRect(x0 + px(2), y0 + px(5.5), px(5), px(1.5));
+          const thatch = ['#d9b45a', '#c49a46', '#b08838', '#9a7630'];
+          for (let r = 0; r < 4; r++) {
+            ctx.fillStyle = thatch[r];
+            ctx.fillRect(x0 + px(1 + r * 0.6), y0 + px(2 + r * 0.9), px(6.2 - r * 0.5), Math.max(1, px(1)));
+          }
+          ctx.fillStyle = '#5a3c1c';
+          ctx.fillRect(x0 + px(0.8), y0 + px(1.5), Math.max(1, px(0.7)), px(5.6));
+          ctx.fillRect(x0 + px(7), y0 + px(5.3), Math.max(1, px(0.7)), px(1.8));
+          continue;
+        }
+        if (bLevel > 0 && level === 0 && form === 1) {
+          // Brush heap: a loose bundle of sticks, wider and taller with the heap
+          const rows = Math.min(5, 1 + Math.ceil(bLevel * 0.6));
+          const baseW = Math.min(7, 3 + bLevel);
+          for (let r = 0; r < rows; r++) {
+            const w = Math.max(2, baseW - 2 * r);
+            const rx = x0 + Math.round((cs - w * ap) / 2);
+            const ry = y0 + cs - Math.round((r + 1.5) * ap);
+            ctx.fillStyle = r % 2 === 0 ? '#7a6a2c' : '#9a8a3c';
+            ctx.fillRect(rx, ry, Math.round(w * ap), Math.max(1, Math.round(ap)));
+          }
+          continue;
+        }
+
+        if (form === 2) {
+          // Plank floor with a dark border and plank seams
+          ctx.fillStyle = '#4a2e14';
+          ctx.fillRect(x0 + Math.round(ap * 0.5), y0 + Math.round(ap * 0.5), Math.round(cs - ap), Math.round(cs - ap));
+          ctx.fillStyle = '#8a5a30';
+          ctx.fillRect(x0 + Math.round(ap), y0 + Math.round(ap), Math.round(cs - 2 * ap), Math.round(cs - 2 * ap));
+          ctx.fillStyle = '#6a4220';
+          for (let k = 3; k < 8; k += 2) ctx.fillRect(x0 + Math.round(ap), y0 + Math.round(k * ap), Math.round(cs - 2 * ap), Math.max(1, Math.round(ap * 0.5)));
+        }
+
+        if (level > 0) {
+          // Mound: stacked rows, narrower toward the top, taller and wider with the heap
+          const rows = Math.min(6, 1 + Math.ceil(level * 0.7));
+          const baseW = Math.min(7, 3 + level);
+          const floorY = form === 2 ? y0 + cs - Math.round(1.5 * ap) : y0 + cs - Math.round(0.5 * ap);
+          for (let r = 0; r < rows; r++) {
+            const w = Math.max(2, baseW - 2 * r);
+            const rx = x0 + Math.round((cs - w * ap) / 2);
+            const ry = floorY - Math.round((r + 1) * ap);
+            ctx.fillStyle = r === 0 ? '#b07818' : r === rows - 1 ? '#f6d060' : '#e8b028';
+            ctx.fillRect(rx, ry, Math.round(w * ap), Math.max(1, Math.round(ap)));
+          }
         }
       }
     }

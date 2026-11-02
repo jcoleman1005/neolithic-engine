@@ -19,7 +19,7 @@ Decisions are settled; change one only on purpose, record why here, and update t
 | Culture | Each habit inherited from one parent at random, plus drift and rare innovations; habits shift with experience | Replaces blending (halved differences each generation). Tunables in `config.ts` |
 | Groups | Leader links only, no group table | A tribe is everyone under the same root leader, computed |
 | Combat | Abstract clashes for groups, individual injury up close | |
-| Resources | Food, seeds, wood and stone, carried one at a time; meat piles are food on the land | Like Age of Empires II villagers. Gold only if raids need loot |
+| Resources | Food, seeds, brush and stone, carried one at a time; meat piles are food on the land | Like Age of Empires II villagers. Gold only if raids need loot |
 | Religion | Builds cooperation, backs leaders, binds group identity | Works through shared ritual raising similarity |
 | Viewer | Strictly watch-only: zoom, pan, tap to inspect, auto-camera | Stick figures up close; dots and colored regions zoomed out. No input reaches the simulation |
 | Phone Host | Neolithic Engine takes over S21 exclusively | Stop `artificial-life` service while Neolithic runs to claim full CPU headroom |
@@ -37,3 +37,10 @@ Decisions are settled; change one only on purpose, record why here, and update t
 | Phase 2 gate | Ongoing audit, does not block | Ticked only when the S21 confirms |
 | No player tools | The poke brush was approved and then dropped before it shipped | The engine runs as a completely autonomous, untouched terrarium. Keeps determinism pure, removes reverse input plumbing, keeps the focus on autonomous toy-physics emergence |
 | Calm movement | People on a tile with at least half its food stay and graze; a 180 degree step back needs a strong pull | Fixes jitter (65% reversals); `prevDir` is saved and hashed; switch `calmMovementEnabled` |
+| Identity | An autonomous, self-running colony sim from primitive hunter-gatherers: a self-playing RimWorld or Dawn of Man terrarium that begins in the deep Stone Age | Replaces the "toy-physics antfarm" wording; the antfarm decisions (physics only, watch-only, no flags) all stand |
+| Start state | Year 0: small nomadic bands; zero structures, zero advanced tools, zero farming; caves and campfires are the only early shelters | A test checks the structure and farm arrays are empty at tick 0. Starting population (now 1,000) is an open question |
+| Zero management | No player blueprints, no build orders, no assigned jobs | Colonists act on internal drives, physical affordances and local imitation |
+| Architectural arc | Stage 1 brush nests, lean-tos, cave shelters; Stage 2 trampled crop clearings and communal hearths; Stage 3 dry-stone huts, preserved granaries, defensive barricades | Built by stigmergy: dropped, stacked and tamped material that snaps into a form. In code, the brush-built form is a `nest`; `hut` is reserved for the dry-stone form |
+| Readable visuals | Top-down pixel art: glowing campfires, food mounds, golden crop patches, stone walls closing into rooms | Rule 13 applies: a phase closes when someone has watched it |
+| Phase 5 split | 5a seasons, 5b farming (done), 5c mounds and nests (built), 5d cold, caves and campfires, 5e golden crops and hearths, 5f stone and dry-stone huts | Barricades move to Phase 7 |
+| Phase order | 5 Primitive to settled, 6a Animals and hunting, 6b Weather and disaster, 7 Raids and defense, 8 Leaders and city-states, 9 Religion (optional), 10 On the shelf | Hunting is promoted ahead of weather so the Stone Age start has meat. Supersedes the earlier phase-order row |
