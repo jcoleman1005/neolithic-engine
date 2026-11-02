@@ -214,7 +214,7 @@ Goal: an hour of watching produces a readable history.
 - Ticker from `events-view.ts`, a plain-English inspector, and an auto-camera that drifts to the most interesting event.
 - A "while you were away" summary when Chrome reopens.
 
-* [ ] An hour yields 10 to 30 entries that match what was on screen.
+* [x] An hour yields 10 to 30 entries that match what was on screen.
 
 ### Phase 5: Settle and farm
 
