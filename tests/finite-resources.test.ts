@@ -71,4 +71,17 @@ describe('Finite wild resources', () => {
     for (let t = 0; t < 180; t++) c.step();
     expect(c.stateHash()).toBe(a.stateHash());
   });
+
+  it('woodland thinning is packed for the viewer: 0 for a full stand, 7 for a stripped one, and never on open ground', () => {
+    const land = woodland();
+    const out = new Uint8Array(65536);
+    land.packStructures(out, cfg);
+    expect(out[cell(11, 11)]).toBe(0);
+    land.trees[cell(11, 11)] = 0;
+    land.trees[cell(12, 11)] = land.treeMax[cell(12, 11)] * 0.5;
+    land.packStructures(out, cfg);
+    expect(out[cell(11, 11)] >> 5).toBe(7);
+    expect(out[cell(12, 11)] >> 5).toBe(4);
+    expect(out[cell(30, 30)]).toBe(0);
+  });
 });

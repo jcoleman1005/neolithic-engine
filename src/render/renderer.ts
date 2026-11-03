@@ -36,6 +36,7 @@ const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food h
 const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
 const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
 const COLOR_GRANARY = 0xff284e7a; // rgb(122, 78, 40), plank floor, opaque
+const COLOR_CUT_RGB = 0x6eb4d2; // rgb(210, 180, 110), pale straw: felled woodland showing bare ground
 const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
@@ -684,6 +685,7 @@ export class CanvasRenderer {
       this.lastStructuresVersion = structVersion;
       const structures = this.world.landStructures;
       const out = this.overlayData32;
+      const coverArr = this.world.terrain?.cover;
       for (let i = 0; i < 65536; i++) {
         const b = data[i];
         const desert = b & 7;
@@ -698,6 +700,10 @@ export class CanvasRenderer {
         else if (farm === 1) c = ((70 + checker) << 24) | COLOR_FARM_RGB; // barely worked
         // Heaps and granary floors sit on top of everything else.
         const st = structures ? structures[i] : 0;
+        if (st !== 0 && coverArr && coverArr[i] >= 32768 && (st >> 5) > 0 && c === 0) {
+          // Thinned woodland: the more is felled, the paler and barer the stand.
+          c = ((50 + (st >> 5) * 24) << 24) | COLOR_CUT_RGB;
+        }
         if (st !== 0) {
           const form = (st >> 3) & 3;
           if (form === 2) c = COLOR_GRANARY;
@@ -885,7 +891,9 @@ export class CanvasRenderer {
         if (st === 0) continue;
         const level = st & 7;
         const form = (st >> 3) & 3;
-        const bLevel = st >> 5;
+        const cov = this.world.terrain?.cover;
+        // On woodland these bits mean thinning, not a brush heap.
+        const bLevel = cov && cov[wy * worldW + wx] >= 32768 ? 0 : st >> 5;
         const x0 = Math.round(cx * cs + this.panX);
         const y0 = Math.round(cy * cs + this.panY);
 

@@ -325,16 +325,22 @@ export class Land {
     this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03));
   }
 
-  /** One byte per cell for the viewer: food heap size 3 bits, form 2 bits, brush heap size 3 bits. */
+  /**
+   * One byte per cell for the viewer: food heap size 3 bits, form 2 bits, then 3 bits that mean
+   * brush heap size on open ground and woodland thinning (0 full stand, 7 stripped) on wooded
+   * cells. Brush is never unloaded among trees, so the two never collide.
+   */
   public packStructures(out: Uint8Array, config: Readonly<SimulationConfig>): void {
     const foodScale = Math.max(1e-6, config.pileScale ?? 60);
     const brushScale = Math.max(1e-6, config.brushScale ?? 30);
     for (let i = 0; i < TOTAL_CELLS; i++) {
       const p = this.pile[i];
       const b = this.brush[i];
-      if (p <= 0 && b <= 0 && this.form[i] === 0) { out[i] = 0; continue; }
+      const tm = this.treeMax[i];
+      const thin = tm > 0 ? Math.min(7, Math.round((1 - this.trees[i] / tm) * 7)) : 0;
+      if (p <= 0 && b <= 0 && this.form[i] === 0 && thin === 0) { out[i] = 0; continue; }
       const level = Math.min(7, Math.round(Math.sqrt(Math.min(1, p / foodScale)) * 7));
-      const bLevel = Math.min(7, Math.round(Math.sqrt(Math.min(1, b / brushScale)) * 7));
+      const bLevel = this.wooded[i] === 1 ? thin : Math.min(7, Math.round(Math.sqrt(Math.min(1, b / brushScale)) * 7));
       out[i] = level | (this.form[i] << 3) | (bLevel << 5);
     }
   }
