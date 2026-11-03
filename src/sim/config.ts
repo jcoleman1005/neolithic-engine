@@ -108,6 +108,16 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // Phase 5c: nests. Brush is gathered in woodland by well-fed people with free hands, unloaded
   // where people congregate and tamped by idle fed people; a big compacted brush heap becomes a
   // nest, which cuts the upkeep of anyone standing in it (see docs/findings.md).
+  // Finite wild resources: woodland holds a limited stock of wood that brush gathering uses up
+  // (and that regrows slowly); open fertile ground carries seasonal berries that top up a meal.
+  finiteResourcesEnabled: true,
+  treeCap: 30.0, // wood stock of a fully wooded tile (scaled by its cover)
+  treeRegrowRate: 0.0003, // fraction of a tile's stock regrown per tick (x season factor)
+  treeBrushCost: 1.0, // wood used up per unit of brush gathered
+  berryCap: 15.0, // berries on a fertile open tile (scaled by fertility)
+  berryRegrowRate: 0.01, // fraction of a tile's stock regrown per tick (x season factor)
+  berryBite: 0.08, // most berries eaten in one tick on top of grazing
+  berryBelow: 0.4, // ... by anyone below this fraction of maxEnergy
   nestsEnabled: true,
   brushEnergy: 0.6, // gathers brush above this fraction of maxEnergy
   brushBite: 1.0, // brush gathered per tick in woodland

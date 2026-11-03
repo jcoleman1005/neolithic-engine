@@ -9,7 +9,12 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 - **Perf**: about 14k people, **4.4 us / person / tick** (budget 15).
 - **Known**: nests keep growing (about 100 a year) with nothing limiting them; granary floors marginal at 5 on one seed. Both for the combined tuning pass.
 
+## Finite resources (branch `phase-5-finite-resources`, piece 1 of the port)
+- **Done**: trees (finite wood, brush gathering uses it up, slow regrowth) and berries (a hunger top-up). Switch `finiteResourcesEnabled`. Tests `tests/finite-resources.test.ts`. Tuned set G in `docs/findings.md`: pop +3 to +6% vs off, woodland settles near 58%, nests about 390.
+- **Verify** passes; **perf** 4.2 us / person / tick (budget 15).
+- **Not yet visible**: thinned woodland is not drawn yet. Next piece draws it (rule 13), then fish and thirst, then herds.
+
 ## Next Steps
-1. Port `exp-finite-resources` onto 5c in pieces (trees feed brush, berries/fish/water, herds as the start of 6a); see the roadmap's 5-pre entry.
+1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
 2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.
 3. A combined tuning pass over 5b to 5f once the features are in; decide the starting population (open question in the roadmap).

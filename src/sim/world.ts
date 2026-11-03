@@ -399,6 +399,8 @@ export class World {
     h.updateFloatArray(land.compaction);
     h.updateIntArray(land.form);
     h.updateFloatArray(land.brush);
+    h.updateFloatArray(land.trees);
+    h.updateFloatArray(land.berries);
     h.updateIntArray(land.isWater);
 
     // 4. Scent fields

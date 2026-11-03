@@ -401,3 +401,25 @@ Tested with `npm run sweep` (a feature-off warm-up checkpoint, then candidates, 
 | unchanged | | `pileEatBelow` 0.5, `pileEatBite` 5, `foodCarryMax` 20, `carryDrag` 0.5, `pileCap` 200, `workEnergy` 0.7, `workMinPile` 4, `compactionCap` 2 | |
 
 Results. Stockpiles only, 40 years from scratch with S2 values: heaps 0.6 to 0.8% of land, granary floors 4 to 9, population +3.5 to +6.4% over off (two of three seeds missed). Retuned by screening on seed 3 (8 years warm-up, 20 years): T1 +5.2% (just over), T2 +4.5% with 5 granary floors (the first pass, adopted). Not yet confirmed on other seeds. With nests on (seed 1, 10 years after an 8-year warm-up): population +3.8% over off, heaps 1.6%, 13 granary floors, 958 nests and still rising by about 100 a year with 108,000 brush stored. Nothing limits nests yet; needs a cap or faster decay in the tuning pass. Perf 5.8 us / person / tick at about 14k people (budget 15).
+
+## Finite wild resources (ported onto 5c, 2026-11-02)
+
+Switch `finiteResourcesEnabled`. Trees (wood stock on wooded tiles) are used up by brush gathering; berries top up hunger on open fertile tiles. Ported from `exp-finite-resources` (trees, berries only; fish, thirst and herds follow). Seed 1, 20 years, against the same run with the switch off (pop 4965 / 5501 / 6402 at y10 / y15 / y20).
+
+| old to new | value |
+| --- | --- |
+| `treeCap` | exp 100, first port 100, now 30 (a tile gives 30 brush, then regrows) |
+| `treeBrushCost` | 0.5 to 1.0 wood per brush |
+| `treeRegrowRate` | 0.0005 to 0.0003 |
+| `berryRegrowRate` | 0.04 to 0.01 |
+| `berryBite` | 1.5 to 0.08 |
+| `berryBelow` | new, 0.4 of max energy (only the hungry eat berries) |
+
+| set | berry bite / below | pop y10 / y15 / y20 vs off | trees left y20 | nests y20 |
+| --- | --- | --- | --- | --- |
+| first port (exp values) | 1.5 / 0.8 | +16% / +37% / +43% at y10/15/20 | 96% | 807 |
+| A | 0.4 / 0.8 | +11% / +21% / +28% | 47% | 485 |
+| D | 0.15 / 0.5 | +6% / +15% / +15% | 51% | 382 |
+| G (adopted) | 0.08 / 0.4 | +3% / +6% / +3% | 58% | 388 |
+
+Berries were the population driver, not the wood. Woodland thins to about 58% and levels off; nests drop from about 550 to about 390 because brush now has a cost. Single seed: confirm on more seeds in the combined tuning pass.

@@ -174,6 +174,14 @@ export interface SimulationConfig {
   granaryCompaction: number;
   granaryKeepMass: number;
   granaryKeepCompaction: number;
+  finiteResourcesEnabled: boolean;
+  treeCap: number;
+  treeRegrowRate: number;
+  treeBrushCost: number;
+  berryCap: number;
+  berryRegrowRate: number;
+  berryBite: number;
+  berryBelow: number;
   nestsEnabled: boolean;
   brushEnergy: number;
   brushBite: number;

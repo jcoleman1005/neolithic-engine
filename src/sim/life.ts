@@ -128,6 +128,9 @@ export class LifeSystem {
     const brushAbove = (config.brushEnergy ?? 0.6) * maxEnergy;
     const brushBite = config.brushBite ?? 1.0;
     const brushCarryMax = config.brushCarryMax ?? 10.0;
+    const finiteOn = config.finiteResourcesEnabled !== false;
+    const berryBite = config.berryBite ?? 1.5;
+    const berryBelow = (config.berryBelow ?? 0.8) * maxEnergy;
     const dropCrowd = config.dropCrowd ?? 3;
     const dropWhenFull = config.dropWhenFull ?? false;
     const carryDrag = config.carryDrag ?? 0.5;
@@ -159,6 +162,10 @@ export class LifeSystem {
             people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
             carryKind[slot] = CARRY_SEED;
           }
+        }
+        if (finiteOn && eaten < Math.min(forageBite, maxEnergy - curE) && curE < berryBelow) {
+          // Grazing fell short: top the meal up with wild berries.
+          eaten += land.pickBerries(px[slot], py[slot], Math.min(berryBite, maxEnergy - curE - eaten));
         }
         if (eaten > 0) {
           energy[slot] = curE + eaten;
@@ -192,9 +199,12 @@ export class LifeSystem {
           land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
         }
-        const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
-        people.carry[slot] = Math.min(brushCarryMax, have + brushBite);
-        carryKind[slot] = CARRY_BRUSH;
+        const cut = land.cutBrush(px[slot], py[slot], brushBite, config);
+        if (cut > 0) {
+          const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
+          people.carry[slot] = Math.min(brushCarryMax, have + cut);
+          carryKind[slot] = CARRY_BRUSH;
+        }
       }
     }
 

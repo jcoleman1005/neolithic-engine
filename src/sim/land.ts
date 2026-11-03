@@ -40,6 +40,8 @@ export interface LandState {
   readonly compaction?: readonly number[];
   readonly form?: readonly number[];
   readonly brush?: readonly number[];
+  readonly trees?: readonly number[];
+  readonly berries?: readonly number[];
 }
 
 export class Land {
@@ -63,6 +65,13 @@ export class Land {
   public readonly form: Uint8Array;
   /** Brush heaped on a cell (building material, not energy). */
   public readonly brush: Float32Array;
+  /** Wood stock on wooded tiles; brush gathering uses it up. */
+  public readonly trees: Float32Array;
+  /** Wild berries on open fertile tiles. */
+  public readonly berries: Float32Array;
+  /** Per tile ceilings for trees and berries (derived at construction, not saved). */
+  public readonly treeMax: Float32Array;
+  public readonly berryMax: Float32Array;
   /** 1 on woodland cells (cover 0.5 or more), where brush can be gathered. Derived from the terrain; not saved. */
   public readonly wooded: Uint8Array;
 
@@ -81,6 +90,10 @@ export class Land {
     this.compaction = new Float32Array(TOTAL_CELLS);
     this.form = new Uint8Array(TOTAL_CELLS);
     this.brush = new Float32Array(TOTAL_CELLS);
+    this.trees = new Float32Array(TOTAL_CELLS);
+    this.berries = new Float32Array(TOTAL_CELLS);
+    this.treeMax = new Float32Array(TOTAL_CELLS);
+    this.berryMax = new Float32Array(TOTAL_CELLS);
     this.wooded = new Uint8Array(TOTAL_CELLS);
 
     const gridConfig = (config.gridWidth === GRID_SIZE && config.gridHeight === GRID_SIZE)
@@ -95,6 +108,16 @@ export class Land {
       for (let i = 0; i < TOTAL_CELLS && i < cover.length; i++) {
         if (this.isWater[i] === 0 && cover[i] >= 32768) this.wooded[i] = 1;
       }
+    }
+    const treeCap = config.treeCap ?? 100;
+    const berryCap = config.berryCap ?? 15;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.isWater[i] === 1) continue;
+      const cf = cover && i < cover.length ? cover[i] / 65535 : 0;
+      if (this.wooded[i] === 1) this.treeMax[i] = treeCap * cf;
+      else if (this.fertility[i] >= 0.3 && cf < 0.5) this.berryMax[i] = berryCap * this.fertility[i];
+      this.trees[i] = this.treeMax[i];
+      this.berries[i] = this.berryMax[i];
     }
   }
 
@@ -157,6 +180,9 @@ export class Land {
     const seedCapBoost = config.seedCapacityBoost ?? 0.6;
     const soilRec = config.soilRecoveryRate ?? 0.0006;
 
+    const finite = config.finiteResourcesEnabled !== false;
+    const treeRegrow = (config.treeRegrowRate ?? 0.0005) * growthFactor;
+    const berryRegrow = (config.berryRegrowRate ?? 0.04) * growthFactor;
     const stock = config.stockpilesEnabled !== false;
     const spoil = config.pileSpoil ?? 0.003;
     const granaryFactor = config.granarySpoilFactor ?? 0.2;
@@ -202,6 +228,12 @@ export class Land {
         this.form[i] = f;
       }
       if (this.isWater[i] === 1) continue;
+      if (finite) {
+        const tm = this.treeMax[i];
+        if (tm > 0 && this.trees[i] < tm) this.trees[i] = Math.min(tm, this.trees[i] + treeRegrow * tm);
+        const bm = this.berryMax[i];
+        if (bm > 0 && this.berries[i] < bm) this.berries[i] = Math.min(bm, this.berries[i] + berryRegrow * bm);
+      }
       let cur = this.food[i];
       const max = this.maxFood[i];
       let cap = max;
@@ -249,6 +281,26 @@ export class Land {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     if (this.isWater[i] === 1) return;
     this.pile[i] = Math.min(config.pileCap ?? 200, this.pile[i] + amount);
+  }
+
+  /** Takes up to `want` brush from the wood on a cell, using up trees; returns the brush got. */
+  public cutBrush(x: number, y: number, want: number, config: Readonly<SimulationConfig>): number {
+    if (config.finiteResourcesEnabled === false) return want;
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    const cost = config.treeBrushCost ?? 0.5;
+    const got = Math.min(want, this.trees[i] / cost);
+    if (got <= 0) return 0;
+    this.trees[i] -= got * cost;
+    return got;
+  }
+
+  /** Picks up to `want` wild berries on a cell; returns the food energy got. */
+  public pickBerries(x: number, y: number, want: number): number {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    const got = Math.min(want, this.berries[i]);
+    if (got <= 0) return 0;
+    this.berries[i] -= got;
+    return got;
   }
 
   /** Heaps brush on a cell (a carrier unloading). */
@@ -366,6 +418,8 @@ export class Land {
       compaction: Array.from(this.compaction),
       form: Array.from(this.form),
       brush: Array.from(this.brush),
+      trees: Array.from(this.trees),
+      berries: Array.from(this.berries),
     };
   }
 
@@ -382,5 +436,7 @@ export class Land {
     if (state.compaction) for (let i = 0; i < len; i++) this.compaction[i] = state.compaction[i] ?? 0;
     if (state.form) for (let i = 0; i < len; i++) this.form[i] = state.form[i] ?? 0;
     if (state.brush) for (let i = 0; i < len; i++) this.brush[i] = state.brush[i] ?? 0;
+    if (state.trees) for (let i = 0; i < len; i++) this.trees[i] = state.trees[i] ?? 0;
+    if (state.berries) for (let i = 0; i < len; i++) this.berries[i] = state.berries[i] ?? 0;
   }
 }
