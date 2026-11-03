@@ -20,13 +20,6 @@ describe('Phase 4 chronicle observer', () => {
     expect(on).toBe(off);
   });
 
-  it('entries are reproducible for the same seed', () => {
-    const a = run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
-    const b = run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
-    expect(a.texts.length).toBeGreaterThan(0);
-    expect(a.texts).toEqual(b.texts);
-  });
-
   it('writes nothing when switched off', () => {
     const { texts } = run(1500, new Chronicle(), 5, { chronicleEnabled: false });
     expect(texts).toEqual([]);

@@ -62,6 +62,11 @@ export interface SimulationConfig {
   elevationPlateCount: number;
   elevationContinentalShare: number;
   elevationSeaFraction: number;
+  elevationHillLevel: number;
+  elevationMountainLevel: number;
+  elevationSnowLevel: number;
+  elevationLakeDepth: number;
+  elevationMinLakeCells: number;
   elevationMinContinent: number;
   elevationNoise: number;
   elevationRidge: number;

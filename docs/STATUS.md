@@ -18,6 +18,9 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 - **6a-1 done**: herbivores in `src/sim/herds.ts` (graze, drift, flee, breed, die; own PRNG; plant-side energy; saved and hashed). Herd settles at `herdSoftCap` 300; people within 5% of herds off. Tests `tests/herds.test.ts`. Perf 4.4 us / person / tick.
 - **6a-3 viewer done**: herd positions stream with every frame (2 bytes per animal) and draw as tan dots zoomed out and little antlered quadrupeds zoomed in (they snap tile to tile, no interpolation yet). Needs a server restart and a watch. **6a-2 hunting done**: hungry people strike adjacent animals; a kill leaves a food heap at the hunter's feet (looks like any food heap for now). About 46 kills a year at 6000 people; herd holds near its soft cap. Next: 6a-4 wolves.
 
+## World shape (branch `fix-world-shape`, on top of `phase-6a-herds`)
+- Fewer lake pockets, more land (64%), hills start higher so about 40% of the map is green, 700 founders, herds no longer drawn in the void when zoomed out, dead-animal graphic at fresh kills. See `docs/findings.md`. Needs a fresh world (reset) to see the new map; saved worlds keep their old terrain.
+
 ## Next Steps
 1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
 2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.

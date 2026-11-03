@@ -337,8 +337,34 @@ export function generateElevation(config: Readonly<SimulationConfig>): Elevation
       continue;
     }
     const lake = filled[i] - height[i];
-    if (lake >= 0.012) water[i] = Math.round(Math.min(1, 0.08 + lake * 6) * 255);
+    if (lake >= (config.elevationLakeDepth ?? 0.012)) water[i] = Math.round(Math.min(1, 0.08 + lake * 6) * 255);
     else if (flow[i] >= riverCut) water[i] = Math.round(0.06 * 255);
+  }
+
+  // 5b. Drop small land-locked ponds: a lake that never reaches the sea and is under
+  // `elevationMinLakeCells` cells (rivers count with the lakes they join) is not worth a lake.
+  const minLake = config.elevationMinLakeCells ?? 0;
+  if (minLake > 0) {
+    const seen = new Uint8Array(n);
+    const comp = new Int32Array(n);
+    for (let s = 0; s < n; s++) {
+      if (water[s] === 0 || seen[s] === 1) continue;
+      let len = 0;
+      let touchesSea = false;
+      comp[len++] = s;
+      seen[s] = 1;
+      for (let head = 0; head < len; head++) {
+        const c = comp[head];
+        if (!isLand[c]) touchesSea = true;
+        const x = c % w, y = (c - x) / w;
+        const ns = [y * w + ((x + 1) % w), y * w + ((x + w - 1) % w), ((y + 1) % h) * w + x, ((y + h - 1) % h) * w + x];
+        for (let k = 0; k < 4; k++) {
+          const nb = ns[k];
+          if (water[nb] !== 0 && seen[nb] === 0) { seen[nb] = 1; comp[len++] = nb; }
+        }
+      }
+      if (!touchesSea && len < minLake) for (let k = 0; k < len; k++) water[comp[k]] = 0;
+    }
   }
 
   // 6. Riparian lift: land near water is wetter (4-neighbour distance from any water cell, up to the reach).

@@ -491,3 +491,17 @@ Switch `huntingEnabled`. A person below `huntBelow` (0.6 of max energy) with an 
 | `huntChance` 0.05 | 82 / 313 / 701 / 917 | 291 | 7076 | +6% |
 
 Targets (set first): herds persist above 40, kills in the hundreds over the run, people within 10% of hunting off. Met. Breeding refills the herd at its soft cap, so hunting adds meat without thinning herds much; the herd size is set by `herdSoftCap`, not by hunting. Single seed.
+
+## World shape and start population (2026-11-04)
+
+Your notes on the first watch of herds: too many little lakes, not enough green land, the world trampled within seconds, too many people to start. Measured on seeds 1 to 3.
+
+| old to new | value | why |
+| --- | --- | --- |
+| `elevationSeaFraction` | 0.38 to 0.28 | water was 49 to 54% of the map; now 36 to 40% (land 64%) |
+| `elevationLakeDepth` | 0.012 to 0.02 | fewer shallow pockets |
+| `elevationMinLakeCells` | new, 80 | land-locked lakes (with their rivers) under 80 cells are dropped: lakes and rivers 66 to 86 down to about 20 |
+| `elevationHillLevel` / `MountainLevel` / `SnowLevel` | 0.56 / 0.70 / 0.82 to 0.68 / 0.80 / 0.90 (now config, used by the renderer and by woodland) | hills were 19 to 32% of the land, so green (grass plus forest) was only 13 to 19% of the map; now about 40% |
+| `initialPopulation` | 1000 to 700 | with 700 the colony is about 1 to 2 thousand for its first five years (1.8k at year 5 from 600, 3.2k from 1000); worked soil is 8% at the start from 1000 founders, 5% from 600 |
+
+Also: herd and carcass sprites were drawn in repeated copies when the world fits the screen (zoomed out), which put animals in the black void; they now draw one copy there, like people. Test change: the 5000-person save test runs 250 ticks instead of 500 (it hit the 60 s limit on the larger map), and the slowest chronicle test file is split again. Every earlier tuning (farming, stockpiles, finite resources, herds) was done on the old map; the combined tuning pass should repeat the key checks on this one. Single seeds.

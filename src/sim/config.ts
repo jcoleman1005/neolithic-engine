@@ -18,7 +18,12 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   elevationEnabled: true,
   elevationPlateCount: 8,
   elevationContinentalShare: 0.5,
-  elevationSeaFraction: 0.38,
+  elevationSeaFraction: 0.28,
+  elevationHillLevel: 0.68, // land above this height is drawn as hills (and is not woodland)
+  elevationMountainLevel: 0.8,
+  elevationSnowLevel: 0.9,
+  elevationLakeDepth: 0.02, // a depression must fill this deep to hold a lake
+  elevationMinLakeCells: 80, // land-locked lakes (with their rivers) smaller than this are dropped
   elevationMinContinent: 250,
   elevationNoise: 0.12,
   elevationRidge: 0.25,
@@ -176,7 +181,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   ritualEnabled: true,
 
   // Life & Demographics (Phase 1)
-  initialPopulation: 1000,
+  initialPopulation: 700,
   initialEnergy: 50.0,
   maxEnergy: 100.0,
   metabolismCost: 0.25,

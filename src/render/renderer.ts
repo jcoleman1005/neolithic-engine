@@ -740,6 +740,9 @@ export class CanvasRenderer {
   private updateTerrainCache(): void {
     const elevation = this.world.elevation;
     const terrain = this.world.terrain;
+    const hillLevel = this.world.config.elevationHillLevel ?? 0.68;
+    const mountainLevel = this.world.config.elevationMountainLevel ?? 0.8;
+    const snowLevel = this.world.config.elevationSnowLevel ?? 0.9;
 
     if (!elevation && !terrain) {
       if (!this.terrainGenerated) {
@@ -794,11 +797,11 @@ export class CanvasRenderer {
 
           if (nearWater) {
             baseColor = COLOR_SAND;
-          } else if (h >= 0.82) {
+          } else if (h >= snowLevel) {
             baseColor = COLOR_SNOW;
-          } else if (h >= 0.70) {
+          } else if (h >= mountainLevel) {
             baseColor = COLOR_MOUNTAIN;
-          } else if (h >= 0.56) {
+          } else if (h >= hillLevel) {
             baseColor = COLOR_HILLS;
           } else {
             // Plains & Lowlands: check cover
@@ -903,13 +906,12 @@ export class CanvasRenderer {
       for (let i = 0; i + 1 < dead.length; i += 2) {
         let sx = Math.round(dead[i] * cs + this.panX);
         let sy = Math.round(dead[i + 1] * cs + this.panY);
-        while (sx > -cs) sx -= worldPxW;
-        while (sx < -cs) sx += worldPxW;
-        while (sy > -cs) sy -= worldPxH;
-        while (sy < -cs) sy += worldPxH;
+        if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
+        if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
         const face = ((dead[i] * 31 + dead[i + 1] * 17) & 1) === 0;
-        for (let x0 = sx; x0 < screenWidth; x0 += worldPxW) {
-          for (let y0 = sy; y0 < screenHeight; y0 += worldPxH) {
+        // One copy when the world fits the screen on an axis, so nothing is drawn in the void.
+        for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
+          for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
             if (!zoomedIn) {
               ctx.fillStyle = '#8a2e22';
               const d = Math.max(2, Math.round(cs * 0.9));
@@ -938,13 +940,11 @@ export class CanvasRenderer {
     for (let i = 0; i + 1 < pos.length; i += 2) {
       let sx = Math.round(pos[i] * cs + this.panX);
       let sy = Math.round(pos[i + 1] * cs + this.panY);
-      while (sx > -cs) sx -= worldPxW;
-      while (sx < -cs) sx += worldPxW;
-      while (sy > -cs) sy -= worldPxH;
-      while (sy < -cs) sy += worldPxH;
+      if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
+      if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
       const face = ((pos[i] * 31 + pos[i + 1] * 17) & 1) === 0;
-      for (let x0 = sx; x0 < screenWidth; x0 += worldPxW) {
-        for (let y0 = sy; y0 < screenHeight; y0 += worldPxH) {
+      for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
+        for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
           if (!zoomedIn) {
             ctx.fillStyle = '#d9a441';
             const d = Math.max(2, Math.round(cs * 0.9));

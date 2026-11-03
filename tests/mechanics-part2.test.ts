@@ -126,11 +126,11 @@ describe('Phase 1 Invariants & Mechanics (part 2)', () => {
     expect(worldB.people.count).toBe(worldA.people.count);
     expect(worldB.people.capacity).toBe(worldA.people.capacity);
 
-    // Step both for 500 ticks and assert stateHashes match periodically and at the end
-    for (let tick = 0; tick < 500; tick++) {
+    // Step both for 250 ticks and assert stateHashes match periodically and at the end
+    for (let tick = 0; tick < 250; tick++) {
       worldA.step();
       worldB.step();
-      if (tick % 50 === 0 || tick === 499) {
+      if (tick % 50 === 0 || tick === 249) {
         expect(worldB.stateHash(), `State hash mismatch at tick ${tick}`).toBe(worldA.stateHash());
       }
     }

@@ -206,7 +206,7 @@ describe('Finite wild resources', () => {
       if (l.wooded[i] === 0) { expect(l.treeMax[i]).toBe(0); continue; }
       wooded++;
       expect(l.isWater[i]).toBe(0);
-      expect(e.elevation[i] / 65535).toBeLessThan(0.56);
+      expect(e.elevation[i] / 65535).toBeLessThan(DEFAULT_CONFIG.elevationHillLevel);
       expect(e.elevation[i] / 65535).toBeGreaterThanOrEqual(e.seaLevel + 0.015);
       const x = i & 255, y = i >> 8;
       expect(l.isWater[(y << 8) | ((x + 1) & 255)] + l.isWater[(y << 8) | ((x - 1) & 255)] + l.isWater[(((y + 1) & 255) << 8) | x] + l.isWater[(((y - 1) & 255) << 8) | x]).toBe(0);
