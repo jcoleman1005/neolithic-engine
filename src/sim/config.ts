@@ -123,6 +123,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   huntChance: 0.15, // chance a strike kills, per tick with prey adjacent
   huntCost: 0.3, // labour per strike (booked as movement)
   huntMeatFactor: 1.0, // meat per unit of the animal's energy
+  carcassTicks: 120, // how long the dead-animal graphic stays (viewer only), if the meat lasts
   herdInitialCount: 150, // founder animals
   herdCapacity: 1024, // slots (an upper bound; food, not this, should limit the herds)
   herdMaxEnergy: 50.0,

@@ -224,6 +224,7 @@ export class LifeSystem {
               land.dropFood(hx, hy, herds!.energy[prey] * meatFactor, config);
               herds!.kill(prey);
               herds!.killed++;
+              herds!.addCarcass(hx, hy, config.carcassTicks ?? 120);
               eaten += land.takePile(hx, hy, Math.min(pileEatBite, maxEnergy - curE - eaten));
             }
           }

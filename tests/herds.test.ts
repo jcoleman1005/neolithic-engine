@@ -180,4 +180,22 @@ describe('Phase 6a hunting', () => {
     for (let t = 0; t < 300; t++) on.step();
     expect(on.ledger.violations).toBe(0);
   });
+
+  it('a kill leaves a carcass marker that fades with time and when the meat is gone, without touching the hash', async () => {
+    const { fastBase64Decode } = await import('../src/sim/base64');
+    const w = new World({ initialPopulation: 50, herdInitialCount: 5 }, 6);
+    const before = w.stateHash();
+    w.herds.addCarcass(40, 41, 3);
+    expect(w.stateHash()).toBe(before); // visual only
+    w.land.pile[(41 << 8) | 40] = 30;
+    expect(Array.from(fastBase64Decode(w.packCarcassFrame()))).toEqual([40, 41]);
+    w.herds.ageCarcasses(w.land);
+    w.herds.ageCarcasses(w.land);
+    w.herds.ageCarcasses(w.land);
+    expect(fastBase64Decode(w.packCarcassFrame()).length).toBe(0); // timed out
+    w.herds.addCarcass(40, 41, 100);
+    w.land.pile[(41 << 8) | 40] = 0; // the meat was eaten
+    w.herds.ageCarcasses(w.land);
+    expect(fastBase64Decode(w.packCarcassFrame()).length).toBe(0);
+  });
 });

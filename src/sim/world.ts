@@ -123,6 +123,7 @@ export class World {
       this.tick,
       this.herds
     );
+    this.herds.ageCarcasses(this.land);
     this.herds.step(this.land, this.people, this.config);
     this.population = this.people.count;
     this.tick++;
@@ -234,6 +235,17 @@ export class World {
       if (h.alive[s] === 1) { buf[o++] = h.x[s]; buf[o++] = h.y[s]; }
     }
     return fastBase64Encode(buf);
+  }
+
+  /** Fresh kills for the viewer: two bytes (x, y) per carcass, base64. */
+  public packCarcassFrame(): string {
+    const h = this.herds;
+    const buf = new Uint8Array(256);
+    let o = 0;
+    for (let i = 0; i < 128; i++) {
+      if (h.carcassLeft[i] > 0) { buf[o++] = h.carcassX[i]; buf[o++] = h.carcassY[i]; }
+    }
+    return fastBase64Encode(buf.subarray(0, o));
   }
 
   public packPeopleFrame(): { base64: string; count: number } {

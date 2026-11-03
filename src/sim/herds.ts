@@ -26,6 +26,11 @@ export class Herds {
   /** Slot of the animal on each tile, or -1. At most one animal per tile. */
   public readonly cellSlot: Int16Array;
   public count = 0;
+  /** Recent kills, for the viewer only (not saved, not hashed): x, y and ticks left. */
+  public readonly carcassX = new Uint8Array(128);
+  public readonly carcassY = new Uint8Array(128);
+  public readonly carcassLeft = new Uint16Array(128);
+  private carcassHead = 0;
   /** Animals killed by hunters so far (a running tally, not saved). */
   public killed = 0;
   /** Scratch: 1 on tiles with a person this tick. */
@@ -82,6 +87,24 @@ export class Herds {
     this.alive[slot] = 0;
     this.cellSlot[(this.y[slot] << 8) | this.x[slot]] = -1;
     this.count--;
+  }
+
+  /** Marks a fresh kill at a tile; it lingers while the meat does. Visual only. */
+  public addCarcass(x: number, y: number, ticks: number): void {
+    const i = this.carcassHead;
+    this.carcassHead = (i + 1) & 127;
+    this.carcassX[i] = x;
+    this.carcassY[i] = y;
+    this.carcassLeft[i] = ticks;
+  }
+
+  /** Counts down carcasses and drops those whose meat is gone. Reads the land; changes nothing in the sim. */
+  public ageCarcasses(land: Land): void {
+    for (let i = 0; i < 128; i++) {
+      if (this.carcassLeft[i] === 0) continue;
+      this.carcassLeft[i]--;
+      if (land.pile[(this.carcassY[i] << 8) | this.carcassX[i]] < 1) this.carcassLeft[i] = 0;
+    }
   }
 
   /** A random draw from the herds' own stream (hunting uses it so people's stream is untouched). */

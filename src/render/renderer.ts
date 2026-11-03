@@ -102,6 +102,7 @@ export class CanvasRenderer {
   private world: WorldView & {
     packedPeopleBuffer?: Uint8Array;
     herdPositions?: Uint8Array;
+    carcassPositions?: Uint8Array;
     peopleCount?: number;
     running?: boolean;
     getSelectedPerson?(): any;
@@ -189,6 +190,7 @@ export class CanvasRenderer {
     world: WorldView & {
       packedPeopleBuffer?: Uint8Array;
     herdPositions?: Uint8Array;
+    carcassPositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
       getSelectedPerson?(): any;
@@ -265,6 +267,7 @@ export class CanvasRenderer {
     world: WorldView & {
       packedPeopleBuffer?: Uint8Array;
     herdPositions?: Uint8Array;
+    carcassPositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
       getSelectedPerson?(): any;
@@ -887,14 +890,51 @@ export class CanvasRenderer {
 
   /** Herd animals: tan dots zoomed out, little pixel-art quadrupeds zoomed in. They snap tile to tile. */
   private renderHerds(screenWidth: number, screenHeight: number, worldW: number, worldH: number, zoomedIn: boolean): void {
-    const pos = this.world.herdPositions;
-    if (!pos || pos.length === 0) return;
     const cs = this.cellSize;
     const ctx = this.ctx;
     const ap = cs / 8;
     const q = (v: number) => Math.round(v * ap);
     const worldPxW = worldW * cs;
     const worldPxH = worldH * cs;
+
+    // Fresh kills: a dead animal on its back, legs in the air, in the lower half of the heap's tile.
+    const dead = this.world.carcassPositions;
+    if (dead) {
+      for (let i = 0; i + 1 < dead.length; i += 2) {
+        let sx = Math.round(dead[i] * cs + this.panX);
+        let sy = Math.round(dead[i + 1] * cs + this.panY);
+        while (sx > -cs) sx -= worldPxW;
+        while (sx < -cs) sx += worldPxW;
+        while (sy > -cs) sy -= worldPxH;
+        while (sy < -cs) sy += worldPxH;
+        const face = ((dead[i] * 31 + dead[i + 1] * 17) & 1) === 0;
+        for (let x0 = sx; x0 < screenWidth; x0 += worldPxW) {
+          for (let y0 = sy; y0 < screenHeight; y0 += worldPxH) {
+            if (!zoomedIn) {
+              ctx.fillStyle = '#8a2e22';
+              const d = Math.max(2, Math.round(cs * 0.9));
+              ctx.fillRect(x0, y0, d, d);
+              continue;
+            }
+            ctx.fillStyle = '#7a3a20'; // belly-up body
+            ctx.fillRect(x0 + q(1.2), y0 + q(4.6), q(5.4), q(2.2));
+            ctx.fillStyle = '#c99a6a'; // pale underside
+            ctx.fillRect(x0 + q(1.6), y0 + q(5.2), q(4.6), Math.max(1, q(0.8)));
+            ctx.fillStyle = '#4a2810'; // four legs sticking up
+            for (const lx of [1.6, 2.7, 4.2, 5.4]) ctx.fillRect(x0 + q(lx), y0 + q(3.2), Math.max(1, q(0.6)), q(1.5));
+            ctx.fillStyle = '#6a3a1c'; // head, fallen to the side
+            ctx.fillRect(x0 + q(face ? 6.4 : 0), y0 + q(5.2), q(1.6), q(1.5));
+            ctx.fillStyle = '#e8d8b0'; // antler
+            ctx.fillRect(x0 + q(face ? 7.2 : 0.2), y0 + q(4.2), Math.max(1, q(0.5)), q(1));
+            ctx.fillStyle = '#a01818'; // blood
+            ctx.fillRect(x0 + q(2), y0 + q(6.8), q(3.2), Math.max(1, q(0.6)));
+          }
+        }
+      }
+    }
+
+    const pos = this.world.herdPositions;
+    if (!pos || pos.length === 0) return;
     for (let i = 0; i + 1 < pos.length; i += 2) {
       let sx = Math.round(pos[i] * cs + this.panX);
       let sy = Math.round(pos[i + 1] * cs + this.panY);

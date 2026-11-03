@@ -185,6 +185,7 @@ export interface SimulationConfig {
   huntChance: number;
   huntCost: number;
   huntMeatFactor: number;
+  carcassTicks: number;
   herdInitialCount: number;
   herdCapacity: number;
   herdMaxEnergy: number;
