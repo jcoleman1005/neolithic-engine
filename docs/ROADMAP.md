@@ -346,6 +346,7 @@ These calls were yours to make; each is needed by the phase in brackets. The age
 
 These ideas are deferred on purpose; revisit them after Phase 10 or when a phase clearly needs one.
 
+- More biomes: today the land is only grass, forest, hills, mountain, snow and sand. Later add desert, tundra, savanna, jungle, marsh and so on, as physical differences in rainfall, temperature and soil (so they change food, wood, water and cold), not as labels. Needs real climate fields first, which the weather phase (6b) and the cold of 5d begin to supply.
 - Seas, rivers you can sail, and boats
 - Trade, markets and debt networks
 - Healing, teaching and burying the dead
