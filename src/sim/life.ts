@@ -10,6 +10,7 @@ import {
 } from './people';
 import type { Land } from './land';
 import type { SpatialIndex } from './spatial';
+import type { Herds } from './herds';
 import type { ScentFields } from './fields';
 import type { EnergyLedger } from './ledger';
 import type { PRNG } from './prng';
@@ -32,7 +33,8 @@ export class LifeSystem {
     ledger: EnergyLedger,
     config: Readonly<SimulationConfig>,
     prng: PRNG,
-    tick: number
+    tick: number,
+    herds?: Herds
   ): void {
     // 1. Land food regrowth
     land.step(config, seasonGrowthFactor(tick, config));
@@ -154,6 +156,12 @@ export class LifeSystem {
     const brushAbove = (config.brushEnergy ?? 0.6) * maxEnergy;
     const brushBite = config.brushBite ?? 1.0;
     const brushCarryMax = config.brushCarryMax ?? 10.0;
+    // Meat is a food heap, so hunting needs the stockpile mechanics on.
+    const huntOn = !!herds && config.huntingEnabled !== false && config.herdsEnabled !== false && config.stockpilesEnabled !== false;
+    const huntBelow = (config.huntBelow ?? 0.6) * maxEnergy;
+    const huntChance = config.huntChance ?? 0.15;
+    const huntCost = config.huntCost ?? 0.3;
+    const meatFactor = config.huntMeatFactor ?? 1.0;
     const finiteOn = config.finiteResourcesEnabled !== false;
     const berryBite = config.berryBite ?? 1.5;
     const fishBite = config.fishBite ?? 0.3;
@@ -199,8 +207,29 @@ export class LifeSystem {
           // Still hungry beside water: take a little fish from the shore.
           eaten += land.catchFish(px[slot], py[slot], Math.min(fishBite, maxEnergy - curE - eaten));
         }
+        if (huntOn && herds!.count > 0 && curE < huntBelow) {
+          // Hungry with an animal on or beside the tile: a chance to strike. A kill leaves the meat
+          // as a food heap at the hunter's feet (the animal's own energy, plant-side) and the
+          // hunter takes the first bite.
+          const hx = px[slot], hy = py[slot];
+          let prey = herds!.cellSlot[(hy << 8) | hx];
+          if (prey < 0) prey = herds!.cellSlot[(hy << 8) | ((hx + 1) & 255)];
+          if (prey < 0) prey = herds!.cellSlot[(hy << 8) | ((hx - 1) & 255)];
+          if (prey < 0) prey = herds!.cellSlot[(((hy + 1) & 255) << 8) | hx];
+          if (prey < 0) prey = herds!.cellSlot[(((hy - 1) & 255) << 8) | hx];
+          if (prey >= 0) {
+            energy[slot] -= huntCost;
+            ledger.move += huntCost;
+            if (herds!.roll() < huntChance) {
+              land.dropFood(hx, hy, herds!.energy[prey] * meatFactor, config);
+              herds!.kill(prey);
+              herds!.killed++;
+              eaten += land.takePile(hx, hy, Math.min(pileEatBite, maxEnergy - curE - eaten));
+            }
+          }
+        }
         if (eaten > 0) {
-          energy[slot] = curE + eaten;
+          energy[slot] += eaten; // (a strike above may already have cost labour)
           ledger.plantMeal += eaten;
         }
       }

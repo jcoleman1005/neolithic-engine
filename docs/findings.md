@@ -479,3 +479,15 @@ Switch `herdsEnabled`. Animals live in their own typed arrays (`src/sim/herds.ts
 | `herdSoftCap` 450 | 437 at y30 | -3.3% at y20, -2% at y30 |
 
 New values: `herdInitialCount` 150, `herdCapacity` 1024, `herdMaxEnergy` 50, `herdUpkeep` 0.1, `herdMoveCost` 0.02, `herdGrazeBite` 1.0, `herdBreedEnergy` 35, `herdBirthEnergy` 12, `herdBreedChance` 0.03 (times 1 - herd / `herdSoftCap`), `herdAdultAge` 180, `herdMaxAge` 3600, `herdFleeRadius` 2, `herdFleeChance` 0.6, `herdStayFraction` 0.5, `herdWander` 0.1. Targets (set first): herds persist and stay between 40 and 600; people within 10% of herds off. Met. The herd sits at its soft cap because grass never runs short; hunting (6a-2) is what should pull it below. Single seed.
+
+### Hunting, 6a-2 (2026-11-04)
+
+Switch `huntingEnabled`. A person below `huntBelow` (0.6 of max energy) with an animal on or beside their tile strikes each tick for `huntCost` 0.3 (booked as movement); a strike kills with chance `huntChance` 0.15 (drawn from the herds' own stream). A kill leaves the animal's energy times `huntMeatFactor` (1.0) as a food heap at the hunter's feet, and the hunter takes the first bite. Seed 1, 30 years, herd soft cap 300.
+
+| set | kills y5 / y10 / y20 / y30 | herds y30 | people y30 | vs hunting off |
+| --- | --- | --- | --- | --- |
+| hunting off | 0 | 289 | 6698 | |
+| `huntChance` 0.15 (adopted) | 130 / 433 / 875 / 1379 | 288 | 6906 | +3% |
+| `huntChance` 0.05 | 82 / 313 / 701 / 917 | 291 | 7076 | +6% |
+
+Targets (set first): herds persist above 40, kills in the hundreds over the run, people within 10% of hunting off. Met. Breeding refills the herd at its soft cap, so hunting adds meat without thinning herds much; the herd size is set by `herdSoftCap`, not by hunting. Single seed.

@@ -122,3 +122,62 @@ describe('Phase 6a herbivore herds', () => {
     }
   });
 });
+
+describe('Phase 6a hunting', () => {
+  const hunt = { ...cfg, herdInitialCount: 1, huntChance: 1, herdFleeChance: 0 };
+
+  function setup() {
+    const land = new Land(hunt);
+    land.food.fill(0);
+    const people = new People();
+    const herds = new Herds(hunt, 3);
+    herds.seed(land, hunt);
+    let s = 0; while (herds.alive[s] === 0) s++;
+    return { land, people, herds, s };
+  }
+
+  it('a kill turns the animal into a food heap at the hunter, and nothing is created', async () => {
+    const { LifeSystem } = await import('../src/sim/life');
+    const { ScentFields } = await import('../src/sim/fields');
+    const { SpatialIndex } = await import('../src/sim/spatial');
+    const { EnergyLedger } = await import('../src/sim/ledger');
+    const { PRNG } = await import('../src/sim/prng');
+    const { land, people, herds, s } = setup();
+    herds.energy[s] = 40;
+    const ax = herds.x[s], ay = herds.y[s];
+    people.spawn((ax + 1) & 255, ay, 20, 0); // hungry (20 of 100), beside the animal
+    const ledger = new EnergyLedger();
+    ledger.begin(people.totalEnergy(), 0);
+    LifeSystem.step(people, land, new ScentFields(), new SpatialIndex(), ledger, hunt, new PRNG(1), 0, herds);
+    expect(herds.count).toBe(0);
+    expect(herds.killed).toBe(1);
+    // The heap is the animal's 40 energy minus the hunter's first bite (5), at the hunter's feet.
+    const here = ((ay << 8) | ((ax + 1) & 255));
+    expect(land.pile[here]).toBeGreaterThan(30);
+    expect(land.pile[here]).toBeLessThanOrEqual(40);
+    expect(people.count).toBe(1);
+  });
+
+  it('a well-fed person does not hunt', async () => {
+    const { LifeSystem } = await import('../src/sim/life');
+    const { ScentFields } = await import('../src/sim/fields');
+    const { SpatialIndex } = await import('../src/sim/spatial');
+    const { EnergyLedger } = await import('../src/sim/ledger');
+    const { PRNG } = await import('../src/sim/prng');
+    const { land, people, herds, s } = setup();
+    people.spawn((herds.x[s] + 1) & 255, herds.y[s], 90, 0);
+    const ledger = new EnergyLedger();
+    ledger.begin(people.totalEnergy(), 0);
+    LifeSystem.step(people, land, new ScentFields(), new SpatialIndex(), ledger, hunt, new PRNG(1), 0, herds);
+    expect(herds.count).toBe(1);
+  });
+
+  it('with hunting off no animal is ever killed, and a full world run keeps the ledger balanced', () => {
+    const off = new World({ initialPopulation: 200, huntingEnabled: false }, 3);
+    for (let t = 0; t < 300; t++) off.step();
+    expect(off.herds.killed).toBe(0);
+    const on = new World({ initialPopulation: 200 }, 3);
+    for (let t = 0; t < 300; t++) on.step();
+    expect(on.ledger.violations).toBe(0);
+  });
+});

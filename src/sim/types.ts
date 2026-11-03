@@ -180,6 +180,11 @@ export interface SimulationConfig {
   treeBrushCost: number;
   stumpBelow: number;
   herdsEnabled: boolean;
+  huntingEnabled: boolean;
+  huntBelow: number;
+  huntChance: number;
+  huntCost: number;
+  huntMeatFactor: number;
   herdInitialCount: number;
   herdCapacity: number;
   herdMaxEnergy: number;

@@ -116,6 +116,13 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // Phase 6a: herbivore herds. Dumb animals that graze, drift toward richer ground, flee people,
   // breed when well fed and die of hunger or age. Their energy is plant-side (outside the ledger).
   herdsEnabled: true,
+  // Hunting: a hungry person with an animal on or beside their tile may strike; a kill leaves meat
+  // (the animal's energy) as a food heap at the hunter's feet.
+  huntingEnabled: true,
+  huntBelow: 0.6, // hunts below this fraction of maxEnergy
+  huntChance: 0.15, // chance a strike kills, per tick with prey adjacent
+  huntCost: 0.3, // labour per strike (booked as movement)
+  huntMeatFactor: 1.0, // meat per unit of the animal's energy
   herdInitialCount: 150, // founder animals
   herdCapacity: 1024, // slots (an upper bound; food, not this, should limit the herds)
   herdMaxEnergy: 50.0,

@@ -26,6 +26,8 @@ export class Herds {
   /** Slot of the animal on each tile, or -1. At most one animal per tile. */
   public readonly cellSlot: Int16Array;
   public count = 0;
+  /** Animals killed by hunters so far (a running tally, not saved). */
+  public killed = 0;
   /** Scratch: 1 on tiles with a person this tick. */
   private readonly humanNear = new Uint8Array(CELLS);
   private prng: PRNG;
@@ -80,6 +82,11 @@ export class Herds {
     this.alive[slot] = 0;
     this.cellSlot[(this.y[slot] << 8) | this.x[slot]] = -1;
     this.count--;
+  }
+
+  /** A random draw from the herds' own stream (hunting uses it so people's stream is untouched). */
+  public roll(): number {
+    return this.prng.next();
   }
 
   private canEnter(land: Land, c: number): boolean {

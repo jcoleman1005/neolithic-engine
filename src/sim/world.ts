@@ -120,7 +120,8 @@ export class World {
       this.ledger,
       this.config,
       this.prng,
-      this.tick
+      this.tick,
+      this.herds
     );
     this.herds.step(this.land, this.people, this.config);
     this.population = this.people.count;
