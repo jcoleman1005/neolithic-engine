@@ -110,4 +110,15 @@ describe('Phase 6a herbivore herds', () => {
     for (let t = 0; t < 100; t++) w.step();
     expect(w.herds.count).toBe(0);
   });
+
+  it('the viewer frame carries two bytes (x, y) per animal', async () => {
+    const { fastBase64Decode } = await import('../src/sim/base64');
+    const w = new World({ initialPopulation: 50 }, 6);
+    const bytes = fastBase64Decode(w.packHerdsFrame());
+    expect(bytes.length).toBe(w.herds.count * 2);
+    let o = 0;
+    for (let s = 0; s < w.herds.capacity; s++) {
+      if (w.herds.alive[s] === 1) { expect(bytes[o++]).toBe(w.herds.x[s]); expect(bytes[o++]).toBe(w.herds.y[s]); }
+    }
+  });
 });

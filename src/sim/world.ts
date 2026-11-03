@@ -224,6 +224,17 @@ export class World {
 
   private frameBuffer: Uint8Array = new Uint8Array(2048 * PERSON_FRAME_BYTES);
 
+  /** Herd positions for the viewer: two bytes (x, y) per animal, base64. */
+  public packHerdsFrame(): string {
+    const h = this.herds;
+    const buf = new Uint8Array(h.count * 2);
+    let o = 0;
+    for (let s = 0; s < h.capacity; s++) {
+      if (h.alive[s] === 1) { buf[o++] = h.x[s]; buf[o++] = h.y[s]; }
+    }
+    return fastBase64Encode(buf);
+  }
+
   public packPeopleFrame(): { base64: string; count: number } {
     const people = this.people;
     const count = people.count;

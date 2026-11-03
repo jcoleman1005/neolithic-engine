@@ -101,6 +101,7 @@ export class CanvasRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   private world: WorldView & {
     packedPeopleBuffer?: Uint8Array;
+    herdPositions?: Uint8Array;
     peopleCount?: number;
     running?: boolean;
     getSelectedPerson?(): any;
@@ -187,6 +188,7 @@ export class CanvasRenderer {
     canvas: HTMLCanvasElement,
     world: WorldView & {
       packedPeopleBuffer?: Uint8Array;
+    herdPositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
       getSelectedPerson?(): any;
@@ -262,6 +264,7 @@ export class CanvasRenderer {
   public setWorld(
     world: WorldView & {
       packedPeopleBuffer?: Uint8Array;
+    herdPositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
       getSelectedPerson?(): any;
@@ -669,6 +672,7 @@ export class CanvasRenderer {
 
     // 5. Render People (Direct ImageData blit zoomed out; Stick-figure sprites zoomed in)
     this.renderPeople(width, height, w, h, isZoomedIn);
+    this.renderHerds(width, height, w, h, isZoomedIn);
 
     this.ctx.restore();
   }
@@ -876,6 +880,49 @@ export class CanvasRenderer {
           const dy = Math.round(screenY - spr.anchorY * scale + this.panY);
 
           this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
+        }
+      }
+    }
+  }
+
+  /** Herd animals: tan dots zoomed out, little pixel-art quadrupeds zoomed in. They snap tile to tile. */
+  private renderHerds(screenWidth: number, screenHeight: number, worldW: number, worldH: number, zoomedIn: boolean): void {
+    const pos = this.world.herdPositions;
+    if (!pos || pos.length === 0) return;
+    const cs = this.cellSize;
+    const ctx = this.ctx;
+    const ap = cs / 8;
+    const q = (v: number) => Math.round(v * ap);
+    const worldPxW = worldW * cs;
+    const worldPxH = worldH * cs;
+    for (let i = 0; i + 1 < pos.length; i += 2) {
+      let sx = Math.round(pos[i] * cs + this.panX);
+      let sy = Math.round(pos[i + 1] * cs + this.panY);
+      while (sx > -cs) sx -= worldPxW;
+      while (sx < -cs) sx += worldPxW;
+      while (sy > -cs) sy -= worldPxH;
+      while (sy < -cs) sy += worldPxH;
+      const face = ((pos[i] * 31 + pos[i + 1] * 17) & 1) === 0;
+      for (let x0 = sx; x0 < screenWidth; x0 += worldPxW) {
+        for (let y0 = sy; y0 < screenHeight; y0 += worldPxH) {
+          if (!zoomedIn) {
+            ctx.fillStyle = '#d9a441';
+            const d = Math.max(2, Math.round(cs * 0.9));
+            ctx.fillRect(x0, y0, d, d);
+            continue;
+          }
+          ctx.fillStyle = '#6b4220'; // legs
+          for (const lx of [1.6, 2.6, 4.4, 5.4]) ctx.fillRect(x0 + q(face ? lx : 7.6 - lx), y0 + q(5), Math.max(1, q(0.6)), q(2));
+          ctx.fillStyle = '#b8793c'; // body
+          ctx.fillRect(x0 + q(1.2), y0 + q(3), q(5.4), q(2.2));
+          ctx.fillStyle = '#d9a35c'; // back light
+          ctx.fillRect(x0 + q(1.2), y0 + q(3), q(5.4), Math.max(1, q(0.7)));
+          ctx.fillStyle = '#9a6030'; // head and neck
+          ctx.fillRect(x0 + q(face ? 6.2 : 0.2), y0 + q(2.2), q(1.6), q(1.8));
+          ctx.fillStyle = '#e8d8b0'; // antler tines
+          ctx.fillRect(x0 + q(face ? 6.8 : 0.8), y0 + q(1.2), Math.max(1, q(0.5)), q(1.1));
+          ctx.fillStyle = '#1c1008'; // eye
+          ctx.fillRect(x0 + q(face ? 7.2 : 0.4), y0 + q(2.8), Math.max(1, q(0.4)), Math.max(1, q(0.4)));
         }
       }
     }

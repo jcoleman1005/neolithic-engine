@@ -16,7 +16,7 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 
 ## Phase 6a herds (branch `phase-6a-herds`)
 - **6a-1 done**: herbivores in `src/sim/herds.ts` (graze, drift, flee, breed, die; own PRNG; plant-side energy; saved and hashed). Herd settles at `herdSoftCap` 300; people within 5% of herds off. Tests `tests/herds.test.ts`. Perf 4.4 us / person / tick.
-- **Not yet visible**: herds are not drawn. Next: 6a-3 viewer (stream positions, sprites), then 6a-2 hunting with meat piles, then 6a-4 wolves.
+- **6a-3 viewer done**: herd positions stream with every frame (2 bytes per animal) and draw as tan dots zoomed out and little antlered quadrupeds zoomed in (they snap tile to tile, no interpolation yet). Needs a server restart and a watch. Next: 6a-2 hunting with meat piles, then 6a-4 wolves.
 
 ## Next Steps
 1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.

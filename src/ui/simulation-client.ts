@@ -67,6 +67,8 @@ export class SimulationClient implements WorldView {
   public tick = 0;
   public peopleCount = 0;
   public packedPeopleBuffer: Uint8Array = new Uint8Array(0);
+  /** Herd positions: x, y per animal. */
+  public herdPositions: Uint8Array = new Uint8Array(0);
   public selectedPerson: PersonDetail | null = null;
   public selectedStory: PersonStory | null = null;
   /** Large bands from the latest panels, for the auto-camera. */
@@ -199,6 +201,7 @@ export class SimulationClient implements WorldView {
         if (message.landOverlay) this.setOverlay(message.landOverlay);
         if (message.landStructures) this.setStructures(message.landStructures);
         this.peopleCount = message.peopleCount;
+        if (message.packedHerds !== undefined) this.herdPositions = fastBase64Decode(message.packedHerds);
         if (message.packedPeople) {
           this.packedPeopleBuffer = fastBase64Decode(message.packedPeople);
         }

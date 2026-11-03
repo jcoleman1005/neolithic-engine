@@ -161,6 +161,8 @@ export type FromWorker =
       readonly kind: 'frame';
       readonly tick: number;
       readonly packedPeople: string;
+      /** Herd positions, two bytes per animal (see World.packHerdsFrame). */
+      readonly packedHerds?: string;
       readonly peopleCount: number;
       readonly terrain?: TerrainState;
       readonly landOverlay?: string;
