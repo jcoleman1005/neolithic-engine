@@ -130,6 +130,9 @@ export class CanvasRenderer {
   private readonly isForest = new Uint8Array(65536);
   private terrainGenerated = false;
   private lastTerrainVersion = -1;
+  /** The terrain and elevation the cache was drawn from: a new seed brings new objects, even at the same version number. */
+  private lastTerrainRef: unknown = null;
+  private lastElevationRef: unknown = null;
 
   // Zoomed-out people blit overlay canvas (fixed 256x256, 1 px/cell)
   private readonly overlayCanvas: HTMLCanvasElement;
@@ -755,7 +758,12 @@ export class CanvasRenderer {
 
     // Redraw only when not yet generated or when terrain changes
     const curTerrainVer = terrain ? terrain.version : 0;
-    if (this.terrainGenerated && curTerrainVer === this.lastTerrainVersion) {
+    if (
+      this.terrainGenerated &&
+      curTerrainVer === this.lastTerrainVersion &&
+      terrain === this.lastTerrainRef &&
+      elevation === this.lastElevationRef
+    ) {
       return;
     }
 
@@ -842,6 +850,8 @@ export class CanvasRenderer {
     this.terrainCtx.putImageData(this.terrainImgData, 0, 0);
     this.terrainGenerated = true;
     this.lastTerrainVersion = curTerrainVer;
+    this.lastTerrainRef = terrain;
+    this.lastElevationRef = elevation;
   }
 
   /**
