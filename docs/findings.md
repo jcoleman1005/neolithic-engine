@@ -460,3 +460,9 @@ Targets (stated before running): pop within 15% of off, dehydrated under 3%. Abo
 ### Fewer fish (2026-11-03)
 
 Seed 1, 20 years, thirst on. `fishCap` 20 to 10 and `fishRegrowRate` 0.02 to 0.01: pop y10 / y20 5090 / 6464 to 5007 / 6184 (-1.6% / -4.3%); cap 6 gave 4811 / 6220 (-5.5% / -3.8%), no better. The viewer now draws at most one fish on about half the shore tiles.
+
+### Woodland matches the drawn forest (2026-11-04)
+
+Bug: the sim treated every cell with cover 0.5 or more as woodland (8746 cells), including hills and shores where the viewer draws no trees, so stumps appeared where there were never trees, and tree sprites stayed on stumped and cleared cells. Now `wooded` is lowland (below 0.56), not beside water, not near sea level, cover 0.5 or more: 3199 cells, the same rule the viewer uses for tree sprites. Seed 1, 30 years: pop 5059 / 6478 / 7082 at y10 / y20 / y30, trees left 89%, nests 204 / 346 / 348, stumps 71 standing and 30% of woodland cleared to field at y30 (inside the 10 to 35% target). Tree sprites now thin with the cutting and vanish on stumps and field.
+
+Also fixed (found by the farming save round trip test once the woodland change shifted the run): the drop-at-crowd rule read the spatial index left over from the previous tick, which a loaded save does not have, so the first tick after a load could differ from the original run. The index is now built just before the foraging step (only when stockpiles are on). Perf 4.67 us / person / tick under server load (last clean figure 4.3).

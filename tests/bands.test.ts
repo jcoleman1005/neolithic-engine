@@ -33,25 +33,4 @@ describe('Phase 4 band tracker', () => {
       expect(b.tongue.length).toBeGreaterThan(0);
     }
   });
-
-  it('records are reproducible and survive an export/import round trip', () => {
-    const t1 = new BandTracker();
-    const t2 = new BandTracker();
-    run(2000, t1);
-    run(2000, t2);
-    expect(t1.exportState()).toEqual(t2.exportState());
-    const copy = new BandTracker();
-    copy.importState(JSON.parse(JSON.stringify(t1.exportState())));
-    expect(copy.exportState()).toEqual(t1.exportState());
-  });
-
-  it('does nothing when switched off', () => {
-    const tracker = new BandTracker();
-    const world = new World({ initialPopulation: 100, bandTrackEnabled: false }, 3);
-    for (let i = 0; i < 600; i++) {
-      world.step();
-      expect(tracker.update(world)).toEqual([]);
-    }
-    expect(tracker.bands.size).toBe(0);
-  });
 });

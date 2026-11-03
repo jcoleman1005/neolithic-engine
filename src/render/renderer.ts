@@ -687,7 +687,6 @@ export class CanvasRenderer {
       this.lastStructuresVersion = structVersion;
       const structures = this.world.landStructures;
       const out = this.overlayData32;
-      const coverArr = this.world.terrain?.cover;
       const waterArr = this.world.elevation?.water;
       for (let i = 0; i < 65536; i++) {
         const b = data[i];
@@ -709,7 +708,7 @@ export class CanvasRenderer {
           out[i] = c >>> 0;
           continue;
         }
-        if (st !== 0 && coverArr && coverArr[i] >= 32768 && (st >> 5) > 0 && c === 0) {
+        if (st !== 0 && this.isForest[i] === 1 && (st >> 5) > 0 && c === 0) {
           // Thinned woodland: the more is felled, the paler and barer the stand.
           const th = st >> 5;
           c = th === 7 ? COLOR_FIELD : th === 6 ? ((200 << 24) | COLOR_CUT_RGB) : ((50 + th * 26) << 24) | COLOR_CUT_RGB;
@@ -851,6 +850,7 @@ export class CanvasRenderer {
     const maxCellY = Math.ceil((screenHeight - this.panY) / cellSize) + 1;
 
     const scale = Math.max(1, Math.floor(cellSize / 10));
+    const structures = this.world.landStructures;
 
     for (let cy = minCellY; cy <= maxCellY; cy++) {
       const wy = ((cy % worldH) + worldH) % worldH;
@@ -859,6 +859,9 @@ export class CanvasRenderer {
       for (let cx = minCellX; cx <= maxCellX; cx++) {
         const wx = ((cx % worldW) + worldW) % worldW;
         if (this.isForest[rowOffset + wx] === 1) {
+          // Felled woodland: trees thin out with the cutting and are gone on stumps and open field.
+          const thin = structures ? structures[rowOffset + wx] >> 5 : 0;
+          if (thin >= 6 || (thin > 0 && ((wx * 13 + wy * 7) % 6) < thin)) continue;
           // Deterministic tree variant by coordinate
           const variant = (wx * 37 + wy * 89) % 3;
           const key: SpriteKey =
@@ -924,13 +927,13 @@ export class CanvasRenderer {
         }
         const level = st & 7;
         const form = (st >> 3) & 3;
-        const cov = this.world.terrain?.cover;
+        const inForest = this.isForest[wy * worldW + wx] === 1;
         // On woodland these bits mean thinning, not a brush heap.
-        const bLevel = cov && cov[wy * worldW + wx] >= 32768 ? 0 : st >> 5;
+        const bLevel = inForest ? 0 : st >> 5;
         const x0 = Math.round(cx * cs + this.panX);
         const y0 = Math.round(cy * cs + this.panY);
 
-        if (cov && cov[wy * worldW + wx] >= 32768 && (st >> 5) === 6 && form === 0 && level === 0) {
+        if (inForest && (st >> 5) === 6 && form === 0 && level === 0) {
           // Stumps: cut trunks with pale tops, a few per cell, placed by cell so they hold still.
           const px = (n: number) => Math.round(n * ap);
           const h = (wx * 73 + wy * 151) & 7;

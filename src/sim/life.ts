@@ -134,6 +134,10 @@ export class LifeSystem {
       }
     }
 
+    // The drop-at-crowd rule counts people per tile, so it needs an index of where everyone stands
+    // now. Building it here (not reusing last tick's) keeps a loaded save identical to the original.
+    if (config.stockpilesEnabled !== false) spatial.build(people);
+
     // 4. Foraging (a little seed comes away with each bite)
     const farmOn = config.farmingPhysicsEnabled !== false;
     const seedPickup = config.seedPickupPerBite ?? 0.1;

@@ -123,8 +123,19 @@ export class Land {
     this.initFoodCapacities(gridConfig);
     const cover = this.terrain?.cover;
     if (cover) {
+      // Woodland is exactly where the viewer draws trees: lowland (below 0.56), not on a shore, cover 0.5 or more.
+      const elev = this.elevation;
       for (let i = 0; i < TOTAL_CELLS && i < cover.length; i++) {
-        if (this.isWater[i] === 0 && cover[i] >= 32768) this.wooded[i] = 1;
+        if (this.isWater[i] === 1 || cover[i] < 32768) continue;
+        if (elev) {
+          const x = i & COORD_MASK, y = i >> 8;
+          const h = elev.elevation[i] / 65535;
+          const shore = this.isWater[(y << 8) | ((x + 1) & COORD_MASK)] === 1 || this.isWater[(y << 8) | ((x - 1) & COORD_MASK)] === 1 ||
+            this.isWater[(((y + 1) & COORD_MASK) << 8) | x] === 1 || this.isWater[(((y - 1) & COORD_MASK) << 8) | x] === 1 ||
+            h < elev.seaLevel + 0.015;
+          if (shore || h >= 0.56) continue;
+        }
+        this.wooded[i] = 1;
       }
     }
     this.initWater(config);

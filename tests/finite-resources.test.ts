@@ -196,4 +196,21 @@ describe('Finite wild resources', () => {
     land.packStructures(out, cfg);
     expect(out[cell(20, 20)]).toBe(0);
   });
+
+  it('woodland is lowland forest only: never on hills, shores or water, so stumps only appear where trees are drawn', () => {
+    const w = new World({ ...DEFAULT_CONFIG, initialPopulation: 50 }, 1);
+    const l = w.land;
+    const e = l.elevation!;
+    let wooded = 0;
+    for (let i = 0; i < 65536; i++) {
+      if (l.wooded[i] === 0) { expect(l.treeMax[i]).toBe(0); continue; }
+      wooded++;
+      expect(l.isWater[i]).toBe(0);
+      expect(e.elevation[i] / 65535).toBeLessThan(0.56);
+      expect(e.elevation[i] / 65535).toBeGreaterThanOrEqual(e.seaLevel + 0.015);
+      const x = i & 255, y = i >> 8;
+      expect(l.isWater[(y << 8) | ((x + 1) & 255)] + l.isWater[(y << 8) | ((x - 1) & 255)] + l.isWater[(((y + 1) & 255) << 8) | x] + l.isWater[(((y - 1) & 255) << 8) | x]).toBe(0);
+    }
+    expect(wooded).toBeGreaterThan(0);
+  });
 });
