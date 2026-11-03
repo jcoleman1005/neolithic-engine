@@ -50,6 +50,14 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-01 | `clashLootEfficiency` | 0 | 0.8 | Phase 3 victor loot absorption fraction (remainder lost to struggle) |
 | 2026-11-01 | `incumbencyBonus` | 0 | 0.35 | Phase 3 leader retention loyalty margin against self / current leader |
 | 2026-11-01 | `rootLeaderSliceCount` | 0 | 8 | Phase 3 time-sliced cached root leader refresh count |
+| 2026-11-03 | `fertilityChangeEnabled` | false | true | Mutable land fertility switch |
+| 2026-11-03 | `fertilityMin` | 0 | 0.05 | Minimum soil fertility clamp floor |
+| 2026-11-03 | `fertilityMax` | 0 | 1.5 | Maximum soil fertility ceiling |
+| 2026-11-03 | `fertilityDegradeRate` | 0 | 0.0005 | Soil fertility wear per grazing bite when overgrazed/stripped |
+| 2026-11-03 | `fertilityPassiveGain` | 0 | 0.00005 | Passive soil fertility recovery/enrichment on tilled, seeded, healthy vegetated land |
+| 2026-11-03 | `fertilityActionGain` | 0 | 0.002 | Direct fertility enrichment per seed drop |
+| 2026-11-03 | `fertilityTampGain` | 0 | 0.0008 | Soil improvement per tamping event |
+| 2026-11-03 | `fertilityCompostGain` | 0 | 0.0005 | Fertility enrichment from spoiling organic food heaps |
 
 ## Experiment Log
 

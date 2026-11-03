@@ -1,3 +1,8 @@
+## Mutable Fertility (branch `feat-mutable-fertility`)
+- **Done**: `Land.fertility` is now mutable Float32Array: degrades on overgrazing/stripping bare ground down to `fertilityMin` (0.05), improves via passive tending (tilled, seeded, healthy vegetated soil), composting spoiling food heaps, and active tending (seed dropping, tamping) up to `fertilityMax` (1.5). Saved in `LandState` snapshot and verified in `world.stateHash()`. Switch `fertilityChangeEnabled`.
+- **Tests**: `tests/fertility.test.ts` (overuse degradation, explicit seed enrichment, tamping, passive tending, off switch parity, save/restore exact stateHash round-trip).
+- **Verify**: all 27 test suites pass; **perf** 9.14 µs / person / tick at 14,163 population (budget 15).
+
 ## Current State
 Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and watched: nests, food heaps and brush heaps read well. `main` (local, not pushed) now includes 5c; fast-forwarded 2026-11-02. Project identity updated: an autonomous colony sim from primitive hunter-gatherers (see `docs/ROADMAP.md` and `docs/decisions.md`).
 

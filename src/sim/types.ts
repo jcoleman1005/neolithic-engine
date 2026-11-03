@@ -154,6 +154,14 @@ export interface SimulationConfig {
   soilWearRate: number;
   soilRecoveryRate: number;
   soilMin: number;
+  fertilityChangeEnabled: boolean;
+  fertilityMin: number;
+  fertilityMax: number;
+  fertilityDegradeRate: number;
+  fertilityPassiveGain: number;
+  fertilityActionGain: number;
+  fertilityTampGain: number;
+  fertilityCompostGain: number;
   stockpilesEnabled: boolean;
   hoardEnergy: number;
   hoardLandFraction: number;

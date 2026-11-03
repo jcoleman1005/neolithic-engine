@@ -33,6 +33,7 @@ export interface LandState {
   readonly width: number;
   readonly height: number;
   readonly food: readonly number[];
+  readonly fertility?: readonly number[];
   readonly tilled?: readonly number[];
   readonly seeds?: readonly number[];
   readonly soilHealth?: readonly number[];
@@ -84,6 +85,7 @@ export class Land {
   /** 1 once stumps have rotted away: bare open field where the wood was. */
   public readonly cleared: Uint8Array;
   private berryCapSaved = 15;
+  private baseFoodCap = 20;
   public readonly berryMax: Float32Array;
   /** 1 on woodland cells (cover 0.5 or more), where brush can be gathered. Derived from the terrain; not saved. */
   public readonly wooded: Uint8Array;
@@ -92,6 +94,7 @@ export class Land {
   public elevation: ElevationField | null = null;
 
   constructor(config: Readonly<SimulationConfig>, elevation?: ElevationField | null, terrain?: TerrainField | null) {
+    this.baseFoodCap = config.landFoodMax ?? 20.0;
     this.food = new Float32Array(TOTAL_CELLS);
     this.maxFood = new Float32Array(TOTAL_CELLS);
     this.fertility = new Float32Array(TOTAL_CELLS);
@@ -154,6 +157,7 @@ export class Land {
 
   private initFoodCapacities(config: Readonly<SimulationConfig>): void {
     const baseCap = config.landFoodMax ?? 20.0;
+    this.baseFoodCap = baseCap;
     const elev = this.elevation;
 
     for (let i = 0; i < TOTAL_CELLS; i++) {
@@ -177,7 +181,7 @@ export class Land {
         this.maxFood[i] = 0;
         this.food[i] = 0;
       } else {
-        const cap = baseCap * f;
+        const cap = baseCap * this.fertility[i];
         this.maxFood[i] = cap;
         // Start near capacity
         this.food[i] = cap * 0.8;
@@ -233,17 +237,38 @@ export class Land {
     const hKeepMass = config.nestKeepMass ?? 3;
     const hKeepComp = config.nestKeepCompaction ?? 0.5;
 
+    const fertChange = config.fertilityChangeEnabled !== false;
+    const fertMax = config.fertilityMax ?? 1.5;
+    const fertPassive = config.fertilityPassiveGain ?? 0.00005;
+    const fertCompost = config.fertilityCompostGain ?? 0.0005;
+    const baseFoodCap = this.baseFoodCap;
+    const berryCapSaved = this.berryCapSaved;
+
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (stock && (this.pile[i] > 0 || this.brush[i] > 0 || this.compaction[i] > 0)) {
         let pl = this.pile[i];
         let br = this.brush[i];
         let f = this.form[i];
+        const oldPl = pl;
         pl *= 1 - spoil * (f === FORM_GRANARY ? granaryFactor : 1);
         if (pl < 0.05) pl = 0;
         br *= 1 - brushDecay * (f === FORM_NEST ? granaryFactor : 1);
         if (br < 0.05) br = 0;
         this.pile[i] = pl;
         this.brush[i] = br;
+        if (fertChange && oldPl > pl && this.isWater[i] === 0) {
+          const spoiled = oldPl - pl;
+          if (spoiled > 0.01) {
+            const curF = this.fertility[i];
+            if (curF < fertMax) {
+              const compostGain = fertCompost * Math.min(1, spoiled / 5.0);
+              const nextF = Math.min(fertMax, curF + compostGain * (1 - curF / fertMax));
+              this.fertility[i] = nextF;
+              this.maxFood[i] = baseFoodCap * this.fertility[i];
+              if (this.berryMax[i] > 0) this.berryMax[i] = berryCapSaved * this.fertility[i];
+            }
+          }
+        }
         let c = this.compaction[i];
         c *= 1 - compDecay * (pl < heapMin && br < heapMin ? 10 : 1);
         if (c < 1e-3) c = 0;
@@ -305,6 +330,18 @@ export class Land {
         if (sh < 1 && cur > 0.5 * max * sh) {
           sh += soilRec * (1 - sh);
           this.soilHealth[i] = sh;
+        }
+        if (fertChange && t > 0.05 && sd > 0.1 && cur > 0.25 * max && sh > 0.5) {
+          const curF = this.fertility[i];
+          if (curF < fertMax) {
+            const fGain = fertPassive * (1 - curF / fertMax) * (t * sf);
+            const nextF = Math.min(fertMax, curF + fGain);
+            if (nextF !== curF) {
+              this.fertility[i] = nextF;
+              this.maxFood[i] = baseFoodCap * this.fertility[i];
+              if (this.berryMax[i] > 0) this.berryMax[i] = berryCapSaved * this.fertility[i];
+            }
+          }
         }
         cap = max * sh * (1 + seedCapBoost * sf);
         rate = baseRate * (1 + tillBoost * t + seedRegrow * sf);
@@ -425,6 +462,17 @@ export class Land {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     const cap = config.compactionCap ?? 2;
     this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03));
+    if (config.fertilityChangeEnabled !== false && this.isWater[i] === 0) {
+      const fMax = config.fertilityMax ?? 1.5;
+      const curF = this.fertility[i];
+      if (curF < fMax) {
+        const gain = config.fertilityTampGain ?? 0.0008;
+        const nextF = Math.min(fMax, curF + gain * (1 - curF / fMax));
+        this.fertility[i] = nextF;
+        this.maxFood[i] = this.baseFoodCap * this.fertility[i];
+        if (this.berryMax[i] > 0) this.berryMax[i] = this.berryCapSaved * this.fertility[i];
+      }
+    }
   }
 
   /**
@@ -466,6 +514,17 @@ export class Land {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     if (this.isWater[i] === 1) return;
     this.seeds[i] = Math.min(config.seedCap ?? 10, this.seeds[i] + amount);
+    if (config.fertilityChangeEnabled !== false) {
+      const fMax = config.fertilityMax ?? 1.5;
+      const curF = this.fertility[i];
+      if (curF < fMax) {
+        const gain = (config.fertilityActionGain ?? 0.002) * Math.min(1, amount / (config.seedCarryMax ?? 3));
+        const nextF = Math.min(fMax, curF + gain * (1 - curF / fMax));
+        this.fertility[i] = nextF;
+        this.maxFood[i] = this.baseFoodCap * this.fertility[i];
+        if (this.berryMax[i] > 0) this.berryMax[i] = this.berryCapSaved * this.fertility[i];
+      }
+    }
   }
 
   /** One byte per cell for the viewer: desert 3 bits, farmland 3 bits, seeds 2 bits. */
@@ -500,9 +559,21 @@ export class Land {
     if (config.farmingPhysicsEnabled !== false) {
       // Working a cell tills it; stripping it down wears the soil out.
       if (till) this.tilled[index] += (config.tillGain ?? 0.02) * (1 - this.tilled[index]);
-      if (this.food[index] < 0.25 * this.capacityAt(index, config)) {
+      const stripped = this.food[index] < 0.25 * this.capacityAt(index, config) || this.food[index] <= floor + 0.01;
+      if (stripped) {
         const wear = config.soilWearRate ?? 0.004;
         this.soilHealth[index] = Math.max(config.soilMin ?? 0.2, this.soilHealth[index] - wear);
+        if (config.fertilityChangeEnabled !== false) {
+          const fLoss = config.fertilityDegradeRate ?? 0.0005;
+          const fMin = config.fertilityMin ?? 0.05;
+          const curF = this.fertility[index];
+          if (curF > fMin) {
+            const nextF = Math.max(fMin, curF - fLoss);
+            this.fertility[index] = nextF;
+            this.maxFood[index] = this.baseFoodCap * this.fertility[index];
+            if (this.berryMax[index] > 0) this.berryMax[index] = this.berryCapSaved * this.fertility[index];
+          }
+        }
       }
     }
     return take;
@@ -533,6 +604,7 @@ export class Land {
       width: this.width,
       height: this.height,
       food: Array.from(this.food),
+      fertility: Array.from(this.fertility),
       tilled: Array.from(this.tilled),
       seeds: Array.from(this.seeds),
       soilHealth: Array.from(this.soilHealth),
@@ -552,6 +624,18 @@ export class Land {
     const len = Math.min(TOTAL_CELLS, state.food.length);
     for (let i = 0; i < len; i++) {
       this.food[i] = state.food[i];
+    }
+    if (state.fertility) {
+      for (let i = 0; i < len; i++) {
+        const f = state.fertility[i] ?? this.fertility[i];
+        this.fertility[i] = f;
+        if (this.isWater[i] === 0) {
+          this.maxFood[i] = this.baseFoodCap * this.fertility[i];
+          if (this.berryMax[i] > 0) {
+            this.berryMax[i] = this.berryCapSaved * this.fertility[i];
+          }
+        }
+      }
     }
     // Older saves have no farming state: leave it at its defaults.
     if (state.tilled) for (let i = 0; i < len; i++) this.tilled[i] = state.tilled[i] ?? 0;
