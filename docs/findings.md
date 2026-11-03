@@ -423,3 +423,23 @@ Switch `finiteResourcesEnabled`. Trees (wood stock on wooded tiles) are used up 
 | G (adopted) | 0.08 / 0.4 | +3% / +6% / +3% | 58% | 388 |
 
 Berries were the population driver, not the wood. Woodland thins to about 58% and levels off; nests drop from about 550 to about 390 because brush now has a cost. Single seed: confirm on more seeds in the combined tuning pass.
+
+### Stumps and open field (2026-11-02)
+
+A stand stripped below `stumpBelow` of its stock turns to stumps; stumps block regrowth for `stumpRotTicks`, then rot to bare open field for good (berries can grow there; trees do not). Seed 1, 30 years.
+
+| old to new | value |
+| --- | --- |
+| `stumpBelow` | new; first try 0.08, adopted 0.02 |
+| `stumpRotTicks` | new, 1080 (3 years); 2160 tried, no better |
+| `treeCap` | 30 to 100 (with stumps, 30 cleared 64% of woodland by y30 and nests fell) |
+
+| set | wood cleared to field at y30 | stumps standing y30 | nests y30 |
+| --- | --- | --- | --- |
+| cap 30, below 0.08 | 64% | 370 | 238 |
+| cap 30, below 0.02 / 0.05, rot 1080 or 2160 | 57 to 64% | 350 to 800 | 250 to 290 |
+| cap 60, below 0.02 | 31% | 223 | 348 |
+| cap 100, below 0.02 (adopted) | 13% | 111 | 396, still rising |
+| cap 150, below 0.02 | 7% | 32 | 479 |
+
+The threshold hardly mattered; the wood per tile did, since people strip whatever tile they stand on. Deforestation is permanent for now (no reforestation yet). Single seed.

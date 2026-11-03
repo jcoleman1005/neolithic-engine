@@ -111,8 +111,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // Finite wild resources: woodland holds a limited stock of wood that brush gathering uses up
   // (and that regrows slowly); open fertile ground carries seasonal berries that top up a meal.
   finiteResourcesEnabled: true,
-  treeCap: 30.0, // wood stock of a fully wooded tile (scaled by its cover)
+  treeCap: 100.0, // wood stock of a fully wooded tile (scaled by its cover)
   treeRegrowRate: 0.0003, // fraction of a tile's stock regrown per tick (x season factor)
+  stumpBelow: 0.02, // a stand stripped below this fraction of its stock is left as stumps
+  stumpRotTicks: 1080, // stumps block regrowth this long (3 years), then rot to open field
   treeBrushCost: 1.0, // wood used up per unit of brush gathered
   berryCap: 15.0, // berries on a fertile open tile (scaled by fertility)
   berryRegrowRate: 0.01, // fraction of a tile's stock regrown per tick (x season factor)

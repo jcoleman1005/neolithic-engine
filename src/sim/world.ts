@@ -400,6 +400,8 @@ export class World {
     h.updateIntArray(land.form);
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);
+    h.updateFloatArray(land.stumpAge);
+    h.updateIntArray(land.cleared);
     h.updateFloatArray(land.berries);
     h.updateIntArray(land.isWater);
 

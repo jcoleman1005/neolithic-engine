@@ -178,6 +178,8 @@ export interface SimulationConfig {
   treeCap: number;
   treeRegrowRate: number;
   treeBrushCost: number;
+  stumpBelow: number;
+  stumpRotTicks: number;
   berryCap: number;
   berryRegrowRate: number;
   berryBite: number;

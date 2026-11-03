@@ -41,6 +41,8 @@ export interface LandState {
   readonly form?: readonly number[];
   readonly brush?: readonly number[];
   readonly trees?: readonly number[];
+  readonly stumpAge?: readonly number[];
+  readonly cleared?: readonly number[];
   readonly berries?: readonly number[];
 }
 
@@ -71,6 +73,11 @@ export class Land {
   public readonly berries: Float32Array;
   /** Per tile ceilings for trees and berries (derived at construction, not saved). */
   public readonly treeMax: Float32Array;
+  /** Ticks since a stripped stand became stumps (0 = not stumps). Stumps block regrowth, then rot to field. */
+  public readonly stumpAge: Float32Array;
+  /** 1 once stumps have rotted away: bare open field where the wood was. */
+  public readonly cleared: Uint8Array;
+  private berryCapSaved = 15;
   public readonly berryMax: Float32Array;
   /** 1 on woodland cells (cover 0.5 or more), where brush can be gathered. Derived from the terrain; not saved. */
   public readonly wooded: Uint8Array;
@@ -93,6 +100,8 @@ export class Land {
     this.trees = new Float32Array(TOTAL_CELLS);
     this.berries = new Float32Array(TOTAL_CELLS);
     this.treeMax = new Float32Array(TOTAL_CELLS);
+    this.stumpAge = new Float32Array(TOTAL_CELLS);
+    this.cleared = new Uint8Array(TOTAL_CELLS);
     this.berryMax = new Float32Array(TOTAL_CELLS);
     this.wooded = new Uint8Array(TOTAL_CELLS);
 
@@ -111,6 +120,7 @@ export class Land {
     }
     const treeCap = config.treeCap ?? 100;
     const berryCap = config.berryCap ?? 15;
+    this.berryCapSaved = berryCap;
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) continue;
       const cf = cover && i < cover.length ? cover[i] / 65535 : 0;
@@ -182,6 +192,8 @@ export class Land {
 
     const finite = config.finiteResourcesEnabled !== false;
     const treeRegrow = (config.treeRegrowRate ?? 0.0005) * growthFactor;
+    const stumpBelow = config.stumpBelow ?? 0.08;
+    const stumpRot = config.stumpRotTicks ?? 1080;
     const berryRegrow = (config.berryRegrowRate ?? 0.04) * growthFactor;
     const stock = config.stockpilesEnabled !== false;
     const spoil = config.pileSpoil ?? 0.003;
@@ -230,7 +242,16 @@ export class Land {
       if (this.isWater[i] === 1) continue;
       if (finite) {
         const tm = this.treeMax[i];
-        if (tm > 0 && this.trees[i] < tm) this.trees[i] = Math.min(tm, this.trees[i] + treeRegrow * tm);
+        if (tm > 0) {
+          if (this.stumpAge[i] > 0) {
+            // Stumps shade out saplings: no regrowth until they rot away and leave open field.
+            this.stumpAge[i] += 1;
+            if (this.stumpAge[i] >= stumpRot) this.clearCell(i, config);
+          } else {
+            if (this.trees[i] < stumpBelow * tm) this.stumpAge[i] = 1;
+            else if (this.trees[i] < tm) this.trees[i] = Math.min(tm, this.trees[i] + treeRegrow * tm);
+          }
+        }
         const bm = this.berryMax[i];
         if (bm > 0 && this.berries[i] < bm) this.berries[i] = Math.min(bm, this.berries[i] + berryRegrow * bm);
       }
@@ -281,6 +302,17 @@ export class Land {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     if (this.isWater[i] === 1) return;
     this.pile[i] = Math.min(config.pileCap ?? 200, this.pile[i] + amount);
+  }
+
+  /** Stumps have rotted: the stand is gone for good and the ground is open field with berries. */
+  private clearCell(i: number, config: Readonly<SimulationConfig>): void {
+    this.cleared[i] = 1;
+    this.stumpAge[i] = 0;
+    this.treeMax[i] = 0;
+    this.trees[i] = 0;
+    if (this.fertility[i] >= 0.3) {
+      this.berryMax[i] = (config.berryCap ?? 15) * this.fertility[i];
+    }
   }
 
   /** Takes up to `want` brush from the wood on a cell, using up trees; returns the brush got. */
@@ -337,7 +369,8 @@ export class Land {
       const p = this.pile[i];
       const b = this.brush[i];
       const tm = this.treeMax[i];
-      const thin = tm > 0 ? Math.min(7, Math.round((1 - this.trees[i] / tm) * 7)) : 0;
+      // 0 full stand ... 5 nearly stripped, 6 stumps, 7 open field where the wood was.
+      const thin = this.cleared[i] === 1 ? 7 : this.stumpAge[i] > 0 ? 6 : tm > 0 ? Math.min(5, Math.round((1 - this.trees[i] / tm) * 5)) : 0;
       if (p <= 0 && b <= 0 && this.form[i] === 0 && thin === 0) { out[i] = 0; continue; }
       const level = Math.min(7, Math.round(Math.sqrt(Math.min(1, p / foodScale)) * 7));
       const bLevel = this.wooded[i] === 1 ? thin : Math.min(7, Math.round(Math.sqrt(Math.min(1, b / brushScale)) * 7));
@@ -425,6 +458,8 @@ export class Land {
       form: Array.from(this.form),
       brush: Array.from(this.brush),
       trees: Array.from(this.trees),
+      stumpAge: Array.from(this.stumpAge),
+      cleared: Array.from(this.cleared),
       berries: Array.from(this.berries),
     };
   }
@@ -443,6 +478,12 @@ export class Land {
     if (state.form) for (let i = 0; i < len; i++) this.form[i] = state.form[i] ?? 0;
     if (state.brush) for (let i = 0; i < len; i++) this.brush[i] = state.brush[i] ?? 0;
     if (state.trees) for (let i = 0; i < len; i++) this.trees[i] = state.trees[i] ?? 0;
+    if (state.stumpAge) for (let i = 0; i < len; i++) this.stumpAge[i] = state.stumpAge[i] ?? 0;
+    if (state.cleared) {
+      for (let i = 0; i < len; i++) {
+        if ((state.cleared[i] ?? 0) === 1) { this.cleared[i] = 1; this.treeMax[i] = 0; this.stumpAge[i] = 0; if (this.fertility[i] >= 0.3) this.berryMax[i] = this.berryCapSaved * this.fertility[i]; }
+      }
+    }
     if (state.berries) for (let i = 0; i < len; i++) this.berries[i] = state.berries[i] ?? 0;
   }
 }

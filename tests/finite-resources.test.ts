@@ -29,10 +29,10 @@ describe('Finite wild resources', () => {
   it('trees regrow slowly toward their ceiling and never past it', () => {
     const land = woodland();
     const c = cell(11, 11);
-    land.trees[c] = 0;
+    land.trees[c] = land.treeMax[c] * 0.5;
     land.step(cfg);
-    expect(land.trees[c]).toBeGreaterThan(0);
-    expect(land.trees[c]).toBeLessThan(land.treeMax[c] * 0.01);
+    expect(land.trees[c]).toBeGreaterThan(land.treeMax[c] * 0.5);
+    expect(land.trees[c]).toBeLessThan(land.treeMax[c] * 0.51);
     land.trees[c] = land.treeMax[c] * 0.99;
     for (let k = 0; k < 100; k++) land.step(cfg);
     expect(land.trees[c]).toBeCloseTo(land.treeMax[c], 3);
@@ -72,7 +72,7 @@ describe('Finite wild resources', () => {
     expect(c.stateHash()).toBe(a.stateHash());
   });
 
-  it('woodland thinning is packed for the viewer: 0 for a full stand, 7 for a stripped one, and never on open ground', () => {
+  it('woodland thinning is packed for the viewer: 0 for a full stand, 5 for a stripped one, and never on open ground', () => {
     const land = woodland();
     const out = new Uint8Array(65536);
     land.packStructures(out, cfg);
@@ -80,8 +80,45 @@ describe('Finite wild resources', () => {
     land.trees[cell(11, 11)] = 0;
     land.trees[cell(12, 11)] = land.treeMax[cell(12, 11)] * 0.5;
     land.packStructures(out, cfg);
-    expect(out[cell(11, 11)] >> 5).toBe(7);
-    expect(out[cell(12, 11)] >> 5).toBe(4);
+    expect(out[cell(11, 11)] >> 5).toBe(5);
+    expect(out[cell(12, 11)] >> 5).toBe(3);
     expect(out[cell(30, 30)]).toBe(0);
+  });
+
+  it('a stripped stand becomes stumps that block regrowth, then rot to open field for good', () => {
+    const land = woodland();
+    const c = cell(11, 11);
+    land.trees[c] = 0;
+    land.step(cfg);
+    expect(land.stumpAge[c]).toBeGreaterThan(0);
+    const out = new Uint8Array(65536);
+    land.packStructures(out, cfg);
+    expect(out[c] >> 5).toBe(6);
+    for (let k = 0; k < 100; k++) land.step(cfg);
+    expect(land.trees[c]).toBe(0); // stumps block regrowth
+    expect(land.cleared[c]).toBe(0);
+    for (let k = 0; k < cfg.stumpRotTicks; k++) land.step(cfg);
+    expect(land.cleared[c]).toBe(1);
+    expect(land.treeMax[c]).toBe(0);
+    expect(land.cutBrush(11, 11, 4, cfg)).toBe(0);
+    land.packStructures(out, cfg);
+    expect(out[c] >> 5).toBe(7);
+    // A stand that is only thinned never stumps and regrows.
+    const d = cell(12, 11);
+    land.trees[d] = land.treeMax[d] * 0.5;
+    land.step(cfg);
+    expect(land.stumpAge[d]).toBe(0);
+    expect(land.trees[d]).toBeGreaterThan(land.treeMax[d] * 0.5);
+  });
+
+  it('stumps and cleared field survive a save round trip', () => {
+    const a = new World({ ...cfg, initialPopulation: 100 }, 3);
+    a.land.stumpAge[cell(40, 40)] = 5;
+    a.land.treeMax[cell(40, 40)] = 10;
+    a.land.cleared[cell(41, 40)] = 1;
+    const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
+    expect(b.land.stumpAge[cell(40, 40)]).toBe(5);
+    expect(b.land.cleared[cell(41, 40)]).toBe(1);
+    expect(b.land.treeMax[cell(41, 40)]).toBe(0);
   });
 });

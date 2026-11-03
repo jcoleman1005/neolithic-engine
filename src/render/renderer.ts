@@ -37,6 +37,7 @@ const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
 const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
 const COLOR_GRANARY = 0xff284e7a; // rgb(122, 78, 40), plank floor, opaque
 const COLOR_CUT_RGB = 0x6eb4d2; // rgb(210, 180, 110), pale straw: felled woodland showing bare ground
+const COLOR_FIELD = 0xff64be78; // rgb(120, 190, 100), open meadow where a stand was cleared
 const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
@@ -702,7 +703,8 @@ export class CanvasRenderer {
         const st = structures ? structures[i] : 0;
         if (st !== 0 && coverArr && coverArr[i] >= 32768 && (st >> 5) > 0 && c === 0) {
           // Thinned woodland: the more is felled, the paler and barer the stand.
-          c = ((50 + (st >> 5) * 24) << 24) | COLOR_CUT_RGB;
+          const th = st >> 5;
+          c = th === 7 ? COLOR_FIELD : th === 6 ? ((200 << 24) | COLOR_CUT_RGB) : ((50 + th * 26) << 24) | COLOR_CUT_RGB;
         }
         if (st !== 0) {
           const form = (st >> 3) & 3;
@@ -896,6 +898,21 @@ export class CanvasRenderer {
         const bLevel = cov && cov[wy * worldW + wx] >= 32768 ? 0 : st >> 5;
         const x0 = Math.round(cx * cs + this.panX);
         const y0 = Math.round(cy * cs + this.panY);
+
+        if (cov && cov[wy * worldW + wx] >= 32768 && (st >> 5) === 6 && form === 0 && level === 0) {
+          // Stumps: cut trunks with pale tops, a few per cell, placed by cell so they hold still.
+          const px = (n: number) => Math.round(n * ap);
+          const h = (wx * 73 + wy * 151) & 7;
+          const spots = [[1, 1.5], [4.5, 0.8], [2.5, 4.6], [5.6, 4.2], [0.8, 5.8]];
+          for (let k = 0; k < 3; k++) {
+            const [sx, sy] = spots[(h + k * 2) % spots.length];
+            ctx.fillStyle = '#4a2e14';
+            ctx.fillRect(x0 + px(sx), y0 + px(sy + 0.8), px(2), px(1.4));
+            ctx.fillStyle = '#d8b878';
+            ctx.fillRect(x0 + px(sx), y0 + px(sy), px(2), Math.max(1, px(1)));
+          }
+          continue;
+        }
 
         if (form === 3) {
           // Nest / lean-to: a thatched brush roof slanting down from a pole, with a dark sheltered gap
