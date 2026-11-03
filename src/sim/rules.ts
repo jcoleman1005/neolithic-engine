@@ -200,6 +200,24 @@ export class Rules {
       }
     }
 
+    // Thirst: a person low on water heads for the nearest fresh water (down the distance map),
+    // and stays put once beside it to drink.
+    if (config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && people.hydration[slot] < (config.thirstSeek ?? 60)) {
+      const here = land.waterDist[(py << 8) | px];
+      if (here <= 1) return 4;
+      if (here < 255) {
+        let best = 4;
+        let bestD = here;
+        for (let d = 0; d < 4; d++) {
+          const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
+          const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
+          const nd = land.waterDist[(ny << 8) | nx];
+          if (nd < bestD && Rules.canStep(px, py, d, land)) { best = d; bestD = nd; }
+        }
+        if (best !== 4) return best;
+      }
+    }
+
     // Calm movement: a person on a rich enough tile stays and grazes, unless a leader is
     // pulling them along. Hungry people want a richer tile before they settle for it.
     const calm = config.calmMovementEnabled ?? true;

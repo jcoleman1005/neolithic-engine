@@ -113,6 +113,18 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   finiteResourcesEnabled: true,
   treeCap: 100.0, // wood stock of a fully wooded tile (scaled by its cover)
   treeRegrowRate: 0.0003, // fraction of a tile's stock regrown per tick (x season factor)
+  thirstEnabled: true, // switch for thirst alone (finiteResourcesEnabled switches all of it)
+  fishCap: 20.0, // fish in a water tile (fresh water full, sea 0.7 of it)
+  fishRegrowRate: 0.02, // fraction of a tile's stock regrown per tick (x season factor)
+  fishBite: 0.3, // most fish taken from the shore in one tick
+  fishBelow: 0.5, // ... by anyone below this fraction of maxEnergy
+  thirstRate: 0.4, // hydration lost per tick
+  thirstMax: 100.0,
+  drinkRate: 25.0, // hydration gained per tick beside fresh water
+  thirstSeek: 60.0, // below this hydration a person heads for the nearest fresh water
+  thirstWarn: 30.0, // below this, upkeep rises ...
+  thirstUpkeep: 0.5, // ... by this fraction of the metabolism
+  dehydrationDamage: 0.5, // energy lost per tick at zero hydration (booked as upkeep)
   stumpBelow: 0.02, // a stand stripped below this fraction of its stock is left as stumps
   stumpRotTicks: 1080, // stumps block regrowth this long (3 years), then rot to open field
   treeBrushCost: 1.0, // wood used up per unit of brush gathered

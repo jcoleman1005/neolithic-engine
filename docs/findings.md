@@ -443,3 +443,16 @@ A stand stripped below `stumpBelow` of its stock turns to stumps; stumps block r
 | cap 150, below 0.02 | 7% | 32 | 479 |
 
 The threshold hardly mattered; the wood per tile did, since people strip whatever tile they stand on. Deforestation is permanent for now (no reforestation yet). Single seed.
+
+### Fish and thirst (2026-11-03)
+
+Switches `finiteResourcesEnabled` (all) and `thirstEnabled` (thirst only). Fish: finite stock per water tile (`fishCap` 20, sea 0.7 of it, `fishRegrowRate` 0.02), taken from the shore by people below 50% energy (`fishBite` 0.3); booked as wild food outside the ledger, like berries. Thirst: `hydration` per person falls `thirstRate` per tick, refills `drinkRate` beside fresh water (lakes and rivers above sea level, not the sea); below `thirstSeek` (60) a person walks down a distance map to the nearest fresh water; below `thirstWarn` (30) upkeep rises 50%; at zero, `dehydrationDamage` 0.5 energy a tick (booked as upkeep). Seed 1, 20 years.
+
+| set | pop y20 | vs thirst off | dehydrated | mean distance to fresh water | far (over 20) |
+| --- | --- | --- | --- | --- | --- |
+| thirst off | 7175 | | 0% | 10.5 | 13% |
+| `thirstRate` 0.25 | 6718 | -6% | 1.9% | 7.2 | 7% |
+| 0.4 (adopted) | 6464 | -10% | 1.9% | 6.5 | 5% |
+| 0.6 | 6345 | -12% | 1.8% | 5.3 | 2% |
+
+Targets (stated before running): pop within 15% of off, dehydrated under 3%. About 2% of people live on land with no fresh water at all and thirst out; that is a physical consequence, not a bug. Single seed.

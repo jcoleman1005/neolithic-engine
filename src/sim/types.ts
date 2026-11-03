@@ -179,6 +179,18 @@ export interface SimulationConfig {
   treeRegrowRate: number;
   treeBrushCost: number;
   stumpBelow: number;
+  thirstEnabled: boolean;
+  fishCap: number;
+  fishRegrowRate: number;
+  fishBite: number;
+  fishBelow: number;
+  thirstRate: number;
+  thirstMax: number;
+  drinkRate: number;
+  thirstSeek: number;
+  thirstWarn: number;
+  thirstUpkeep: number;
+  dehydrationDamage: number;
   stumpRotTicks: number;
   berryCap: number;
   berryRegrowRate: number;

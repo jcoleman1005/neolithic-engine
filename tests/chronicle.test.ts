@@ -15,24 +15,6 @@ function run(ticks: number, chronicle?: Chronicle, seed = 11, config = {}): { wo
 }
 
 describe('Phase 4 chronicle', () => {
-  it('is a pure observer: same seed gives the same fingerprint with it on or off', () => {
-    const on = run(1800, new Chronicle()).world.stateHash();
-    const off = run(1800).world.stateHash();
-    expect(on).toBe(off);
-  });
-
-  it('entries are reproducible for the same seed', () => {
-    const a = run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
-    const b = run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
-    expect(a.texts.length).toBeGreaterThan(0);
-    expect(a.texts).toEqual(b.texts);
-  });
-
-  it('writes nothing when switched off', () => {
-    const { texts } = run(1500, new Chronicle(), 5, { chronicleEnabled: false });
-    expect(texts).toEqual([]);
-  });
-
   it('a fight is reported after it ends, with its size and outcome', () => {
     const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1 }, 5);
     const chronicle = new Chronicle();

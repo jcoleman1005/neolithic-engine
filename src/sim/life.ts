@@ -68,6 +68,14 @@ export class LifeSystem {
     const metabolism = config.metabolismCost ?? 0.25;
     const nestsOn = config.nestsEnabled !== false;
     const nestUpkeep = config.nestUpkeep ?? 0.7;
+    const thirstOn = config.finiteResourcesEnabled !== false && config.thirstEnabled !== false;
+    const thirstRate = config.thirstRate ?? 0.4;
+    const thirstMax = config.thirstMax ?? 100;
+    const drinkRate = config.drinkRate ?? 25;
+    const thirstWarn = config.thirstWarn ?? 30;
+    const thirstUpkeep = config.thirstUpkeep ?? 0.5;
+    const dehydration = config.dehydrationDamage ?? 0.5;
+    const hydration = people.hydration;
     const maxAge = config.maxAge ?? 21600;
     const maxEnergy = config.maxEnergy ?? 100.0;
     const forageBite = config.forageBite ?? 1.0;
@@ -92,6 +100,20 @@ export class LifeSystem {
       const upkeep = nestsOn && land.form[(py[slot] << 8) | px[slot]] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
       energy[slot] -= upkeep;
       ledger.upkeep += upkeep;
+      if (thirstOn) {
+        let h = hydration[slot] - thirstRate;
+        if (land.waterDist[(py[slot] << 8) | px[slot]] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
+        if (h <= 0) {
+          h = 0;
+          energy[slot] -= dehydration;
+          ledger.upkeep += dehydration;
+        } else if (h < thirstWarn) {
+          const extra = metabolism * thirstUpkeep;
+          energy[slot] -= extra;
+          ledger.upkeep += extra;
+        }
+        hydration[slot] = h;
+      }
 
       // Starvation death
       if (energy[slot] <= 0) {
@@ -130,6 +152,8 @@ export class LifeSystem {
     const brushCarryMax = config.brushCarryMax ?? 10.0;
     const finiteOn = config.finiteResourcesEnabled !== false;
     const berryBite = config.berryBite ?? 1.5;
+    const fishBite = config.fishBite ?? 0.3;
+    const fishBelow = (config.fishBelow ?? 0.5) * maxEnergy;
     const berryBelow = (config.berryBelow ?? 0.8) * maxEnergy;
     const dropCrowd = config.dropCrowd ?? 3;
     const dropWhenFull = config.dropWhenFull ?? false;
@@ -166,6 +190,10 @@ export class LifeSystem {
         if (finiteOn && eaten < Math.min(forageBite, maxEnergy - curE) && curE < berryBelow) {
           // Grazing fell short: top the meal up with wild berries.
           eaten += land.pickBerries(px[slot], py[slot], Math.min(berryBite, maxEnergy - curE - eaten));
+        }
+        if (finiteOn && eaten < Math.min(forageBite, maxEnergy - curE) && curE < fishBelow) {
+          // Still hungry beside water: take a little fish from the shore.
+          eaten += land.catchFish(px[slot], py[slot], Math.min(fishBite, maxEnergy - curE - eaten));
         }
         if (eaten > 0) {
           energy[slot] = curE + eaten;

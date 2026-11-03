@@ -41,6 +41,7 @@ export interface LandState {
   readonly form?: readonly number[];
   readonly brush?: readonly number[];
   readonly trees?: readonly number[];
+  readonly fish?: readonly number[];
   readonly stumpAge?: readonly number[];
   readonly cleared?: readonly number[];
   readonly berries?: readonly number[];
@@ -73,6 +74,11 @@ export class Land {
   public readonly berries: Float32Array;
   /** Per tile ceilings for trees and berries (derived at construction, not saved). */
   public readonly treeMax: Float32Array;
+  /** Fish in water tiles; shore dwellers take them. */
+  public readonly fish: Float32Array;
+  public readonly fishMax: Float32Array;
+  /** Steps from a land tile to the nearest fresh water (1 = beside it); 255 when none or thirst is off. Derived. */
+  public readonly waterDist: Uint8Array;
   /** Ticks since a stripped stand became stumps (0 = not stumps). Stumps block regrowth, then rot to field. */
   public readonly stumpAge: Float32Array;
   /** 1 once stumps have rotted away: bare open field where the wood was. */
@@ -100,6 +106,9 @@ export class Land {
     this.trees = new Float32Array(TOTAL_CELLS);
     this.berries = new Float32Array(TOTAL_CELLS);
     this.treeMax = new Float32Array(TOTAL_CELLS);
+    this.fish = new Float32Array(TOTAL_CELLS);
+    this.fishMax = new Float32Array(TOTAL_CELLS);
+    this.waterDist = new Uint8Array(TOTAL_CELLS).fill(255);
     this.stumpAge = new Float32Array(TOTAL_CELLS);
     this.cleared = new Uint8Array(TOTAL_CELLS);
     this.berryMax = new Float32Array(TOTAL_CELLS);
@@ -118,6 +127,7 @@ export class Land {
         if (this.isWater[i] === 0 && cover[i] >= 32768) this.wooded[i] = 1;
       }
     }
+    this.initWater(config);
     const treeCap = config.treeCap ?? 100;
     const berryCap = config.berryCap ?? 15;
     this.berryCapSaved = berryCap;
@@ -194,6 +204,7 @@ export class Land {
     const treeRegrow = (config.treeRegrowRate ?? 0.0005) * growthFactor;
     const stumpBelow = config.stumpBelow ?? 0.08;
     const stumpRot = config.stumpRotTicks ?? 1080;
+    const fishRegrow = (config.fishRegrowRate ?? 0.02) * growthFactor;
     const berryRegrow = (config.berryRegrowRate ?? 0.04) * growthFactor;
     const stock = config.stockpilesEnabled !== false;
     const spoil = config.pileSpoil ?? 0.003;
@@ -239,7 +250,11 @@ export class Land {
         }
         this.form[i] = f;
       }
-      if (this.isWater[i] === 1) continue;
+      if (this.isWater[i] === 1) {
+        const fm = this.fishMax[i];
+        if (finite && fm > 0 && this.fish[i] < fm) this.fish[i] = Math.min(fm, this.fish[i] + fishRegrow * fm);
+        continue;
+      }
       if (finite) {
         const tm = this.treeMax[i];
         if (tm > 0) {
@@ -302,6 +317,50 @@ export class Land {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     if (this.isWater[i] === 1) return;
     this.pile[i] = Math.min(config.pileCap ?? 200, this.pile[i] + amount);
+  }
+
+  /** Fish stocks, and the distance to fresh water (lakes and rivers above sea level; the sea is salt). */
+  private initWater(config: Readonly<SimulationConfig>): void {
+    const elev = this.elevation;
+    const fishCap = config.fishCap ?? 20;
+    const queue = new Int32Array(TOTAL_CELLS);
+    let head = 0, tail = 0;
+    const dist = this.waterDist;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.isWater[i] === 0) continue;
+      const fresh = !!elev && elev.elevation[i] / 65535 > elev.seaLevel;
+      this.fishMax[i] = fishCap * (fresh ? 1 : 0.7);
+      this.fish[i] = this.fishMax[i];
+      if (fresh) { dist[i] = 0; queue[tail++] = i; }
+    }
+    if (tail === 0) return; // no fresh water anywhere: thirst stays off (waterDist 255)
+    while (head < tail) {
+      const c = queue[head++];
+      const x = c & COORD_MASK, y = c >> 8;
+      const d = dist[c] + 1;
+      if (d > 254) continue;
+      const ns = [((y << 8) | ((x + 1) & COORD_MASK)), ((y << 8) | ((x - 1) & COORD_MASK)), ((((y + 1) & COORD_MASK) << 8) | x), ((((y - 1) & COORD_MASK) << 8) | x)];
+      for (let k = 0; k < 4; k++) {
+        const n = ns[k];
+        if (dist[n] !== 255 || this.isWater[n] === 1) continue;
+        dist[n] = d;
+        queue[tail++] = n;
+      }
+    }
+  }
+
+  /** Takes fish from a water tile beside (x, y); returns the food got. Beside = the four neighbours, in a fixed order. */
+  public catchFish(x: number, y: number, want: number): number {
+    const ns = [((y & COORD_MASK) << 8) | ((x + 1) & COORD_MASK), ((y & COORD_MASK) << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | (x & COORD_MASK), (((y - 1) & COORD_MASK) << 8) | (x & COORD_MASK)];
+    for (let k = 0; k < 4; k++) {
+      const n = ns[k];
+      if (this.isWater[n] === 1 && this.fish[n] > 0) {
+        const got = Math.min(want, this.fish[n]);
+        this.fish[n] -= got;
+        return got;
+      }
+    }
+    return 0;
   }
 
   /** Stumps have rotted: the stand is gone for good and the ground is open field with berries. */
@@ -458,6 +517,7 @@ export class Land {
       form: Array.from(this.form),
       brush: Array.from(this.brush),
       trees: Array.from(this.trees),
+      fish: Array.from(this.fish),
       stumpAge: Array.from(this.stumpAge),
       cleared: Array.from(this.cleared),
       berries: Array.from(this.berries),
@@ -477,6 +537,7 @@ export class Land {
     if (state.compaction) for (let i = 0; i < len; i++) this.compaction[i] = state.compaction[i] ?? 0;
     if (state.form) for (let i = 0; i < len; i++) this.form[i] = state.form[i] ?? 0;
     if (state.brush) for (let i = 0; i < len; i++) this.brush[i] = state.brush[i] ?? 0;
+    if (state.fish) for (let i = 0; i < len; i++) this.fish[i] = state.fish[i] ?? 0;
     if (state.trees) for (let i = 0; i < len; i++) this.trees[i] = state.trees[i] ?? 0;
     if (state.stumpAge) for (let i = 0; i < len; i++) this.stumpAge[i] = state.stumpAge[i] ?? 0;
     if (state.cleared) {

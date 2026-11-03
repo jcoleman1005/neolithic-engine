@@ -121,4 +121,59 @@ describe('Finite wild resources', () => {
     expect(b.land.cleared[cell(41, 40)]).toBe(1);
     expect(b.land.treeMax[cell(41, 40)]).toBe(0);
   });
+
+  it('fish are finite and taken from the shore, one neighbouring water tile at a time, and regrow', () => {
+    const land = new Land(cfg);
+    land.isWater[cell(20, 20)] = 1;
+    land.fishMax[cell(20, 20)] = 5;
+    land.fish[cell(20, 20)] = 5;
+    expect(land.catchFish(21, 20, 2)).toBe(2); // beside the water
+    expect(land.catchFish(25, 25, 2)).toBe(0); // inland
+    expect(land.catchFish(19, 20, 10)).toBe(3);
+    expect(land.catchFish(19, 20, 10)).toBe(0);
+    land.step(cfg);
+    expect(land.fish[cell(20, 20)]).toBeGreaterThan(0);
+    for (let k = 0; k < 500; k++) land.step(cfg);
+    expect(land.fish[cell(20, 20)]).toBeCloseTo(5, 3);
+  });
+
+  it('water distance counts steps from fresh water, and the sea is not drinkable', () => {
+    const w = new World({ ...DEFAULT_CONFIG, initialPopulation: 50 }, 1);
+    const l = w.land;
+    let fresh = 0, near = 0, far = 0;
+    for (let i = 0; i < 65536; i++) {
+      if (l.waterDist[i] === 0) fresh++;
+      else if (l.waterDist[i] === 1) near++;
+      else if (l.waterDist[i] < 255) far++;
+    }
+    expect(fresh).toBeGreaterThan(0);
+    expect(near).toBeGreaterThan(0);
+    expect(far).toBeGreaterThan(0);
+    for (let i = 0; i < 65536; i++) if (l.waterDist[i] === 0) expect(l.isWater[i]).toBe(1);
+  });
+
+  it('hydration falls, refills beside fresh water, and costs energy only when low; the ledger balances', () => {
+    const w = new World({ ...DEFAULT_CONFIG, initialPopulation: 300 }, 2);
+    const h = w.people.hydration;
+    for (let t = 0; t < 400; t++) w.step();
+    let low = 0, full = 0, n = 0;
+    for (let s = 0; s < w.people.capacity; s++) {
+      if (w.people.alive[s] === 0) continue;
+      n++;
+      expect(h[s]).toBeGreaterThanOrEqual(0);
+      expect(h[s]).toBeLessThanOrEqual(DEFAULT_CONFIG.thirstMax);
+      if (h[s] < DEFAULT_CONFIG.thirstWarn) low++;
+      if (h[s] > 90) full++;
+    }
+    expect(n).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(0);
+    expect(low).toBeLessThan(n);
+    expect(w.ledger.violations).toBe(0);
+  });
+
+  it('with thirst off nobody loses hydration', () => {
+    const w = new World({ ...DEFAULT_CONFIG, thirstEnabled: false, initialPopulation: 100 }, 2);
+    for (let t = 0; t < 100; t++) w.step();
+    for (let s = 0; s < w.people.capacity; s++) if (w.people.alive[s] === 1) expect(w.people.hydration[s]).toBe(100);
+  });
 });
