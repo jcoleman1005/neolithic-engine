@@ -425,6 +425,19 @@ export class Land {
     const foodScale = Math.max(1e-6, config.pileScale ?? 60);
     const brushScale = Math.max(1e-6, config.brushScale ?? 30);
     for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.isWater[i] === 1) {
+        // Water: how many fish there are (0 none ... 7 full) where they can be fished, i.e. beside land.
+        const fm = this.fishMax[i];
+        let lvl = 0;
+        if (fm > 0 && this.fish[i] > 0.05) {
+          const x = i & COORD_MASK, y = i >> 8;
+          const shore = this.isWater[(y << 8) | ((x + 1) & COORD_MASK)] === 0 || this.isWater[(y << 8) | ((x - 1) & COORD_MASK)] === 0 ||
+            this.isWater[(((y + 1) & COORD_MASK) << 8) | x] === 0 || this.isWater[(((y - 1) & COORD_MASK) << 8) | x] === 0;
+          if (shore) lvl = Math.max(1, Math.min(7, Math.ceil((this.fish[i] / fm) * 7)));
+        }
+        out[i] = lvl;
+        continue;
+      }
       const p = this.pile[i];
       const b = this.brush[i];
       const tm = this.treeMax[i];

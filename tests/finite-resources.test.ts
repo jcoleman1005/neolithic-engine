@@ -176,4 +176,24 @@ describe('Finite wild resources', () => {
     for (let t = 0; t < 100; t++) w.step();
     for (let s = 0; s < w.people.capacity; s++) if (w.people.alive[s] === 1) expect(w.people.hydration[s]).toBe(100);
   });
+
+  it('fish are packed for the viewer only on shore water, from full (7) down to none', () => {
+    const land = new Land(cfg);
+    land.isWater[cell(20, 20)] = 1;
+    land.isWater[cell(20, 21)] = 1;
+    land.isWater[cell(20, 22)] = 1;
+    land.isWater[cell(19, 21)] = 1;
+    land.isWater[cell(21, 21)] = 1;
+    for (const y of [20, 21, 22]) { land.fishMax[cell(20, y)] = 10; land.fish[cell(20, y)] = 10; }
+    const out = new Uint8Array(65536);
+    land.packStructures(out, cfg);
+    expect(out[cell(20, 20)]).toBe(7); // shore
+    expect(out[cell(20, 21)]).toBe(0); // open water, ringed by water: not reachable from land
+    land.fish[cell(20, 20)] = 5;
+    land.packStructures(out, cfg);
+    expect(out[cell(20, 20)]).toBe(4);
+    land.fish[cell(20, 20)] = 0;
+    land.packStructures(out, cfg);
+    expect(out[cell(20, 20)]).toBe(0);
+  });
 });

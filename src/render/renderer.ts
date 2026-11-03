@@ -38,6 +38,7 @@ const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
 const COLOR_GRANARY = 0xff284e7a; // rgb(122, 78, 40), plank floor, opaque
 const COLOR_CUT_RGB = 0x6eb4d2; // rgb(210, 180, 110), pale straw: felled woodland showing bare ground
 const COLOR_FIELD = 0xff64be78; // rgb(120, 190, 100), open meadow where a stand was cleared
+const COLOR_FISH_RGB = 0xf0f0d8; // pale silver, a faint glint on fished water
 const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
@@ -687,6 +688,7 @@ export class CanvasRenderer {
       const structures = this.world.landStructures;
       const out = this.overlayData32;
       const coverArr = this.world.terrain?.cover;
+      const waterArr = this.world.elevation?.water;
       for (let i = 0; i < 65536; i++) {
         const b = data[i];
         const desert = b & 7;
@@ -701,6 +703,12 @@ export class CanvasRenderer {
         else if (farm === 1) c = ((70 + checker) << 24) | COLOR_FARM_RGB; // barely worked
         // Heaps and granary floors sit on top of everything else.
         const st = structures ? structures[i] : 0;
+        if (waterArr && waterArr[i] > 0) {
+          // Shore water holding fish shimmers faintly; the byte there is a fish level, not a heap.
+          if (st > 0) c = (((30 + st * 12) << 24) | COLOR_FISH_RGB) >>> 0;
+          out[i] = c >>> 0;
+          continue;
+        }
         if (st !== 0 && coverArr && coverArr[i] >= 32768 && (st >> 5) > 0 && c === 0) {
           // Thinned woodland: the more is felled, the paler and barer the stand.
           const th = st >> 5;
@@ -891,6 +899,28 @@ export class CanvasRenderer {
         const wx = ((cx % worldW) + worldW) % worldW;
         const st = data[wy * worldW + wx];
         if (st === 0) continue;
+        if (this.world.elevation && this.world.elevation.water[wy * worldW + wx] > 0) {
+          // Fish: one or two little silver fish, placed by cell so they hold still; fewer as the stock is fished out.
+          const fx0 = Math.round(cx * cs + this.panX);
+          const fy0 = Math.round(cy * cs + this.panY);
+          const hh = (wx * 97 + wy * 57) & 15;
+          const n = st >= 5 ? 2 : 1;
+          for (let k = 0; k < n; k++) {
+            const sx = ((hh + k * 5) % 5) + 1;
+            const sy = (((hh >> 1) + k * 3) % 5) + 1;
+            const left = ((hh + k) & 1) === 0;
+            const q = (v: number) => Math.round(v * ap);
+            ctx.fillStyle = '#e8f2f0'; // body
+            ctx.fillRect(fx0 + q(sx), fy0 + q(sy), q(2.2), Math.max(1, q(1)));
+            ctx.fillStyle = '#8fb4c4'; // back
+            ctx.fillRect(fx0 + q(sx), fy0 + q(sy), q(2.2), Math.max(1, q(0.4)));
+            ctx.fillStyle = '#e8f2f0'; // tail
+            ctx.fillRect(fx0 + q(left ? sx + 2.2 : sx - 0.8), fy0 + q(sy - 0.3), Math.max(1, q(0.8)), Math.max(1, q(1.6)));
+            ctx.fillStyle = '#1c3a4a'; // eye
+            ctx.fillRect(fx0 + q(left ? sx + 0.3 : sx + 1.7), fy0 + q(sy + 0.2), Math.max(1, q(0.4)), Math.max(1, q(0.4)));
+          }
+          continue;
+        }
         const level = st & 7;
         const form = (st >> 3) & 3;
         const cov = this.world.terrain?.cover;
@@ -1104,8 +1134,17 @@ export class CanvasRenderer {
 
         // Deterministic sub-pixel offset from slot ID so people sharing a cell don't stack
         const hVal = (slot * 2654435761) >>> 0;
-        const offX = ((hVal & 7) - 3.5) / 10;
-        const offY = (((hVal >>> 3) & 7) - 3.5) / 10;
+        let offX = ((hVal & 7) - 3.5) / 10;
+        let offY = (((hVal >>> 3) & 7) - 3.5) / 10;
+        const water = this.world.elevation?.water;
+        if (water) {
+          // Beside water the figure stays on its own tile instead of spilling onto the water.
+          const ccx = Math.round(rx) & 255, ccy = Math.round(ry) & 255;
+          if (offX > 0 && water[(ccy << 8) | ((ccx + 1) & 255)] > 0) offX = 0;
+          else if (offX < 0 && water[(ccy << 8) | ((ccx - 1) & 255)] > 0) offX = 0;
+          if (offY > 0 && water[(((ccy + 1) & 255) << 8) | ccx] > 0) offY = 0;
+          else if (offY < 0 && water[(((ccy - 1) & 255) << 8) | ccx] > 0) offY = 0;
+        }
 
         const baseX = Math.round((rx + offX) * cellSize + this.panX);
         const baseY = Math.round((ry + offY) * cellSize + this.panY);
