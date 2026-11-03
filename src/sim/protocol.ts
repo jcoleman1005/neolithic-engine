@@ -163,6 +163,8 @@ export type FromWorker =
       readonly packedPeople: string;
       /** Herd positions, two bytes per animal (see World.packHerdsFrame). */
       readonly packedHerds?: string;
+      /** Wolf positions, two bytes per wolf (see World.packWolvesFrame). */
+      readonly packedWolves?: string;
       /** Fresh kills, two bytes per carcass (see World.packCarcassFrame). */
       readonly packedCarcasses?: string;
       readonly peopleCount: number;

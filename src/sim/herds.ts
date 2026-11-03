@@ -1,6 +1,7 @@
 import { PRNG } from './prng';
 import { COORD_MASK, GRID_SIZE, type Land } from './land';
 import type { People } from './people';
+import type { Wolves } from './wolves';
 import type { SimulationConfig } from './types';
 
 const CELLS = GRID_SIZE * GRID_SIZE;
@@ -123,7 +124,7 @@ export class Herds {
     this.cellSlot[(ny << 8) | nx] = slot;
   }
 
-  public step(land: Land, people: People, config: Readonly<SimulationConfig>): void {
+  public step(land: Land, people: People, config: Readonly<SimulationConfig>, wolves?: Wolves): void {
     if (config.herdsEnabled === false || this.count === 0) return;
     const maxE = config.herdMaxEnergy ?? 50;
     const upkeep = config.herdUpkeep ?? 0.1;
@@ -146,6 +147,8 @@ export class Herds {
     near.fill(0);
     const px = people.x, py = people.y, palive = people.alive;
     for (let s = 0; s < people.capacity; s++) if (palive[s] === 1) near[(py[s] << 8) | px[s]] = 1;
+    // Wolves scare them too.
+    if (wolves) for (let s = 0; s < wolves.capacity; s++) if (wolves.alive[s] === 1) near[(wolves.y[s] << 8) | wolves.x[s]] = 1;
 
     const cap = this.capacity;
     for (let slot = 0; slot < cap; slot++) {

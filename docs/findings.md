@@ -505,3 +505,18 @@ Your notes on the first watch of herds: too many little lakes, not enough green 
 | `initialPopulation` | 1000 to 700 | with 700 the colony is about 1 to 2 thousand for its first five years (1.8k at year 5 from 600, 3.2k from 1000); worked soil is 8% at the start from 1000 founders, 5% from 600 |
 
 Also: herd and carcass sprites were drawn in repeated copies when the world fits the screen (zoomed out), which put animals in the black void; they now draw one copy there, like people. Test change: the 5000-person save test runs 250 ticks instead of 500 (it hit the 60 s limit on the larger map), and the slowest chronicle test file is split again. Every earlier tuning (farming, stockpiles, finite resources, herds) was done on the old map; the combined tuning pass should repeat the key checks on this one. Single seeds.
+
+### Wolves, 6a-4 (2026-11-04)
+
+Switch `wolvesEnabled`. Own typed arrays and PRNG (`src/sim/wolves.ts`), one wolf per tile. Wolves keep their heading, turn toward herd animals within `wolfSenseRadius`, kill adjacent prey (`wolfKillChance`) for its energy (`wolfMeatFactor`), leaving `wolfLeaveMeat` of it as a food heap and a carcass, take a person who is alone on a tile beside them (`wolfAttackChance`), breed when fed (times 1 - wolves / `wolfSoftCap`) and starve without prey. Each leaves `wolfDanger` scent per tick, which people and herds already avoid; herds also flee wolves. Founders start within 4 tiles of a herd animal. Seed 1, 30 years, 700 founders.
+
+| try | wolves | people killed | result |
+| --- | --- | --- | --- |
+| first guess (upkeep 0.25, sense 6) | extinct by y10 | 20 | prey too sparse |
+| upkeep 0.12 / 0.08, sense 8 to 12 | 0 to 11 at y10, 3 at y20 at best | 47 to 193 | declining |
+| upkeep 0.05 to 0.08, kill 0.5 to 0.6, breed 50 | 21 to 40 | 1100 to 1600 in 30y | persist, but people -20% at y20 |
+| lone person = nobody within 2 or 3 tiles | extinct by y10 to y20 | 11 to 15 | wolves starve: herd prey alone cannot feed them |
+| lone rule radius 2 plus founders near herds, upkeep 0.04 to 0.06 | extinct within about 5y | 4 to 14 | same |
+| **adopted**: upkeep 0.06, sense 8, kill 0.6, breed energy 50, birth 20, lone radius 0 | 12 to 38, from y5 to y30 | 879 in 30y (about 29 a year) | herds hold at 297; people vs wolves off: -3.4% y5, -4.4% y10, -10% y15, -12% y20, -7% y25, -5% y30 |
+
+Targets (set first): wolves persist (5 to 80), herds above 100, people within 10% of wolves off, deaths under 1% a year. All met except the middle years, where people dip 10 to 12% below. Finding: herds alone cannot feed wolves, since prey flees at the wolf's own speed (kills stayed in the tens to hundreds in 30 years); wolves persist only because lone people are abundant. Left as is on purpose: the threat is for later phases (fire and hearths 5d, barricades Phase 7, weather 6b) to answer through the land and costs, not for more wolf rules. Single seed.

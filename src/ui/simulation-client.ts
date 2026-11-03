@@ -69,6 +69,8 @@ export class SimulationClient implements WorldView {
   public packedPeopleBuffer: Uint8Array = new Uint8Array(0);
   /** Herd positions: x, y per animal. */
   public herdPositions: Uint8Array = new Uint8Array(0);
+  /** Wolf positions: x, y per wolf. */
+  public wolfPositions: Uint8Array = new Uint8Array(0);
   /** Fresh kills: x, y per carcass. */
   public carcassPositions: Uint8Array = new Uint8Array(0);
   public selectedPerson: PersonDetail | null = null;
@@ -204,6 +206,7 @@ export class SimulationClient implements WorldView {
         if (message.landStructures) this.setStructures(message.landStructures);
         this.peopleCount = message.peopleCount;
         if (message.packedCarcasses !== undefined) this.carcassPositions = fastBase64Decode(message.packedCarcasses);
+        if (message.packedWolves !== undefined) this.wolfPositions = fastBase64Decode(message.packedWolves);
         if (message.packedHerds !== undefined) this.herdPositions = fastBase64Decode(message.packedHerds);
         if (message.packedPeople) {
           this.packedPeopleBuffer = fastBase64Decode(message.packedPeople);

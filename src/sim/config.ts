@@ -123,6 +123,30 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   herdsEnabled: true,
   // Hunting: a hungry person with an animal on or beside their tile may strike; a kill leaves meat
   // (the animal's energy) as a food heap at the hunter's feet.
+  // Phase 6a-4: wolves. They wander, chase herd animals they can sense, kill adjacent prey for its
+  // energy (leaving a share as meat), breed when fed and starve without prey. Each leaves danger
+  // scent; a lone person beside one may be killed. Their energy is plant-side.
+  wolvesEnabled: true,
+  wolfInitialCount: 20,
+  wolfCapacity: 128,
+  wolfMaxEnergy: 80.0,
+  wolfUpkeep: 0.06, // energy lost per tick
+  wolfMoveCost: 0.03,
+  wolfKillChance: 0.6, // per tick with prey on or beside the tile
+  wolfMeatFactor: 1.2, // energy gained per unit of the prey's energy
+  wolfLeaveMeat: 0.3, // share of the prey's energy left as a food heap
+  wolfAttackChance: 0.04, // per tick with a lone person beside it
+  wolfPersonMeal: 20.0, // energy a wolf gains from a person
+  wolfLoneRadius: 0, // a person is only a target with no one else within this many tiles (0: just alone on the tile)
+  wolfDanger: 2.0, // danger scent left per tick
+  wolfBreedEnergy: 50.0,
+  wolfBirthEnergy: 20.0,
+  wolfBreedChance: 0.02, // per tick once able, scaled by (1 - wolves / wolfSoftCap)
+  wolfSoftCap: 40,
+  wolfAdultAge: 360,
+  wolfMaxAge: 5400,
+  wolfSenseRadius: 8, // tiles within which a wolf turns toward herd animals
+  wolfPersist: 0.75, // chance per tick a wandering wolf keeps its heading
   huntingEnabled: true,
   huntBelow: 0.6, // hunts below this fraction of maxEnergy
   huntChance: 0.15, // chance a strike kills, per tick with prey adjacent

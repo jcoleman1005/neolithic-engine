@@ -21,6 +21,9 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 ## World shape (branch `fix-world-shape`, on top of `phase-6a-herds`)
 - Fewer lake pockets, more land (64%), hills start higher so about 40% of the map is green, 700 founders, herds no longer drawn in the void when zoomed out, dead-animal graphic at fresh kills. See `docs/findings.md`. Needs a fresh world (reset) to see the new map; saved worlds keep their old terrain.
 
+## Wolves (branch `phase-6a-wolves`)
+- **6a-4 built**: wolves wander, chase herd prey, kill and leave meat and a carcass, leave danger scent, take lone people; herds flee them. 12 to 38 wolves over 30 years, about 29 people killed a year, people 5% below wolves off at year 30 (a 12% dip at year 20). Tuning stopped here on purpose; the threat is for later phases to answer. Needs a server restart and a watch.
+
 ## Next Steps
 1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
 2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.

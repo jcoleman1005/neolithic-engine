@@ -265,6 +265,7 @@ export class SimulationHost {
       tick: world.tick,
       packedPeople: packed.base64,
       packedHerds: world.packHerdsFrame(),
+      packedWolves: world.packWolvesFrame(),
       packedCarcasses: world.packCarcassFrame(),
       peopleCount: packed.count,
       organisms: [],

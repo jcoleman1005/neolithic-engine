@@ -102,6 +102,7 @@ export class CanvasRenderer {
   private world: WorldView & {
     packedPeopleBuffer?: Uint8Array;
     herdPositions?: Uint8Array;
+    wolfPositions?: Uint8Array;
     carcassPositions?: Uint8Array;
     peopleCount?: number;
     running?: boolean;
@@ -193,6 +194,7 @@ export class CanvasRenderer {
     world: WorldView & {
       packedPeopleBuffer?: Uint8Array;
     herdPositions?: Uint8Array;
+    wolfPositions?: Uint8Array;
     carcassPositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
@@ -270,6 +272,7 @@ export class CanvasRenderer {
     world: WorldView & {
       packedPeopleBuffer?: Uint8Array;
     herdPositions?: Uint8Array;
+    wolfPositions?: Uint8Array;
     carcassPositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
@@ -940,6 +943,45 @@ export class CanvasRenderer {
             ctx.fillRect(x0 + q(face ? 7.2 : 0.2), y0 + q(4.2), Math.max(1, q(0.5)), q(1));
             ctx.fillStyle = '#a01818'; // blood
             ctx.fillRect(x0 + q(2), y0 + q(6.8), q(3.2), Math.max(1, q(0.6)));
+          }
+        }
+      }
+    }
+
+    // Wolves: grey, lean, ears up, tail out; dark grey dots zoomed out.
+    const wolves = this.world.wolfPositions;
+    if (wolves) {
+      for (let i = 0; i + 1 < wolves.length; i += 2) {
+        let sx = Math.round(wolves[i] * cs + this.panX);
+        let sy = Math.round(wolves[i + 1] * cs + this.panY);
+        if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
+        if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
+        const face = ((wolves[i] * 29 + wolves[i + 1] * 13) & 1) === 0;
+        for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
+          for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
+            if (!zoomedIn) {
+              ctx.fillStyle = '#3c3c46';
+              const d = Math.max(2, Math.round(cs * 0.9));
+              ctx.fillRect(x0, y0, d, d);
+              continue;
+            }
+            const fx = (v: number, w = 0) => x0 + q(face ? v : 8 - v - w);
+            ctx.fillStyle = '#3a3a44'; // legs
+            for (const lx of [1.4, 2.4, 4.6, 5.6]) ctx.fillRect(fx(lx, 0.6), y0 + q(5), Math.max(1, q(0.6)), q(2));
+            ctx.fillStyle = '#7c7c88'; // lean body
+            ctx.fillRect(fx(1.0, 5.2), y0 + q(3), q(5.2), q(2.2));
+            ctx.fillStyle = '#a4a4b0'; // back light
+            ctx.fillRect(fx(1.0, 5.2), y0 + q(3), q(5.2), Math.max(1, q(0.6)));
+            ctx.fillStyle = '#5c5c68'; // head and snout
+            ctx.fillRect(fx(6.0, 2), y0 + q(2.4), q(2), q(1.6));
+            ctx.fillRect(fx(7.4, 0.8), y0 + q(3.2), q(0.8), q(0.8));
+            ctx.fillStyle = '#3a3a44'; // ears
+            ctx.fillRect(fx(6.2, 0.6), y0 + q(1.6), Math.max(1, q(0.6)), q(0.9));
+            ctx.fillRect(fx(7.0, 0.6), y0 + q(1.6), Math.max(1, q(0.6)), q(0.9));
+            ctx.fillStyle = '#7c7c88'; // tail
+            ctx.fillRect(fx(0, 1.2), y0 + q(2.6), q(1.2), Math.max(1, q(0.7)));
+            ctx.fillStyle = '#e8c020'; // eye
+            ctx.fillRect(fx(7.0, 0.4), y0 + q(2.7), Math.max(1, q(0.4)), Math.max(1, q(0.4)));
           }
         }
       }

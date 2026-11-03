@@ -33,6 +33,7 @@ import {
 } from './people';
 import { SpatialIndex } from './spatial';
 import { Herds, type HerdsState } from './herds';
+import { Wolves, type WolvesState } from './wolves';
 import { LifeSystem } from './life';
 import { EnergyLedger } from './ledger';
 import {
@@ -56,6 +57,7 @@ export interface WorldState {
   readonly fields?: FieldsState;
   readonly people?: PeopleState;
   readonly herds?: HerdsState;
+  readonly wolves?: WolvesState;
   readonly terrain?: TerrainState | null;
   readonly elevation?: ElevationState | null;
 }
@@ -73,6 +75,7 @@ export class World {
   public people: People;
   public spatial: SpatialIndex;
   public herds: Herds;
+  public wolves: Wolves;
   public ledger: EnergyLedger;
 
   // Stubs for protocol compatibility
@@ -99,6 +102,7 @@ export class World {
     this.people = new People();
     this.spatial = new SpatialIndex();
     this.herds = new Herds(this.config, this.seed);
+    this.wolves = new Wolves(this.config, this.seed);
     this.ledger = new EnergyLedger();
 
     this.init();
@@ -107,6 +111,7 @@ export class World {
   private init(): void {
     LifeSystem.seedFounders(this.people, this.land, this.ledger, this.config, this.prng);
     this.herds.seed(this.land, this.config);
+    this.wolves.seed(this.land, this.config, this.herds);
     this.population = this.people.count;
     this.ledger.begin(this.people.totalEnergy(), this.tick);
   }
@@ -124,7 +129,8 @@ export class World {
       this.herds
     );
     this.herds.ageCarcasses(this.land);
-    this.herds.step(this.land, this.people, this.config);
+    this.herds.step(this.land, this.people, this.config, this.wolves);
+    this.wolves.step(this.land, this.people, this.herds, this.fields, this.ledger, this.config);
     this.population = this.people.count;
     this.tick++;
 
@@ -147,6 +153,7 @@ export class World {
     this.people = new People();
     this.spatial = new SpatialIndex();
     this.herds = new Herds(this.config, this.seed);
+    this.wolves = new Wolves(this.config, this.seed);
     this.ledger.reset();
 
     this.init();
@@ -233,6 +240,17 @@ export class World {
     let o = 0;
     for (let s = 0; s < h.capacity; s++) {
       if (h.alive[s] === 1) { buf[o++] = h.x[s]; buf[o++] = h.y[s]; }
+    }
+    return fastBase64Encode(buf);
+  }
+
+  /** Wolf positions for the viewer: two bytes (x, y) per wolf, base64. */
+  public packWolvesFrame(): string {
+    const w = this.wolves;
+    const buf = new Uint8Array(w.count * 2);
+    let o = 0;
+    for (let s = 0; s < w.capacity; s++) {
+      if (w.alive[s] === 1) { buf[o++] = w.x[s]; buf[o++] = w.y[s]; }
     }
     return fastBase64Encode(buf);
   }
@@ -431,6 +449,18 @@ export class World {
       }
     }
 
+    const wolves = this.wolves;
+    for (let s = 0; s < wolves.capacity; s++) {
+      if (wolves.alive[s] === 1) {
+        h.updateInt(s);
+        h.updateInt(wolves.x[s]);
+        h.updateInt(wolves.y[s]);
+        h.updateFloat(wolves.energy[s]);
+        h.updateInt(wolves.age[s]);
+        h.updateInt(wolves.dir[s]);
+      }
+    }
+
     // 3. Every land array
     const land = this.land;
     h.updateFloatArray(land.food);
@@ -468,6 +498,7 @@ export class World {
       fields: this.fields.exportState(),
       people: this.people.exportState(),
       herds: this.herds.exportState(),
+      wolves: this.wolves.exportState(),
       terrain: this.land.terrain ? this.land.terrain.exportState(true) : null,
       elevation: this.land.elevation ? this.land.elevation.exportView() : null,
     };
@@ -493,6 +524,7 @@ export class World {
       world.population = world.people.count;
     }
     if (state.herds) world.herds.importState(state.herds);
+    if (state.wolves) world.wolves.importState(state.wolves);
     world.ledger.reset();
     world.ledger.begin(world.people.totalEnergy(), world.tick);
     return world;
