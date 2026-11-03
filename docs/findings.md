@@ -456,3 +456,7 @@ Switches `finiteResourcesEnabled` (all) and `thirstEnabled` (thirst only). Fish:
 | 0.6 | 6345 | -12% | 1.8% | 5.3 | 2% |
 
 Targets (stated before running): pop within 15% of off, dehydrated under 3%. About 2% of people live on land with no fresh water at all and thirst out; that is a physical consequence, not a bug. Single seed.
+
+### Fewer fish (2026-11-03)
+
+Seed 1, 20 years, thirst on. `fishCap` 20 to 10 and `fishRegrowRate` 0.02 to 0.01: pop y10 / y20 5090 / 6464 to 5007 / 6184 (-1.6% / -4.3%); cap 6 gave 4811 / 6220 (-5.5% / -3.8%), no better. The viewer now draws at most one fish on about half the shore tiles.

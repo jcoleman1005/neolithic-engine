@@ -114,8 +114,8 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   treeCap: 100.0, // wood stock of a fully wooded tile (scaled by its cover)
   treeRegrowRate: 0.0003, // fraction of a tile's stock regrown per tick (x season factor)
   thirstEnabled: true, // switch for thirst alone (finiteResourcesEnabled switches all of it)
-  fishCap: 20.0, // fish in a water tile (fresh water full, sea 0.7 of it)
-  fishRegrowRate: 0.02, // fraction of a tile's stock regrown per tick (x season factor)
+  fishCap: 10.0, // fish in a water tile (fresh water full, sea 0.7 of it)
+  fishRegrowRate: 0.01, // fraction of a tile's stock regrown per tick (x season factor)
   fishBite: 0.3, // most fish taken from the shore in one tick
   fishBelow: 0.5, // ... by anyone below this fraction of maxEnergy
   thirstRate: 0.4, // hydration lost per tick

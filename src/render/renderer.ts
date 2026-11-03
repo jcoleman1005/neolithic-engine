@@ -904,7 +904,8 @@ export class CanvasRenderer {
           const fx0 = Math.round(cx * cs + this.panX);
           const fy0 = Math.round(cy * cs + this.panY);
           const hh = (wx * 97 + wy * 57) & 15;
-          const n = st >= 5 ? 2 : 1;
+          // Sparse: about half the shore tiles show a fish, one at most, and a thin stock (level 1 to 2) shows fewer.
+          const n = (hh & 1) === 0 && (st >= 3 || (hh & 2) === 0) ? 1 : 0;
           for (let k = 0; k < n; k++) {
             const sx = ((hh + k * 5) % 5) + 1;
             const sy = (((hh >> 1) + k * 3) % 5) + 1;
