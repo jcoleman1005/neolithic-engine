@@ -466,3 +466,16 @@ Seed 1, 20 years, thirst on. `fishCap` 20 to 10 and `fishRegrowRate` 0.02 to 0.0
 Bug: the sim treated every cell with cover 0.5 or more as woodland (8746 cells), including hills and shores where the viewer draws no trees, so stumps appeared where there were never trees, and tree sprites stayed on stumped and cleared cells. Now `wooded` is lowland (below 0.56), not beside water, not near sea level, cover 0.5 or more: 3199 cells, the same rule the viewer uses for tree sprites. Seed 1, 30 years: pop 5059 / 6478 / 7082 at y10 / y20 / y30, trees left 89%, nests 204 / 346 / 348, stumps 71 standing and 30% of woodland cleared to field at y30 (inside the 10 to 35% target). Tree sprites now thin with the cutting and vanish on stumps and field.
 
 Also fixed (found by the farming save round trip test once the woodland change shifted the run): the drop-at-crowd rule read the spatial index left over from the previous tick, which a loaded save does not have, so the first tick after a load could differ from the original run. The index is now built just before the foraging step (only when stockpiles are on). Perf 4.67 us / person / tick under server load (last clean figure 4.3).
+
+## Herbivore herds, 6a-1 (2026-11-04)
+
+Switch `herdsEnabled`. Animals live in their own typed arrays (`src/sim/herds.ts`), one per tile, with their own PRNG (people's random stream is unchanged by herds). They graze, drift toward richer ground, flee people within 2 tiles (60% a tick), breed when well fed and die of hunger or age (3600 ticks). Body energy is plant-side, outside the ledger. Seed 1.
+
+| try | herds | people vs herds off |
+| --- | --- | --- |
+| no crowding limit | hit the 1024 slot cap by y5 and stayed (food never limits them: 1024 animals is about 3% of the land) | -4% at y20 to y50 |
+| `herdSoftCap` 200 | 190 at y30 | +1% at y20, -1.4% at y30 |
+| `herdSoftCap` 300 (adopted) | 289 at y30 | -0.6% at y20, -4.9% at y30 |
+| `herdSoftCap` 450 | 437 at y30 | -3.3% at y20, -2% at y30 |
+
+New values: `herdInitialCount` 150, `herdCapacity` 1024, `herdMaxEnergy` 50, `herdUpkeep` 0.1, `herdMoveCost` 0.02, `herdGrazeBite` 1.0, `herdBreedEnergy` 35, `herdBirthEnergy` 12, `herdBreedChance` 0.03 (times 1 - herd / `herdSoftCap`), `herdAdultAge` 180, `herdMaxAge` 3600, `herdFleeRadius` 2, `herdFleeChance` 0.6, `herdStayFraction` 0.5, `herdWander` 0.1. Targets (set first): herds persist and stay between 40 and 600; people within 10% of herds off. Met. The herd sits at its soft cap because grass never runs short; hunting (6a-2) is what should pull it below. Single seed.

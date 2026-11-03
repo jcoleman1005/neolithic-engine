@@ -32,6 +32,7 @@ import {
   HABIT_COUNT,
 } from './people';
 import { SpatialIndex } from './spatial';
+import { Herds, type HerdsState } from './herds';
 import { LifeSystem } from './life';
 import { EnergyLedger } from './ledger';
 import {
@@ -54,6 +55,7 @@ export interface WorldState {
   readonly land?: LandState;
   readonly fields?: FieldsState;
   readonly people?: PeopleState;
+  readonly herds?: HerdsState;
   readonly terrain?: TerrainState | null;
   readonly elevation?: ElevationState | null;
 }
@@ -70,6 +72,7 @@ export class World {
   public fields: ScentFields;
   public people: People;
   public spatial: SpatialIndex;
+  public herds: Herds;
   public ledger: EnergyLedger;
 
   // Stubs for protocol compatibility
@@ -95,6 +98,7 @@ export class World {
     this.fields = new ScentFields();
     this.people = new People();
     this.spatial = new SpatialIndex();
+    this.herds = new Herds(this.config, this.seed);
     this.ledger = new EnergyLedger();
 
     this.init();
@@ -102,6 +106,7 @@ export class World {
 
   private init(): void {
     LifeSystem.seedFounders(this.people, this.land, this.ledger, this.config, this.prng);
+    this.herds.seed(this.land, this.config);
     this.population = this.people.count;
     this.ledger.begin(this.people.totalEnergy(), this.tick);
   }
@@ -117,6 +122,7 @@ export class World {
       this.prng,
       this.tick
     );
+    this.herds.step(this.land, this.people, this.config);
     this.population = this.people.count;
     this.tick++;
 
@@ -138,6 +144,7 @@ export class World {
     this.fields.reset();
     this.people = new People();
     this.spatial = new SpatialIndex();
+    this.herds = new Herds(this.config, this.seed);
     this.ledger.reset();
 
     this.init();
@@ -388,6 +395,18 @@ export class World {
       }
     }
 
+    // Herds
+    const herds = this.herds;
+    for (let s = 0; s < herds.capacity; s++) {
+      if (herds.alive[s] === 1) {
+        h.updateInt(s);
+        h.updateInt(herds.x[s]);
+        h.updateInt(herds.y[s]);
+        h.updateFloat(herds.energy[s]);
+        h.updateInt(herds.age[s]);
+      }
+    }
+
     // 3. Every land array
     const land = this.land;
     h.updateFloatArray(land.food);
@@ -424,6 +443,7 @@ export class World {
       land: this.land.exportState(),
       fields: this.fields.exportState(),
       people: this.people.exportState(),
+      herds: this.herds.exportState(),
       terrain: this.land.terrain ? this.land.terrain.exportState(true) : null,
       elevation: this.land.elevation ? this.land.elevation.exportView() : null,
     };
@@ -448,6 +468,7 @@ export class World {
       world.people.importState(state.people);
       world.population = world.people.count;
     }
+    if (state.herds) world.herds.importState(state.herds);
     world.ledger.reset();
     world.ledger.begin(world.people.totalEnergy(), world.tick);
     return world;

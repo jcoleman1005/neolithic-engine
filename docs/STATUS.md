@@ -14,6 +14,10 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 - **Verify** passes; **perf** 4.2 us / person / tick (budget 15).
 - **Visible**: thinned woodland draws as pale straw; fully stripped stands become stumps (block regrowth for 3 years), then rot to open meadow for good (13% of woodland by year 30). Cleared ground can hold berries but not trees or nests (it keeps the wooded mask). No reforestation yet: a parking-lot candidate. Fish (shore food) and thirst (hydration, walk to fresh water, drink, upkeep when low) are built on `phase-5-fish-thirst`; people now cluster nearer rivers and lakes (mean distance to fresh water 6.5 vs 10.5). Woodland now matches the drawn forest (3199 lowland cells), tree sprites thin with cutting, and a first-tick-after-load bug in the crowd rule is fixed. Next: herds.
 
+## Phase 6a herds (branch `phase-6a-herds`)
+- **6a-1 done**: herbivores in `src/sim/herds.ts` (graze, drift, flee, breed, die; own PRNG; plant-side energy; saved and hashed). Herd settles at `herdSoftCap` 300; people within 5% of herds off. Tests `tests/herds.test.ts`. Perf 4.4 us / person / tick.
+- **Not yet visible**: herds are not drawn. Next: 6a-3 viewer (stream positions, sprites), then 6a-2 hunting with meat piles, then 6a-4 wolves.
+
 ## Next Steps
 1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
 2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.

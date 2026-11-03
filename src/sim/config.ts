@@ -113,6 +113,25 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   finiteResourcesEnabled: true,
   treeCap: 100.0, // wood stock of a fully wooded tile (scaled by its cover)
   treeRegrowRate: 0.0003, // fraction of a tile's stock regrown per tick (x season factor)
+  // Phase 6a: herbivore herds. Dumb animals that graze, drift toward richer ground, flee people,
+  // breed when well fed and die of hunger or age. Their energy is plant-side (outside the ledger).
+  herdsEnabled: true,
+  herdInitialCount: 150, // founder animals
+  herdCapacity: 1024, // slots (an upper bound; food, not this, should limit the herds)
+  herdMaxEnergy: 50.0,
+  herdUpkeep: 0.1, // energy lost per tick
+  herdMoveCost: 0.02, // extra energy per step
+  herdGrazeBite: 1.0, // land food grazed per tick
+  herdBreedEnergy: 35.0, // breeds above this energy ...
+  herdBirthEnergy: 12.0, // ... passing this much to the newborn
+  herdBreedChance: 0.03, // per tick once able, scaled by (1 - herd size / herdSoftCap)
+  herdSoftCap: 300, // herd size at which breeding stops
+  herdAdultAge: 180, // ticks before an animal can breed
+  herdMaxAge: 3600, // ticks (10 years)
+  herdFleeRadius: 2, // tiles within which a person scares an animal
+  herdFleeChance: 0.6, // per tick, so a few are caught
+  herdStayFraction: 0.5, // settles on a tile holding at least this fraction of its capacity
+  herdWander: 0.1, // chance per tick that a settled animal drifts anyway
   thirstEnabled: true, // switch for thirst alone (finiteResourcesEnabled switches all of it)
   fishCap: 10.0, // fish in a water tile (fresh water full, sea 0.7 of it)
   fishRegrowRate: 0.01, // fraction of a tile's stock regrown per tick (x season factor)
