@@ -113,6 +113,13 @@ export class LifeSystem {
     const gestationTicks = config.gestationTicks ?? 270;
     const matingRadius = config.matingRadius ?? 2;
     const dangerDeath = config.scentDangerDeath ?? 10.0;
+    const birthHazardsOn = config.birthHazardsEnabled !== false;
+    const pregUpkeepMul = config.pregnancyUpkeepMul ?? 1.25;
+    const miscEnergy = config.pregnancyMiscarriageEnergy ?? 15.0;
+    const birthInjury = config.birthInjury ?? 40.0;
+    const birthShelterMul = config.birthShelterInjuryMul ?? 0.35;
+    const birthColdMul = config.birthColdInjuryMul ?? 1.5;
+    const birthExhInjury = config.birthExhaustionInjury ?? 20.0;
 
     // 3. Clear stale leader links & evaluate Metabolism & Mortality
     for (let slot = 0; slot < cap; slot++) {
@@ -127,6 +134,17 @@ export class LifeSystem {
         : nestsOn && land.form[upCell] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
       energy[slot] -= upkeep;
       ledger.upkeep += upkeep;
+      if (birthHazardsOn && sex[slot] === 0 && pregnant[slot] >= 0) {
+        const extra = upkeep * (pregUpkeepMul - 1.0);
+        if (extra > 0) {
+          energy[slot] -= extra;
+          ledger.upkeep += extra;
+        }
+        if (energy[slot] <= miscEnergy) {
+          pregnant[slot] = -1;
+          mateId[slot] = 0;
+        }
+      }
       if (coldOn) {
         const cell = (py[slot] << 8) | px[slot];
         const cold = land.coldAt(cell);
@@ -613,7 +631,7 @@ export class LifeSystem {
               scratchChildHabits[h] = Math.max(0, Math.min(255, scratchChildHabits[h] + jump));
             }
 
-            people.spawn(
+            const childId = people.spawn(
               childX,
               childY,
               childEnergy,
@@ -625,6 +643,35 @@ export class LifeSystem {
               scratchChildHabits,
               people.leaderId[slot]
             );
+
+            if (birthHazardsOn) {
+              const cell = (py[slot] << 8) | px[slot];
+              const sheltered = land.sheltered(cell);
+              const cold = coldOn ? land.coldAt(cell) : 0;
+              let trauma = birthInjury;
+              if (sheltered) {
+                trauma *= birthShelterMul;
+              } else if (cold > 0) {
+                trauma *= 1.0 + (birthColdMul - 1.0) * cold;
+              }
+              if (injuryOn) {
+                people.injury[slot] = Math.min(255, people.injury[slot] + trauma);
+                if (!sheltered && cold > 0) {
+                  const childSlot = slotFromId(childId);
+                  people.injury[childSlot] = Math.min(255, people.injury[childSlot] + birthInjury * 0.5 * cold);
+                }
+              }
+            }
+          } else if (birthHazardsOn) {
+            // Failed delivery due to maternal exhaustion: labor complications cause injury and stamina drain.
+            if (injuryOn) {
+              people.injury[slot] = Math.min(255, people.injury[slot] + birthExhInjury);
+            }
+            const loss = Math.min(Math.max(0, energy[slot] - 1.0), totalBirthCost * 0.5);
+            if (loss > 0) {
+              energy[slot] -= loss;
+              ledger.birthCosts += loss;
+            }
           }
           mateId[slot] = 0;
         }

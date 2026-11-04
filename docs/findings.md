@@ -58,6 +58,13 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-03 | `fertilityActionGain` | 0 | 0.002 | Direct fertility enrichment per seed drop |
 | 2026-11-03 | `fertilityTampGain` | 0 | 0.0008 | Soil improvement per tamping event |
 | 2026-11-03 | `fertilityCompostGain` | 0 | 0.0005 | Fertility enrichment from spoiling organic food heaps |
+| 2026-11-04 | `birthHazardsEnabled` | false | true | Deterministic childbirth physical trauma and metabolic demands switch |
+| 2026-11-04 | `pregnancyUpkeepMul` | 1.0 | 1.25 | Extra upkeep multiplier during pregnancy (+25%) |
+| 2026-11-04 | `pregnancyMiscarriageEnergy` | 0 | 15.0 | Energy threshold below which severe starvation terminates pregnancy to protect mother |
+| 2026-11-04 | `birthInjury` | 0 | 40.0 | Baseline physical trauma inflicted on mother at delivery |
+| 2026-11-04 | `birthShelterInjuryMul` | 1.0 | 0.35 | Trauma multiplier when delivering in shelter (nest, cave, stone hut, campfire aura) |
+| 2026-11-04 | `birthColdInjuryMul` | 1.0 | 1.5 | Trauma multiplier when delivering unsheltered in freezing cold |
+| 2026-11-04 | `birthExhaustionInjury` | 0 | 20.0 | Trauma inflicted when delivery fails at term due to severe maternal exhaustion |
 
 ## Experiment Log
 
@@ -586,3 +593,13 @@ Result with the adopted set, people vs injury off:
 | 3 | -12% | -16% | about 53 | 40 |
 
 Injury off: 0 to 9 violent deaths a year. Wolves now persist on all three seeds (they died out by year 9 on seed 1 before).
+
+## Deterministic Childbirth Hazards
+
+Deterministic physiological trauma and metabolic demands of reproduction, replacing arbitrary RNG mortality coin flips:
+1. **Pregnancy upkeep**: Pregnant women pay a +25% metabolic surcharge (`pregnancyUpkeepMul` = 1.25). Severe malnutrition (`energy <= 15.0`) triggers miscarriage (`pregnancyMiscarriageEnergy`), terminating pregnancy early to save the mother's life.
+2. **Delivery trauma**: Childbirth inflicts physical trauma directly to `people.injury` (baseline 40). Giving birth inside a shelter (built nest, cave, stone hut, or near a campfire) cuts trauma by 65% (`birthShelterInjuryMul` = 0.35). Delivering unsheltered in freezing cold increases trauma up to 1.5x (`birthColdInjuryMul`) and inflicts initial hypothermic trauma on the newborn.
+3. **Delivery exhaustion**: Mothers reaching full term with insufficient energy to afford delivery (`energy <= totalBirthCost`) suffer labor complications: birth fails, mother sustains 20 trauma (`birthExhaustionInjury`), and remaining energy is drained (conserved via `ledger.birthCosts`).
+4. **Natural recovery**: Wounded mothers have higher upkeep and heal only when fed above 50 energy. Because maternal energy drops on delivery and `reproductionThreshold` is 65, mothers naturally cannot mate again until recovered and well-nourished.
+5. **Perf**: 4.66 µs / person / tick at 12,240 people (budget 15.0 µs). Exact energy balance confirmed (`ledger.violations === 0`).
+

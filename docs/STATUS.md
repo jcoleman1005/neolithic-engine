@@ -1,3 +1,12 @@
+## Deterministic Childbirth Hazards (branch `feat-birth-hazards`)
+- **Done**: Introduced physical and metabolic childbirth hazards without RNG:
+  - Pregnancy upkeep surcharge (+25%, `pregnancyUpkeepMul` 1.25). Severe starvation (`energy <= 15.0`, `pregnancyMiscarriageEnergy`) triggers early miscarriage to preserve maternal life.
+  - Delivery inflicts physical trauma directly to `people.injury` (`birthInjury` 40.0). Delivering inside a shelter (nest, cave, stone hut, or near campfire) cuts trauma by 65% (`birthShelterInjuryMul` 0.35); unsheltered delivery in freezing cold exacerbates trauma by up to 1.5x (`birthColdInjuryMul`) and inflicts hypothermic trauma on the newborn.
+  - Mothers reaching full term with insufficient energy to deliver safely suffer delivery exhaustion: pregnancy terminates with partial trauma (`birthExhaustionInjury` 20.0) and stamina loss without live birth.
+  - Reused existing typed arrays (`people.pregnant`, `people.injury`, `people.energy`) with zero per-person tick allocations. Energy ledger balances exactly (`ledger.violations === 0`). Full off-switch parity with `birthHazardsEnabled: false`.
+- **Tests**: `tests/birth-hazards.test.ts` (pregnancy upkeep surcharge, starvation miscarriage, delivery trauma, shelter mitigation, cold exacerbation, failed delivery exhaustion, off switch parity, multi-generation ledger balance and save/restore determinism).
+- **Perf**: **4.66 µs / person / tick** at 12,240 people (desktop budget 15.0 µs).
+
 ## Mutable Fertility (branch `feat-mutable-fertility`)
 - **Done**: `Land.fertility` is now mutable Float32Array: degrades on overgrazing/stripping bare ground down to `fertilityMin` (0.05), improves via passive tending (tilled, seeded, healthy vegetated soil), composting spoiling food heaps, and active tending (seed dropping, tamping) up to `fertilityMax` (1.5). Saved in `LandState` snapshot and verified in `world.stateHash()`. Switch `fertilityChangeEnabled`.
 - **Tests**: `tests/fertility.test.ts` (overuse degradation, explicit seed enrichment, tamping, passive tending, off switch parity, save/restore exact stateHash round-trip).

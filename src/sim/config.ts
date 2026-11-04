@@ -280,6 +280,17 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   gestationTicks: 270, // 9 months
   matingRadius: 2,
 
+  // Childbirth hazards: physical trauma and metabolic demands of reproduction.
+  // Delivery inflicts physical injury (mitigated by shelters, exacerbated by cold).
+  // Gestation adds a metabolic surcharge; severe starvation triggers miscarriage.
+  birthHazardsEnabled: true,
+  pregnancyUpkeepMul: 1.25, // extra upkeep multiplier while pregnant (1.25 = +25% upkeep)
+  pregnancyMiscarriageEnergy: 15.0, // pregnancy terminates early if mother drops to or below this
+  birthInjury: 40.0, // baseline physical injury inflicted on mother at delivery
+  birthShelterInjuryMul: 0.35, // multiplier on birth injury in a shelter (cave, nest, hut, fire)
+  birthColdInjuryMul: 1.5, // multiplier on birth injury if unsheltered in freezing cold
+  birthExhaustionInjury: 20.0, // injury sustained if delivery fails due to severe exhaustion
+
   // Phase 3: Scent Fields, Genes, Habits & Rules
   scentDiffusionRate: 0.1,
   scentEvaporationRate: 0.02,

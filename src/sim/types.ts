@@ -323,6 +323,15 @@ export interface SimulationConfig {
   gestationTicks: number;
   matingRadius: number;
 
+  // Childbirth hazards
+  birthHazardsEnabled: boolean;
+  pregnancyUpkeepMul: number;
+  pregnancyMiscarriageEnergy: number;
+  birthInjury: number;
+  birthShelterInjuryMul: number;
+  birthColdInjuryMul: number;
+  birthExhaustionInjury: number;
+
   // Phase 3: Scent Fields, Genes, Habits & Rules
   scentDiffusionRate: number;
   scentEvaporationRate: number;
