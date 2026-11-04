@@ -550,3 +550,15 @@ Result with the adopted set, people vs cold off (700 founders):
 | mean | -3% | -6% | -9% | -10% |
 
 Seed 2 misses the 10% target at year 20. Winter shelter: 45% to 52% of person-ticks sheltered (10% to 18% in caves, rest at fires), 45 to 70 fires burning on average in winter, about 1200 to 1800 lit per 20 years. With fires off (cave-only shelter) population ends about 5% lower than with fires on (seed 1), so fires earn their place. Perf 4.3 us / person / tick at 13,680 people.
+
+## Phase 5f stone and dry-stone huts
+
+Target stated before measuring: huts exist and some persist by year 10; people within 5% of a building-off run; mean share of person-ticks on rock under 10%. First guess for every value was adopted (no sweep needed): `stoneCap` 30, `stoneBite` 1.0, `stoneCarryMax` 8, `stoneEnergy` 0.6, `buildGain` 4, `hutDurability` 60, `hutKeep` 20, `erosionSlices` 64, `hutUpkeep` 0.5.
+
+| Seed | People on vs off (y5 / y10 / y20) | Huts (y5 / y10 / y20) | On rock | In hut |
+|:--|:--|:--|--:|--:|
+| 1 | -3% / -4% / -3% | 21 / 36 / 75 | 7.4% | 3.0% |
+| 2 | +1% / +3% / +18% | 26 / 42 / 66 | 4.4% | 2.8% |
+| 3 | +1% / 0% / 0% | 15 / 30 / 47 | 2.7% | 2.4% |
+
+Perf 4.4 us / person / tick at about 13,700 people.

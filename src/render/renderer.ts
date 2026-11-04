@@ -928,6 +928,19 @@ export class CanvasRenderer {
       const fl = (flick + feats[i] * 7 + feats[i + 1] * 13) & 3;
       for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
         for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
+          if (kind >= 8 && kind < 12) {
+            // A dry-stone hut: a low round wall of grey stones with a dark doorway and a stone-slab roof.
+            if (!zoomedIn) { ctx.fillStyle = '#a49a90'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs)); ctx.fillStyle = '#2a2420'; ctx.fillRect(x0 + cs * 0.35, y0 + cs * 0.55, Math.max(1, cs * 0.3), Math.max(1, cs * 0.4)); continue; }
+            const lv = kind - 8;
+            ctx.fillStyle = '#5a524c'; ctx.fillRect(x0 + q(1.2), y0 + q(1.8), q(6.8), q(6.2)); // shadow
+            ctx.fillStyle = '#8f867d'; ctx.fillRect(x0 + q(0.6), y0 + q(1.2), q(6.6), q(6.2)); // wall
+            ctx.fillStyle = '#b6aca2'; ctx.fillRect(x0 + q(0.6), y0 + q(1.2), q(6.6), q(1)); ctx.fillRect(x0 + q(0.6), y0 + q(1.2), q(1), q(5.2));
+            ctx.fillStyle = '#6d655f'; ctx.fillRect(x0 + q(6.2), y0 + q(2), q(1), q(5.4)); ctx.fillRect(x0 + q(0.8), y0 + q(6.6), q(6.4), q(0.8));
+            ctx.fillStyle = lv >= 2 ? '#9c9187' : '#827a72'; ctx.fillRect(x0 + q(1.6), y0 + q(2.2), q(4.6), q(2.6)); // slab roof, thicker when sound
+            ctx.fillStyle = '#c4bcb4'; ctx.fillRect(x0 + q(1.6), y0 + q(2.2), q(4.6), q(0.5));
+            ctx.fillStyle = '#16110d'; ctx.fillRect(x0 + q(2.8), y0 + q(5), q(2.2), q(2.4)); // doorway
+            continue;
+          }
           if (kind >= 16) {
             // A cave seen from above: a rocky outcrop in the hillside (light from the north-west) with a
             // dark arched opening on the downhill face. The rock is drawn fixed; the opening turns to face `f`.

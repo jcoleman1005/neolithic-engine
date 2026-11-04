@@ -215,6 +215,21 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // coldComfort an unsheltered person pays extra upkeep, up to coldUpkeep x metabolism at full cold.
   // Shelter is a cave, a nest, or the warm radius of a fire. A cold, resting person on a big enough
   // brush heap lights it; it burns the brush down and warms a radius while it lasts.
+  // Phase 5f: stone and dry-stone huts. Well-fed people on rock (hill) tiles pick up stone, carry it
+  // to where people gather and set it down; each stone adds durability to that tile. At hutDurability
+  // the tile is a hut (shelter from the cold, cheaper upkeep). Durability erodes in a rotating slice
+  // of cells, so a hut nobody tops up falls back to rubble.
+  buildingEnabled: true,
+  stoneCap: 30.0, // stone on a rock tile (finite, does not regrow)
+  stoneBite: 1.0, // stone picked up per tick on rock
+  stoneCarryMax: 8.0,
+  stoneEnergy: 0.6, // picks up stone above this fraction of maxEnergy
+  buildGain: 4.0, // durability added per unit of stone set down
+  durabilityCap: 255, // most durability a tile holds
+  hutDurability: 60, // a tile at or above this is a hut ...
+  hutKeep: 20, // ... until erosion takes it below this
+  erosionSlices: 64, // each tile loses 1 durability once per this many ticks
+  hutUpkeep: 0.5, // upkeep multiplier for anyone standing in a hut
   coldEnabled: true,
   cavesEnabled: true,
   firesEnabled: true,

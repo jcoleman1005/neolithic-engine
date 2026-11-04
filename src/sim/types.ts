@@ -266,6 +266,17 @@ export interface SimulationConfig {
   nestKeepMass: number;
   nestKeepCompaction: number;
   nestUpkeep: number;
+  buildingEnabled: boolean;
+  stoneCap: number;
+  stoneBite: number;
+  stoneCarryMax: number;
+  stoneEnergy: number;
+  buildGain: number;
+  durabilityCap: number;
+  hutDurability: number;
+  hutKeep: number;
+  erosionSlices: number;
+  hutUpkeep: number;
   coldEnabled: boolean;
   cavesEnabled: boolean;
   firesEnabled: boolean;

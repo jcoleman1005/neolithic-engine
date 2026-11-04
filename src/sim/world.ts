@@ -483,6 +483,9 @@ export class World {
     h.updateFloatArray(land.stumpAge);
     h.updateIntArray(land.cleared);
     h.updateIntArray(land.fire);
+    h.updateFloatArray(land.stone);
+    h.updateIntArray(land.durability);
+    h.updateIntArray(land.structure);
     h.updateFloatArray(land.berries);
     h.updateIntArray(land.isWater);
 

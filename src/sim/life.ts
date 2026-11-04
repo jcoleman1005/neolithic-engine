@@ -1,6 +1,6 @@
 import type { SimulationConfig } from './types';
 import { seasonGrowthFactor, yearPhase } from './seasons';
-import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH } from './people';
+import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE } from './people';
 import { FORM_NEST } from './land';
 import {
   type People,
@@ -48,6 +48,7 @@ export class LifeSystem {
     land.refreshWarmth(config);
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
+    if (config.buildingEnabled !== false) land.erode(tick, config);
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
     const diffInterval = config.scentDiffusionInterval ?? 4;
@@ -80,6 +81,7 @@ export class LifeSystem {
     const metabolism = config.metabolismCost ?? 0.25;
     const nestsOn = config.nestsEnabled !== false;
     const nestUpkeep = config.nestUpkeep ?? 0.7;
+    const hutUpkeepMul = config.hutUpkeep ?? 0.5;
     const coldUpkeep = config.coldUpkeep ?? 0.6;
     const igniteBrush = config.fireIgniteBrush ?? 6;
     const igniteChance = config.fireIgniteChance ?? 0.2;
@@ -112,7 +114,9 @@ export class LifeSystem {
 
       age[slot]++;
       // Standing in a nest is warmer and drier: upkeep is lower.
-      const upkeep = nestsOn && land.form[(py[slot] << 8) | px[slot]] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
+      const upCell = (py[slot] << 8) | px[slot];
+      const upkeep = land.structure[upCell] === 1 ? metabolism * hutUpkeepMul
+        : nestsOn && land.form[upCell] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
       energy[slot] -= upkeep;
       ledger.upkeep += upkeep;
       if (coldOn) {
@@ -178,6 +182,10 @@ export class LifeSystem {
     const brushAbove = (config.brushEnergy ?? 0.6) * maxEnergy;
     const brushBite = config.brushBite ?? 1.0;
     const brushCarryMax = config.brushCarryMax ?? 10.0;
+    const buildOn = config.buildingEnabled !== false && stockOn;
+    const stoneAbove = (config.stoneEnergy ?? 0.6) * maxEnergy;
+    const stoneBite = config.stoneBite ?? 1.0;
+    const stoneCarryMax = config.stoneCarryMax ?? 8.0;
     // Meat is a food heap, so hunting needs the stockpile mechanics on.
     const huntOn = !!herds && config.huntingEnabled !== false && config.herdsEnabled !== false && config.stockpilesEnabled !== false;
     const huntBelow = (config.huntBelow ?? 0.6) * maxEnergy;
@@ -256,7 +264,7 @@ export class LifeSystem {
           ledger.plantMeal += eaten;
         }
       }
-      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCarryMax && carryKind[slot] !== CARRY_BRUSH) {
+      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCarryMax && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
         // Well fed and standing on plenty: gather a little surplus to carry. Hands are full of
         // one thing at a time, so any seeds are set down on the spot first.
         const cell = (py[slot] << 8) | px[slot];
@@ -275,7 +283,7 @@ export class LifeSystem {
       }
       if (
         nestsOn && stockOn && energy[slot] >= brushAbove && people.carry[slot] < brushCarryMax &&
-        land.wooded[(py[slot] << 8) | px[slot]] === 1 && carryKind[slot] !== CARRY_FOOD
+        land.wooded[(py[slot] << 8) | px[slot]] === 1 && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_STONE
       ) {
         // Well fed and passing through woodland: pick up brush. Hands hold one thing at a time,
         // so any seeds are set down first.
@@ -288,6 +296,17 @@ export class LifeSystem {
           const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
           people.carry[slot] = Math.min(brushCarryMax, have + cut);
           carryKind[slot] = CARRY_BRUSH;
+        }
+      }
+      if (
+        buildOn && energy[slot] >= stoneAbove && people.carry[slot] < stoneCarryMax &&
+        land.stone[(py[slot] << 8) | px[slot]] > 0 && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_STONE || people.carry[slot] <= 0)
+      ) {
+        // Well fed and standing on rock: pick up stone (hands hold one thing, so nothing else is carried).
+        const got = land.quarry(px[slot], py[slot], Math.min(stoneBite, stoneCarryMax - (carryKind[slot] === CARRY_STONE ? people.carry[slot] : 0)));
+        if (got > 0) {
+          people.carry[slot] = (carryKind[slot] === CARRY_STONE ? people.carry[slot] : 0) + got;
+          carryKind[slot] = CARRY_STONE;
         }
       }
     }
@@ -317,6 +336,15 @@ export class LifeSystem {
         // Brush is carried out of the woods to where people gather, never unloaded among the trees.
         if (land.wooded[c] === 0 && spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
           land.dropBrush(px[slot], py[slot], people.carry[slot], config);
+          people.carry[slot] = 0;
+          carryKind[slot] = CARRY_NONE;
+        }
+      }
+      // A carrier resting where people congregate (off the rock) sets the stone down: it builds that tile up.
+      if (buildOn && dir === 4 && carryKind[slot] === CARRY_STONE && people.carry[slot] > 0) {
+        const c = (py[slot] << 8) | px[slot];
+        if (land.stone[c] <= 0 && spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
+          land.build(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;
         }
@@ -358,6 +386,7 @@ export class LifeSystem {
           const stepCost =
             carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / foodCarryMax)
             : carryKind[slot] === CARRY_BRUSH ? moveCost * (1 + carryDrag * people.carry[slot] / brushCarryMax)
+            : carryKind[slot] === CARRY_STONE ? moveCost * (1 + carryDrag * people.carry[slot] / stoneCarryMax)
             : moveCost;
           energy[slot] -= stepCost;
           ledger.move += stepCost;

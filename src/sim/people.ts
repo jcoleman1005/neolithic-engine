@@ -25,6 +25,7 @@ export const CARRY_NONE = 0;
 export const CARRY_SEED = 1;
 export const CARRY_FOOD = 2;
 export const CARRY_BRUSH = 3;
+export const CARRY_STONE = 4;
 
 export const HABIT_COUNT = 8;
 
