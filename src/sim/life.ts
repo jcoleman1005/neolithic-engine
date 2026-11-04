@@ -1,6 +1,7 @@
 import type { SimulationConfig } from './types';
 import { seasonGrowthFactor, yearPhase } from './seasons';
 import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE } from './people';
+import { stageWork, GENE_STRENGTH } from './people';
 import { FORM_NEST } from './land';
 import {
   type People,
@@ -90,6 +91,27 @@ export class LifeSystem {
     const healAbove = (config.injuryHealEnergy ?? 0.5) * (config.maxEnergy ?? 100);
     const injuryHeal = config.injuryHeal ?? 0.3;
     const graveTicks = config.graveTicks ?? 150;
+    const stagesOn = config.stagesEnabled !== false;
+    const childWork = config.childWork ?? 0.6;
+    const elderWork = config.elderWork ?? 0.8;
+    const strengthCarry = config.strengthCarry ?? 0.6;
+    const careOn = config.childcareEnabled !== false;
+    const childCare = config.childCare ?? 0.05;
+    const careRadius = config.careRadius ?? 4;
+    const fatigueOn = config.fatigueEnabled !== false;
+    const fatigueMove = config.fatigueMove ?? 2;
+    const fatigueRest = config.fatigueRest ?? 6;
+    const fatigueUpkeep = config.fatigueUpkeep ?? 0.3;
+    const fatigueSlow = config.fatigueSlow ?? 0.3;
+    const diseaseOn = config.diseaseEnabled !== false;
+    const sickBase = config.sickBase ?? 0.00002;
+    const sickTicks = config.sickTicks ?? 120;
+    const sickUpkeep = config.sickUpkeep ?? 0.8;
+    const sickFedHeal = config.sickFedHeal ?? 1;
+    const fatigue = people.fatigue;
+    const sick = people.sick;
+    const genes = people.genes;
+    const elderAge = Math.floor((config.maxAge ?? 21600) * 0.75);
     const injury = people.injury;
     const igniteBrush = config.fireIgniteBrush ?? 6;
     const igniteChance = config.fireIgniteChance ?? 0.2;
@@ -142,6 +164,48 @@ export class LifeSystem {
         ledger.upkeep += extra;
         if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
       }
+      if (fatigueOn && fatigue[slot] > 0) {
+        const extra = metabolism * fatigueUpkeep * (fatigue[slot] / 255);
+        energy[slot] -= extra;
+        ledger.upkeep += extra;
+      }
+      if (diseaseOn) {
+        if (sick[slot] > 0) {
+          const extra = metabolism * sickUpkeep;
+          energy[slot] -= extra;
+          ledger.upkeep += extra;
+          const heal = 1 + (energy[slot] >= healAbove ? sickFedHeal : 0);
+          sick[slot] = sick[slot] > heal ? sick[slot] - heal : 0;
+        } else {
+          // Falls ill with no contact now and then (a hash of tick and slot: no random draw), more in the cold.
+          const hs = (Math.imul(tick + 13, 3266489917) ^ Math.imul(slot + 1, 2654435761)) >>> 0;
+          const cold = coldOn ? land.coldAt((py[slot] << 8) | px[slot]) : 0;
+          if (hs / 4294967296 < sickBase * (1 + cold)) sick[slot] = sickTicks;
+        }
+      }
+      if (careOn && age[slot] < adultAge && motherId[slot] !== 0) {
+        // A young child costs its mother, shared with her mate, while they are close.
+        const mom = slotFromId(motherId[slot]);
+        if (mom < cap && alive[mom] === 1 && people.idOf(mom) === motherId[slot]) {
+          const ddx = Math.abs(px[mom] - px[slot]);
+          const ddy = Math.abs(py[mom] - py[slot]);
+          if ((ddx < 128 ? ddx : 256 - ddx) <= careRadius && (ddy < 128 ? ddy : 256 - ddy) <= careRadius) {
+            let share = childCare;
+            const dad = mateId[mom] !== 0 ? slotFromId(mateId[mom]) : -1;
+            if (dad >= 0 && dad < cap && alive[dad] === 1 && people.idOf(dad) === mateId[mom]) {
+              const ex = Math.abs(px[dad] - px[slot]);
+              const ey = Math.abs(py[dad] - py[slot]);
+              if ((ex < 128 ? ex : 256 - ex) <= careRadius && (ey < 128 ? ey : 256 - ey) <= careRadius) {
+                share = childCare * 0.5;
+                energy[dad] -= share;
+                ledger.upkeep += share;
+              }
+            }
+            energy[mom] -= share;
+            ledger.upkeep += share;
+          }
+        }
+      }
       if (thirstOn) {
         let h = hydration[slot] - thirstRate;
         if (land.waterDist[(py[slot] << 8) | px[slot]] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
@@ -163,7 +227,7 @@ export class LifeSystem {
           ledger.overdraft += -energy[slot];
         }
         fields.depositDanger(px[slot], py[slot], dangerDeath);
-        if (injury[slot] > 0) land.markDeath(px[slot], py[slot], graveTicks);
+        if (injury[slot] > 0 || sick[slot] > 0) land.markDeath(px[slot], py[slot], graveTicks);
         people.kill(slot);
         continue;
       }
@@ -215,9 +279,17 @@ export class LifeSystem {
     const dropCrowd = config.dropCrowd ?? 3;
     const dropWhenFull = config.dropWhenFull ?? false;
     const carryDrag = config.carryDrag ?? 0.5;
+    const bodyMul = (slot: number): number =>
+      (stagesOn ? stageWork(age[slot], adultAge, elderAge, childWork, elderWork) : 1) *
+      (1 + strengthCarry * (genes[slot * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5));
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
 
+      const cm = bodyMul(slot);
+      const fb = forageBite * cm;
+      const foodCap = foodCarryMax * cm;
+      const brushCap = brushCarryMax * cm;
+      const stoneCap = stoneCarryMax * cm;
       const curE = energy[slot];
       if (curE < maxEnergy) {
         let eaten = 0;
@@ -236,19 +308,19 @@ export class LifeSystem {
             eaten += land.takePile(px[slot], py[slot], Math.min(pileEatBite, maxEnergy - curE - eaten));
           }
         }
-        if (eaten < Math.min(forageBite, maxEnergy - curE)) {
-          eaten += land.graze(px[slot], py[slot], Math.min(forageBite, maxEnergy - curE) - eaten, config, people.prevDir[slot] === 4);
+        if (eaten < Math.min(fb, maxEnergy - curE)) {
+          eaten += land.graze(px[slot], py[slot], Math.min(fb, maxEnergy - curE) - eaten, config, people.prevDir[slot] === 4);
           if (eaten > 0 && farmOn && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_BRUSH) {
             const c = people.carry[slot] + seedPickup;
             people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
             carryKind[slot] = CARRY_SEED;
           }
         }
-        if (finiteOn && eaten < Math.min(forageBite, maxEnergy - curE) && curE < berryBelow) {
+        if (finiteOn && eaten < Math.min(fb, maxEnergy - curE) && curE < berryBelow) {
           // Grazing fell short: top the meal up with wild berries.
           eaten += land.pickBerries(px[slot], py[slot], Math.min(berryBite, maxEnergy - curE - eaten));
         }
-        if (finiteOn && eaten < Math.min(forageBite, maxEnergy - curE) && curE < fishBelow) {
+        if (finiteOn && eaten < Math.min(fb, maxEnergy - curE) && curE < fishBelow) {
           // Still hungry beside water: take a little fish from the shore.
           eaten += land.catchFish(px[slot], py[slot], Math.min(fishBite, maxEnergy - curE - eaten));
         }
@@ -279,7 +351,7 @@ export class LifeSystem {
           ledger.plantMeal += eaten;
         }
       }
-      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCarryMax && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
+      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCap && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
         // Well fed and standing on plenty: gather a little surplus to carry. Hands are full of
         // one thing at a time, so any seeds are set down on the spot first.
         const cell = (py[slot] << 8) | px[slot];
@@ -289,7 +361,7 @@ export class LifeSystem {
             people.carry[slot] = 0;
             carryKind[slot] = CARRY_NONE;
           }
-          const got = land.graze(px[slot], py[slot], Math.min(foodBite, foodCarryMax - people.carry[slot]), config, false);
+          const got = land.graze(px[slot], py[slot], Math.min(foodBite * cm, foodCap - people.carry[slot]), config, false);
           if (got > 0) {
             people.carry[slot] += got;
             carryKind[slot] = CARRY_FOOD;
@@ -297,7 +369,7 @@ export class LifeSystem {
         }
       }
       if (
-        nestsOn && stockOn && energy[slot] >= brushAbove && people.carry[slot] < brushCarryMax &&
+        nestsOn && stockOn && energy[slot] >= brushAbove && people.carry[slot] < brushCap &&
         land.wooded[(py[slot] << 8) | px[slot]] === 1 && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_STONE
       ) {
         // Well fed and passing through woodland: pick up brush. Hands hold one thing at a time,
@@ -309,16 +381,16 @@ export class LifeSystem {
         const cut = land.cutBrush(px[slot], py[slot], brushBite, config);
         if (cut > 0) {
           const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
-          people.carry[slot] = Math.min(brushCarryMax, have + cut);
+          people.carry[slot] = Math.min(brushCap, have + cut);
           carryKind[slot] = CARRY_BRUSH;
         }
       }
       if (
-        buildOn && energy[slot] >= stoneAbove && people.carry[slot] < stoneCarryMax &&
+        buildOn && energy[slot] >= stoneAbove && people.carry[slot] < stoneCap &&
         land.stone[(py[slot] << 8) | px[slot]] > 0 && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_STONE || people.carry[slot] <= 0)
       ) {
         // Well fed and standing on rock: pick up stone (hands hold one thing, so nothing else is carried).
-        const got = land.quarry(px[slot], py[slot], Math.min(stoneBite, stoneCarryMax - (carryKind[slot] === CARRY_STONE ? people.carry[slot] : 0)));
+        const got = land.quarry(px[slot], py[slot], Math.min(stoneBite * cm, stoneCap - (carryKind[slot] === CARRY_STONE ? people.carry[slot] : 0)));
         if (got > 0) {
           people.carry[slot] = (carryKind[slot] === CARRY_STONE ? people.carry[slot] : 0) + got;
           carryKind[slot] = CARRY_STONE;
@@ -383,6 +455,15 @@ export class LifeSystem {
         }
       }
 
+      // A tired person loses some steps too, and standing still rests them.
+      if (fatigueOn) {
+        if (dir === 4) {
+          fatigue[slot] = fatigue[slot] > fatigueRest ? fatigue[slot] - fatigueRest : 0;
+        } else {
+          const hf = (Math.imul(tick + 11, 668265263) ^ Math.imul(slot + 1, 374761393)) >>> 0;
+          if (hf / 4294967296 < fatigueSlow * (fatigue[slot] / 255)) dir = 4;
+        }
+      }
       // A wounded person loses some steps (a hash of tick and slot: no random draw).
       if (injuryOn && dir < 4 && injury[slot] > 0) {
         const hs = (Math.imul(tick + 7, 2246822519) ^ Math.imul(slot + 1, 3266489917)) >>> 0;
@@ -404,19 +485,20 @@ export class LifeSystem {
           py[slot] = ny;
           // Carrying food is heavy: the more carried, the dearer each step.
           const stepCost =
-            carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / foodCarryMax)
-            : carryKind[slot] === CARRY_BRUSH ? moveCost * (1 + carryDrag * people.carry[slot] / brushCarryMax)
-            : carryKind[slot] === CARRY_STONE ? moveCost * (1 + carryDrag * people.carry[slot] / stoneCarryMax)
+            carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / (foodCarryMax * bodyMul(slot)))
+            : carryKind[slot] === CARRY_BRUSH ? moveCost * (1 + carryDrag * people.carry[slot] / (brushCarryMax * bodyMul(slot)))
+            : carryKind[slot] === CARRY_STONE ? moveCost * (1 + carryDrag * people.carry[slot] / (stoneCarryMax * bodyMul(slot)))
             : moveCost;
           energy[slot] -= stepCost;
           ledger.move += stepCost;
+          if (fatigueOn) fatigue[slot] = fatigue[slot] + fatigueMove > 255 ? 255 : fatigue[slot] + fatigueMove;
 
           if (energy[slot] <= 0) {
             if (energy[slot] < 0) {
               ledger.overdraft += -energy[slot];
             }
             fields.depositDanger(nx, ny, dangerDeath);
-            if (injury[slot] > 0) land.markDeath(nx, ny, graveTicks);
+            if (injury[slot] > 0 || sick[slot] > 0) land.markDeath(nx, ny, graveTicks);
             people.kill(slot);
             continue;
           }

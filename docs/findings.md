@@ -586,3 +586,16 @@ Result with the adopted set, people vs injury off:
 | 3 | -12% | -16% | about 53 | 40 |
 
 Injury off: 0 to 9 violent deaths a year. Wolves now persist on all three seeds (they died out by year 9 on seed 1 before).
+
+## Phase 5g bodies (stages, childcare, fatigue, disease)
+Targets set before running: at year 9 population within 10 to 25% below the all-switches-off run, peak sick share 2 to 15%, no seed dying out; stop at the first passing set. First set passed on seeds 1 to 3.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| childWork / elderWork | n/a | 0.6 / 0.8 | weaker young and old |
+| strengthCarry | n/a | 0.6 | carry and work scale with strength |
+| childCare, careRadius | n/a | 0.05, 4 | mother (and mate) pay while child is near |
+| fatigueMove / Rest / Upkeep / Slow | n/a | 2 / 6 / 0.3 / 0.3 | mean fatigue about 80 to 140 of 255 |
+| sickSpread / sickBase / sickTicks / sickUpkeep / sickFedHeal | n/a | 0.03 / 0.00002 / 120 / 0.8 / 1 | endemic 1 to 3% sick, peaks 3 to 5% |
+
+Result (all on vs all off, seeds 1 to 3, year 9): people -13%, -12%, -18%; peak sick 3.2%, 3.9%, 4.6%. Perf 5.6 µs. Disease is endemic rather than epidemic at these values; sharper outbreaks would need a higher `sickSpread` or a crowding term, left to the tuning pass.

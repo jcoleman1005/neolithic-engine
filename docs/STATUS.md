@@ -39,6 +39,9 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 ## 3/4 oblique art (on `phase-5f-structures`)
 - An art agent redrew the objects (trees, stumps, caves, fires, nests, granaries, heaps, people, herds, wolves, carcasses) as 3/4 oblique sprites with back-to-front draw order; terrain stays flat. I added the oblique hut and grave sprites. Viewer only, no sim change. Verified with a software-canvas preview, not yet in a real browser: check tap-select feel (people feet moved half a tile), sprite scaling at cell sizes 10, 12 and 20, and frame time with big forests (per-frame sort). The same patch is still uncommitted in the main checkout's `art-oblique` working tree; discard it there once this branch merges.
 
+## Phase 5g bodies (branch `phase-5g-bodies`, off `main`)
+- Primitives 24, 25, 28, 19, 23. Life stages (children 0.6, elders 0.8 of adult work: forage bite, carry caps, clash strength); strength gene scales carry and work; childcare (a child under adult age costs its mother, split with a mate beside them); fatigue (steps raise it, standing still clears it; costs upkeep and lost steps); disease (touch spread, hashed spontaneous onset, upkeep drain, fed people recover faster). New per-person `fatigue` and `sick` Uint8 arrays through grow/spawn/kill/export/hash. Deaths with sickness leave grave marks. No viewer tint for the sick (the look byte has no free bit); outbreaks show as grave marks and population dips. Not yet watched in a browser (rule 13). Perf 5.6 µs/person/tick at 11.9k people. Old saves load with zeroed arrays.
+
 ## Next Steps
 1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
 2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.

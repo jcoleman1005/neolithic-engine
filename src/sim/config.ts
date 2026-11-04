@@ -233,6 +233,30 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite
   graveTicks: 150, // how long a fresh grave mark stays visible
+  // Bodies (5g). Life stages: children and elders give less work (forage bite, carry, clash
+  // strength). Strength gene scales carrying. Childcare: a child under adultAge costs its
+  // mother (split with a mate beside them) childCare energy a tick while within careRadius.
+  // Fatigue: steps add, standing still clears; at full fatigue upkeep rises by fatigueUpkeep x
+  // metabolism and fatigueSlow of steps are lost. Disease: a sick person spreads it by touch
+  // (sickSpread), pays sickUpkeep x metabolism, and recovers after sickTicks (faster when fed).
+  stagesEnabled: true,
+  childWork: 0.6,
+  elderWork: 0.8,
+  strengthCarry: 0.6, // carry/work multiplier is 1 + this x (strength/255 - 0.5)
+  childcareEnabled: true,
+  childCare: 0.05,
+  careRadius: 4,
+  fatigueEnabled: true,
+  fatigueMove: 2,
+  fatigueRest: 6,
+  fatigueUpkeep: 0.3,
+  fatigueSlow: 0.3,
+  diseaseEnabled: true,
+  sickSpread: 0.03, // chance a touch passes it on
+  sickBase: 0.00002, // per-tick chance of falling ill with no contact, x (1 + cold)
+  sickTicks: 120,
+  sickUpkeep: 0.8,
+  sickFedHeal: 1, // extra ticks of recovery per tick while fed
   buildingEnabled: true,
   stoneCap: 30.0, // stone on a rock tile (finite, does not regrow)
   stoneBite: 1.0, // stone picked up per tick on rock

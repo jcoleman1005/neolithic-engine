@@ -436,6 +436,8 @@ export class World {
         h.updateInt(people.carryKind[slot]);
         h.updateFloat(people.hydration[slot]);
         h.updateFloat(people.injury[slot]);
+        h.updateInt(people.fatigue[slot]);
+        h.updateInt(people.sick[slot]);
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;
