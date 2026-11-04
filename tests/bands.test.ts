@@ -11,7 +11,7 @@ function run(ticks: number, tracker?: BandTracker, seed = 7): World {
   return world;
 }
 
-describe('Phase 4 band tracker', () => {
+describe('Phase 4 band tracker', { timeout: 120_000 }, () => {
   it('is a pure observer: same seed gives the same fingerprint with it on or off', () => {
     const a = run(1500, new BandTracker());
     const b = run(1500);

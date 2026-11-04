@@ -82,6 +82,16 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   soilWearRate: 0.0012, // soil health lost per bite that strips a cell
   soilRecoveryRate: 0.0015, // per tick, fraction of the missing health regained when not stripped
   soilMin: 0.2, // soil health never drops below this
+  // Mutable fertility: soil fertility improves with tending (passive tilled+seeded cover,
+  // explicit seed drops, tamping, compost) and degrades with overuse (repeated stripping/overgrazing).
+  fertilityChangeEnabled: true,
+  fertilityMin: 0.05, // lowest possible fertility (matches world elevation floor)
+  fertilityMax: 1.5, // rich horticultural / terra preta ceiling
+  fertilityDegradeRate: 0.0005, // fertility lost per bite that strips a cell
+  fertilityPassiveGain: 0.00005, // per tick on tilled, seeded, healthy cells
+  fertilityActionGain: 0.002, // fertility gain per full seed drop action
+  fertilityTampGain: 0.0008, // fertility gain per tamp action
+  fertilityCompostGain: 0.0005, // fertility gain when food heaps spoil into soil
   // Phase 5c: stigmergic stockpiles and building. Well-fed people gather surplus food, drop it
   // where people congregate, eat from it when hungry, and idle fed people tamp it down; a heap
   // that is big and compacted enough becomes a granary floor (see docs/findings.md).
