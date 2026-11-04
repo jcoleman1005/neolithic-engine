@@ -168,15 +168,23 @@ export class Wolves {
       for (let k = 1; k < 5 && !struck; k++) {
         const c = (nbY[k] << 8) | nbX[k];
         if (here[c] === 1 && prng.next() < attackChance && this.isAlone(nbX[k], nbY[k], loneR)) {
-          // A lone person (nobody else on that tile or the wolf's): find them and take them down.
+          // A lone person (nobody else on that tile or the wolf's): the wolf bites. The bite takes energy
+          // and wounds; a person with nothing left falls, otherwise they get away hurt and may bleed out.
           for (let s = 0; s < people.capacity; s++) {
             if (palive[s] === 1 && px[s] === nbX[k] && py[s] === nbY[k]) {
-              ledger.deathFat += people.energy[s];
+              const bite = Math.min(people.energy[s], config.wolfBiteEnergy ?? 25);
+              people.energy[s] -= bite;
+              ledger.deathFat += bite;
+              if (config.injuryEnabled !== false) people.injury[s] = Math.min(255, people.injury[s] + (config.wolfInjury ?? 150));
+              e = Math.min(maxE, e + bite);
               fields.depositDanger(nbX[k], nbY[k], dangerDeath);
-              people.kill(s);
-              here[c] = 0;
-              e = Math.min(maxE, e + (config.wolfPersonMeal ?? 20));
-              this.killedPeople++;
+              if (people.energy[s] <= 0) {
+                land.markDeath(nbX[k], nbY[k], config.graveTicks ?? 150);
+                people.kill(s);
+                here[c] = 0;
+                e = Math.min(maxE, e + (config.wolfPersonMeal ?? 20));
+                this.killedPeople++;
+              }
               struck = true;
               break;
             }

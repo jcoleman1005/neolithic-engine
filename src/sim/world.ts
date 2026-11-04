@@ -435,6 +435,7 @@ export class World {
         h.updateFloat(people.carry[slot]);
         h.updateInt(people.carryKind[slot]);
         h.updateFloat(people.hydration[slot]);
+        h.updateFloat(people.injury[slot]);
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;
@@ -483,6 +484,9 @@ export class World {
     h.updateFloatArray(land.stumpAge);
     h.updateIntArray(land.cleared);
     h.updateIntArray(land.fire);
+    h.updateFloatArray(land.stone);
+    h.updateIntArray(land.durability);
+    h.updateIntArray(land.structure);
     h.updateFloatArray(land.berries);
     h.updateIntArray(land.isWater);
 

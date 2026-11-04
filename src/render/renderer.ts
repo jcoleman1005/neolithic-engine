@@ -12,6 +12,7 @@ import {
   createWorldBoxSpriteAtlas,
   hexToABGR,
   type SpriteAtlas,
+  type SpriteRect,
   type SpriteKey,
 } from './sprites';
 
@@ -41,6 +42,21 @@ const COLOR_FIELD = 0xff64be78; // rgb(120, 190, 100), open meadow where a stand
 const COLOR_FISH_RGB = 0xf0f0d8; // pale silver, a faint glint on fished water
 const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
+
+// Oblique object pass: light from the north-west, soft shadow to the south-east.
+const SHADOW = 'rgba(26, 18, 8, 0.30)';
+const THATCH_LIT = ['#d9b45a', '#c9a24c'];
+const THATCH_SHADE = ['#a07c38', '#8a6a2c'];
+// Where a stump may stand inside its tile (art-pixels, top-left of the drum)
+const STUMP_SPOTS: readonly (readonly [number, number])[] = [[1, 1.5], [4.5, 0.8], [2.5, 4.6], [5.6, 4.2], [0.8, 5.8]];
+// Drawable kinds
+const D_TREE = 1, D_STUMPS = 2, D_STRUCT = 3, D_FISH = 4, D_CAVE = 5, D_GLOW = 6, D_FIRE = 7;
+const D_CARCASS = 8, D_WOLF = 9, D_DEER = 10, D_PERSON = 11, D_HUT = 12, D_GRAVE = 13;
+// Sort keys: screen y of an object's base, biased positive and packed with its index so ties keep the order collected
+const GROUND_KEY = -50000; // flat ground marks sort before everything standing
+const KEY_BIAS = 65536;
+const KEY_STRIDE = 1048576; // 2^20 drawables at most
+const MAX_DRAWABLES = KEY_STRIDE - 1;
 
 // WorldBox Terrain 32-bit ABGR Palette
 const COLOR_DEEP_WATER = hexToABGR('#154273');
@@ -162,6 +178,23 @@ export class CanvasRenderer {
   private readonly bandSizes = new Map<number, number>();
   public colorMode: ColorMode = 'status';
 
+  // Oblique object pass: drawables are collected into preallocated typed arrays and sorted by base y
+  private dCap = 16384;
+  private dCount = 0;
+  private dKind = new Uint8Array(16384);
+  private dX = new Int32Array(16384);
+  private dY = new Int32Array(16384);
+  private dA = new Int32Array(16384);
+  private dB = new Int32Array(16384);
+  private dKeys = new Float64Array(16384);
+  private ap = 1; // one art-pixel in screen pixels (cellSize / 8)
+  private flick = 0;
+  private hasSel = false;
+  private selX = 0;
+  private selY = 0;
+  private readonly personSprites: SpriteRect[] = [];
+  private readonly treeSprites: SpriteRect[] = [];
+
   private lastFrameTime = 0;
   private frameInterval = 333; // ms between sim frames
 
@@ -209,6 +242,14 @@ export class CanvasRenderer {
 
     // Generate procedural sprite atlas once
     this.atlas = createWorldBoxSpriteAtlas();
+    for (const type of ['male', 'female', 'pregnant', 'child', 'elder', 'starving']) {
+      for (const frame of ['idle', 'walk_0', 'walk_1']) {
+        this.personSprites.push(this.atlas.getSprite(`person_${type}_${frame}` as SpriteKey));
+      }
+    }
+    for (const key of ['tree_oak', 'tree_pine', 'tree_fruit'] as const) {
+      this.treeSprites.push(this.atlas.getSprite(key));
+    }
 
     // Initialize 256x256 1 px/cell terrain canvas
     this.terrainCanvas = document.createElement('canvas');
@@ -671,21 +712,16 @@ export class CanvasRenderer {
       }
     }
 
-    // 4. Render Forest Trees when zoomed in
+    // 4. Objects. Zoomed in: oblique sprites, collected, sorted by row and painted back to front.
+    //    Zoomed out: flat dots and pixels, as before.
     const isZoomedIn = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
     if (isZoomedIn) {
-      this.renderTrees(width, height, w, h);
+      this.renderObjects(width, height, w, h);
+    } else {
+      this.renderPeopleFlat(width, height, w, h);
+      this.renderFeaturesFlat(width, height, w, h);
+      this.renderHerdsFlat(width, height, w, h);
     }
-
-    // 4b. Heaps and granary floors as little pixel-art mounds and plank floors
-    if (isZoomedIn) {
-      this.renderStructures(width, height, w, h);
-    }
-
-    // 5. Render People (Direct ImageData blit zoomed out; Stick-figure sprites zoomed in)
-    this.renderPeople(width, height, w, h, isZoomedIn);
-    this.renderFeatures(width, height, w, h, isZoomedIn);
-    this.renderHerds(width, height, w, h, isZoomedIn);
 
     this.ctx.restore();
   }
@@ -861,61 +897,624 @@ export class CanvasRenderer {
     this.lastElevationRef = elevation;
   }
 
-  /**
-   * Draws small tree sprites on visible forest cells when zoomed in.
-   */
-  private renderTrees(
-    screenWidth: number,
-    screenHeight: number,
-    worldW: number,
-    worldH: number
-  ): void {
-    const cellSize = this.cellSize;
-    const minCellX = Math.floor(-this.panX / cellSize) - 1;
-    const maxCellX = Math.ceil((screenWidth - this.panX) / cellSize) + 1;
-    const minCellY = Math.floor(-this.panY / cellSize) - 1;
-    const maxCellY = Math.ceil((screenHeight - this.panY) / cellSize) + 1;
+  // ---------------------------------------------------------------------------------------------
+  // Oblique (3/4 top-down) objects, zoomed in.
+  //
+  // Every object that stands on the land (trees, stumps, caves, fires, nests, heaps, granaries,
+  // animals, carcasses, people) is first collected as a small record in preallocated typed arrays,
+  // then sorted by the screen y of its base and painted back to front, so a tall object overlaps the
+  // tiles behind it and is overlapped by whatever stands in front. Ground marks (fish glints, the
+  // warm glow of a fire) get a very low key and are painted first. Nothing here touches the sim.
+  // ---------------------------------------------------------------------------------------------
 
-    const scale = Math.max(1, Math.floor(cellSize / 10));
+  private ensureDrawables(n: number): boolean {
+    if (n <= this.dCap) return true;
+    if (n > MAX_DRAWABLES) return false;
+    let cap = this.dCap;
+    while (cap < n) cap *= 2;
+    cap = Math.min(cap, MAX_DRAWABLES);
+    const kind = new Uint8Array(cap); kind.set(this.dKind);
+    const x = new Int32Array(cap); x.set(this.dX);
+    const y = new Int32Array(cap); y.set(this.dY);
+    const a = new Int32Array(cap); a.set(this.dA);
+    const b = new Int32Array(cap); b.set(this.dB);
+    this.dKind = kind; this.dX = x; this.dY = y; this.dA = a; this.dB = b;
+    this.dKeys = new Float64Array(cap);
+    this.dCap = cap;
+    return true;
+  }
+
+  /** Adds one drawable; `keyDy` is the base line below `y` (or an absolute key when very negative). */
+  private push(kind: number, x: number, y: number, a: number, b: number, keyDy: number): void {
+    const n = this.dCount;
+    if (n >= this.dCap && !this.ensureDrawables(n + 1)) return;
+    this.dKind[n] = kind;
+    this.dX[n] = x;
+    this.dY[n] = y;
+    this.dA[n] = a;
+    this.dB[n] = b;
+    const keyY = keyDy <= GROUND_KEY ? GROUND_KEY : y + keyDy;
+    this.dKeys[n] = (keyY + KEY_BIAS) * KEY_STRIDE + n;
+    this.dCount = n + 1;
+  }
+
+  /** Pushes every on-screen copy of a world-space spot given in screen pixels (wrapped world). */
+  private emitAt(
+    kind: number, px: number, py: number, a: number, b: number, keyDy: number,
+    screenW: number, screenH: number, worldPxW: number, worldPxH: number
+  ): void {
+    const cs = this.cellSize;
+    let sx = px;
+    while (sx > -cs) sx -= worldPxW;
+    while (sx < -cs) sx += worldPxW;
+    let sy = py;
+    while (sy > -2 * cs) sy -= worldPxH;
+    while (sy < -2 * cs) sy += worldPxH;
+    for (let x0 = sx; x0 < screenW + cs; x0 += worldPxW) {
+      for (let y0 = sy; y0 < screenH + cs; y0 += worldPxH) {
+        this.push(kind, x0, y0, a, b, keyDy);
+      }
+    }
+  }
+
+  /** Collects everything and paints it back to front. Called only when zoomed in. */
+  private renderObjects(screenW: number, screenH: number, worldW: number, worldH: number): void {
+    this.dCount = 0;
+    const cs = this.cellSize;
+    this.ap = cs / 8;
+    const q = (v: number): number => Math.round(v * this.ap);
+    this.flick = Math.floor(performance.now() / 120);
+    this.hasSel = false;
+    const worldPxW = worldW * cs;
+    const worldPxH = worldH * cs;
+
+    this.collectCells(screenW, screenH, worldW, worldH);
+    this.collectFeatures(screenW, screenH, worldPxW, worldPxH, q);
+    this.collectAnimals(screenW, screenH, worldPxW, worldPxH, q);
+    this.collectPeople(screenW, screenH, worldW, worldH, worldPxW, worldPxH);
+
+    const n = this.dCount;
+    if (n > 0) {
+      const keys = this.dKeys.subarray(0, n);
+      keys.sort(); // numeric ascending for typed arrays: base y, ties in the order collected
+      for (let j = 0; j < n; j++) {
+        const k = keys[j];
+        const i = k - Math.floor(k / KEY_STRIDE) * KEY_STRIDE;
+        this.drawOne(i);
+      }
+    }
+    if (this.hasSel) this.drawSelectionIndicator(this.selX, this.selY, cs, performance.now(), true);
+  }
+
+  /** Trees, stumps, heaps, granaries, nests and fish, one pass over the visible cells. */
+  private collectCells(screenW: number, screenH: number, worldW: number, worldH: number): void {
+    const cs = this.cellSize;
+    const q = (v: number): number => Math.round(v * this.ap);
+    const minCellX = Math.floor(-this.panX / cs) - 1;
+    const maxCellX = Math.ceil((screenW - this.panX) / cs) + 1;
+    const minCellY = Math.floor(-this.panY / cs) - 1;
+    const maxCellY = Math.ceil((screenH - this.panY) / cs) + 1;
     const structures = this.world.landStructures;
+    const water = this.world.elevation?.water;
+    const treeKey = cs;
+    const lowKey = q(2);
+    const nestKey = q(6);
+    const stumpKey = q(5);
 
     for (let cy = minCellY; cy <= maxCellY; cy++) {
       const wy = ((cy % worldH) + worldH) % worldH;
       const rowOffset = wy * worldW;
-
+      const y0 = cy * cs + this.panY;
       for (let cx = minCellX; cx <= maxCellX; cx++) {
         const wx = ((cx % worldW) + worldW) % worldW;
-        if (this.isForest[rowOffset + wx] === 1) {
+        const idx = rowOffset + wx;
+        const x0 = cx * cs + this.panX;
+        const st = structures ? structures[idx] : 0;
+
+        if (water && water[idx] > 0) {
+          // Fish markers lie on the water: flat, painted with the ground.
+          if (st > 0) this.push(D_FISH, x0, y0, st, wx | (wy << 8), GROUND_KEY);
+          continue;
+        }
+
+        const level = st & 7;
+        const form = (st >> 3) & 3;
+        const forest = this.isForest[idx] === 1;
+        const thin = st >> 5;
+
+        if (forest) {
+          if (thin === 6 && form === 0 && level === 0) {
+            this.push(D_STUMPS, x0, y0, st, wx | (wy << 8), stumpKey);
+            continue;
+          }
           // Felled woodland: trees thin out with the cutting and are gone on stumps and open field.
-          const thin = structures ? structures[rowOffset + wx] >> 5 : 0;
-          if (thin >= 6 || (thin > 0 && ((wx * 13 + wy * 7) % 6) < thin)) continue;
-          // Deterministic tree variant by coordinate
-          const variant = (wx * 37 + wy * 89) % 3;
-          const key: SpriteKey =
-            variant === 0 ? 'tree_oak' : variant === 1 ? 'tree_pine' : 'tree_fruit';
-          const spr = this.atlas.getSprite(key);
-
-          const screenX = cx * cellSize + Math.floor(cellSize * 0.5);
-          const screenY = cy * cellSize + cellSize;
-          const dw = spr.w * scale;
-          const dh = spr.h * scale;
-          const dx = Math.round(screenX - spr.anchorX * scale + this.panX);
-          const dy = Math.round(screenY - spr.anchorY * scale + this.panY);
-
-          this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
+          if (!(thin >= 6 || (thin > 0 && ((wx * 13 + wy * 7) % 6) < thin))) {
+            this.push(D_TREE, x0, y0, (wx * 37 + wy * 89) % 3, 0, treeKey);
+          }
+        }
+        if (st === 0) continue;
+        const brush = !forest && form === 1 && level === 0 && thin > 0;
+        if (form >= 2 || level > 0 || brush) {
+          this.push(D_STRUCT, x0, y0, st, wx | (wy << 8) | (forest ? 1 << 16 : 0),
+            forest ? treeKey + 1 : form === 3 ? nestKey : lowKey);
         }
       }
     }
   }
 
-  /** Caves (dark mouths in the hill edge) and burning fires (a flickering flame and a faint warm glow). */
-  private renderFeatures(screenWidth: number, screenHeight: number, worldW: number, worldH: number, zoomedIn: boolean): void {
+  /** Caves and fires. A fire also pushes its glow, a ground mark with the lowest key. */
+  private collectFeatures(
+    screenW: number, screenH: number, worldPxW: number, worldPxH: number, q: (v: number) => number
+  ): void {
+    const feats = this.world.featurePositions;
+    if (!feats || feats.length < 3) return;
+    const cs = this.cellSize;
+    for (let i = 0; i + 2 < feats.length; i += 3) {
+      const kind = feats[i + 2];
+      const px = Math.round(feats[i] * cs + this.panX);
+      const py = Math.round(feats[i + 1] * cs + this.panY);
+      const fl = (this.flick + feats[i] * 7 + feats[i + 1] * 13) & 3;
+      if (kind >= 16) {
+        this.emitAt(D_CAVE, px, py, kind - 16, 0, q(5.5), screenW, screenH, worldPxW, worldPxH);
+      } else if (kind >= 8 && kind < 12) {
+        this.emitAt(D_HUT, px, py, kind - 8, 0, q(7.4), screenW, screenH, worldPxW, worldPxH);
+      } else if (kind === 5) {
+        this.emitAt(D_GRAVE, px, py, 0, 0, q(6.2), screenW, screenH, worldPxW, worldPxH);
+      } else {
+        this.emitAt(D_GLOW, px, py, fl, 0, GROUND_KEY, screenW, screenH, worldPxW, worldPxH);
+        this.emitAt(D_FIRE, px, py, fl, 0, q(7.2), screenW, screenH, worldPxW, worldPxH);
+      }
+    }
+  }
+
+  /** Herd animals, wolves and fresh kills. */
+  private collectAnimals(
+    screenW: number, screenH: number, worldPxW: number, worldPxH: number, q: (v: number) => number
+  ): void {
+    const cs = this.cellSize;
+    const lists: [Uint8Array | undefined, number, number][] = [
+      [this.world.carcassPositions, D_CARCASS, q(6)],
+      [this.world.wolfPositions, D_WOLF, q(7.2)],
+      [this.world.herdPositions, D_DEER, q(7.2)],
+    ];
+    for (let l = 0; l < 3; l++) {
+      const pos = lists[l][0];
+      if (!pos) continue;
+      for (let i = 0; i + 1 < pos.length; i += 2) {
+        this.emitAt(
+          lists[l][1],
+          Math.round(pos[i] * cs + this.panX), Math.round(pos[i + 1] * cs + this.panY),
+          0, pos[i] | (pos[i + 1] << 8), lists[l][2],
+          screenW, screenH, worldPxW, worldPxH
+        );
+      }
+    }
+  }
+
+  /** People: feet on the lower part of their tile, sorted by the y of the feet. */
+  private collectPeople(
+    screenW: number, screenH: number, worldW: number, worldH: number, worldPxW: number, worldPxH: number
+  ): void {
+    if (this.activeCount === 0) return;
+    const now = performance.now();
+    const t =
+      this.world.running === false
+        ? 1.0
+        : Math.min(1.0, (now - this.lastFrameTime) / this.frameInterval);
+    const cs = this.cellSize;
+    const water = this.world.elevation?.water;
+
+    for (let i = 0; i < this.activeCount; i++) {
+      const slot = this.activeSlots[i];
+      let dx = this.currX[slot] - this.prevX[slot];
+      if (dx > worldW / 2) dx -= worldW;
+      else if (dx < -worldW / 2) dx += worldW;
+      let dy = this.currY[slot] - this.prevY[slot];
+      if (dy > worldH / 2) dy -= worldH;
+      else if (dy < -worldH / 2) dy += worldH;
+
+      let rx = this.prevX[slot] + dx * t;
+      if (rx < 0) rx += worldW;
+      else if (rx >= worldW) rx -= worldW;
+      let ry = this.prevY[slot] + dy * t;
+      if (ry < 0) ry += worldH;
+      else if (ry >= worldH) ry -= worldH;
+
+      // Deterministic sub-tile offset from the slot so people sharing a cell don't stack
+      const hVal = (slot * 2654435761) >>> 0;
+      let offX = ((hVal & 7) - 3.5) / 10;
+      let offY = (((hVal >>> 3) & 7) - 3.5) / 10;
+      if (water) {
+        // Beside water the figure stays on its own tile instead of spilling onto the water.
+        const ccx = Math.round(rx) & 255, ccy = Math.round(ry) & 255;
+        if (offX > 0 && water[(ccy << 8) | ((ccx + 1) & 255)] > 0) offX = 0;
+        else if (offX < 0 && water[(ccy << 8) | ((ccx - 1) & 255)] > 0) offX = 0;
+        if (offY > 0 && water[(((ccy + 1) & 255) << 8) | ccx] > 0) offY = 0;
+        else if (offY < 0 && water[(((ccy - 1) & 255) << 8) | ccx] > 0) offY = 0;
+      }
+
+      // Feet at the middle of the tile, a little below its centre
+      const baseX = Math.round((rx + offX) * cs + this.panX + cs * 0.5);
+      const baseY = Math.round((ry + offY) * cs + this.panY + cs * 0.85);
+
+      if (slot === this.selectedSlot) {
+        let sx = baseX;
+        while (sx > -cs) sx -= worldPxW;
+        while (sx < -cs) sx += worldPxW;
+        let sy = baseY;
+        while (sy > -2 * cs) sy -= worldPxH;
+        while (sy < -2 * cs) sy += worldPxH;
+        this.selX = sx;
+        this.selY = sy;
+        this.hasSel = true;
+      }
+
+      const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+      const frame = isMoving ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2) : 0;
+      this.emitAt(D_PERSON, baseX, baseY, slot, frame, 0, screenW, screenH, worldPxW, worldPxH);
+    }
+  }
+
+  private drawOne(i: number): void {
+    const x0 = this.dX[i];
+    const y0 = this.dY[i];
+    const a = this.dA[i];
+    const b = this.dB[i];
+    switch (this.dKind[i]) {
+      case D_TREE: this.drawTree(x0, y0, a); break;
+      case D_STUMPS: this.drawStumps(x0, y0, b & 255, b >> 8); break;
+      case D_STRUCT: this.drawStructure(x0, y0, a, b & 255, (b >> 8) & 255, (b >> 16) === 1); break;
+      case D_FISH: this.drawFish(x0, y0, a, b & 255, (b >> 8) & 255); break;
+      case D_CAVE: this.drawCave(x0, y0, a); break;
+      case D_GLOW: this.drawGlow(x0, y0, a); break;
+      case D_FIRE: this.drawFire(x0, y0, a); break;
+      case D_HUT: this.drawHut(x0, y0, a); break;
+      case D_GRAVE: this.drawGrave(x0, y0); break;
+      case D_CARCASS: this.drawCarcass(x0, y0, b & 255, b >> 8); break;
+      case D_WOLF: this.drawWolf(x0, y0, b & 255, b >> 8); break;
+      case D_DEER: this.drawDeer(x0, y0, b & 255, b >> 8); break;
+      case D_PERSON: this.drawPerson(x0, y0, a, b); break;
+    }
+  }
+
+  /** One rectangle in art-pixels (8 per tile) from the tile origin; rounded at both edges so there are no gaps. */
+  private R(x0: number, y0: number, u: number, v: number, w: number, h: number, c: string): void {
+    const ap = this.ap;
+    const x = x0 + Math.round(u * ap);
+    const y = y0 + Math.round(v * ap);
+    this.ctx.fillStyle = c;
+    this.ctx.fillRect(
+      x, y,
+      Math.max(1, x0 + Math.round((u + w) * ap) - x),
+      Math.max(1, y0 + Math.round((v + h) * ap) - y)
+    );
+  }
+
+  private drawTree(x0: number, y0: number, variant: number): void {
+    const spr = this.treeSprites[variant];
+    const ap = this.ap;
+    // Base of the trunk sits on the bottom edge of the tile; the canopy rises into the tile above.
+    const dx = Math.round(x0 + this.cellSize * 0.5 - spr.anchorX * ap);
+    const dy = Math.round(y0 + this.cellSize - spr.anchorY * ap);
+    this.ctx.drawImage(
+      this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
+      dx, dy, Math.round(spr.w * ap), Math.round(spr.h * ap)
+    );
+  }
+
+  private drawPerson(fx: number, fy: number, slot: number, frame: number): void {
+    const look = this.lookBytes[slot];
+    const sex = (look & LOOK_SEX_MASK) === 1 ? 0 : 1; // male, female
+    const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
+    const stage = (look & LOOK_STAGE_MASK) >> 2;
+    const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
+    // Same precedence as ever: starving, pregnant, child, elder, then plain male or female.
+    let type = sex;
+    if (energyLevel <= 1) type = 5;
+    else if (pregnant) type = 2;
+    else if (stage === LOOK_STAGE_CHILD) type = 3;
+    else if (stage === LOOK_STAGE_ELDER) type = 4;
+    const spr = this.personSprites[type * 3 + frame];
+    const ap = this.ap;
+
+    if (this.colorMode === 'bands') {
+      // A band-coloured disc flat on the ground under the feet
+      const rId = this.rootLeaderIds[slot];
+      this.ctx.fillStyle =
+        (this.bandSizes.get(rId) ?? 0) <= 1 ? '#888888' : hashRootLeaderToHex(rId);
+      this.ctx.beginPath();
+      this.ctx.ellipse(fx, fy - ap, Math.max(3, 3.5 * ap), Math.max(2, 1.8 * ap), 0, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+    this.ctx.drawImage(
+      this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
+      Math.round(fx - spr.anchorX * ap), Math.round(fy - spr.anchorY * ap),
+      Math.round(spr.w * ap), Math.round(spr.h * ap)
+    );
+  }
+
+  /** Fish: one little silver fish on about half the shore tiles, held still by cell. Flat on the water. */
+  private drawFish(x0: number, y0: number, st: number, wx: number, wy: number): void {
+    const hh = (wx * 97 + wy * 57) & 15;
+    // Sparse: one at most, and a thin stock (level 1 to 2) shows fewer.
+    if (!((hh & 1) === 0 && (st >= 3 || (hh & 2) === 0))) return;
+    const sx = (hh % 5) + 1;
+    const sy = ((hh >> 1) % 5) + 1;
+    const left = (hh & 1) === 0;
+    this.R(x0, y0, sx, sy, 2.2, 1, '#e8f2f0'); // body
+    this.R(x0, y0, sx, sy, 2.2, 0.4, '#8fb4c4'); // back
+    this.R(x0, y0, left ? sx + 2.2 : sx - 0.8, sy - 0.3, 0.8, 1.6, '#e8f2f0'); // tail
+    this.R(x0, y0, left ? sx + 0.3 : sx + 1.7, sy + 0.2, 0.4, 0.4, '#1c3a4a'); // eye
+  }
+
+  /**
+   * Stumps: cut trunks with pale tops, three to a cell, placed by cell so they hold still.
+   * Each is a short drum: lit top, shaded right side, shadow to the south-east. Drawn back to front.
+   */
+  private drawStumps(x0: number, y0: number, wx: number, wy: number): void {
+    const h = (wx * 73 + wy * 151) & 7;
+    let i0 = h % 5, i1 = (h + 2) % 5, i2 = (h + 4) % 5;
+    let t: number;
+    if (STUMP_SPOTS[i0][1] > STUMP_SPOTS[i1][1]) { t = i0; i0 = i1; i1 = t; }
+    if (STUMP_SPOTS[i1][1] > STUMP_SPOTS[i2][1]) { t = i1; i1 = i2; i2 = t; }
+    if (STUMP_SPOTS[i0][1] > STUMP_SPOTS[i1][1]) { t = i0; i0 = i1; i1 = t; }
+    for (let k = 0; k < 3; k++) {
+      const s = STUMP_SPOTS[k === 0 ? i0 : k === 1 ? i1 : i2];
+      const sx = s[0], sy = s[1];
+      this.R(x0, y0, sx + 0.7, sy + 2.0, 2.4, 0.8, SHADOW);
+      this.R(x0, y0, sx, sy + 0.8, 2, 1.5, '#4a2e14'); // side
+      this.R(x0, y0, sx + 1.4, sy + 0.8, 0.6, 1.5, '#35200e'); // shaded right
+      this.R(x0, y0, sx, sy, 2, 1, '#d8b878'); // top
+      this.R(x0, y0, sx, sy, 0.5, 1, '#ecd08c'); // lit left edge
+      this.R(x0, y0, sx + 0.7, sy + 0.3, 0.7, 0.4, '#b08848'); // rings
+    }
+  }
+
+  /** Glow of a burning fire: two flat warm ellipses on the ground that breathe with the flame. */
+  private drawGlow(x0: number, y0: number, fl: number): void {
+    const cs = this.cellSize;
+    const ctx = this.ctx;
+    const cx = x0 + cs * 0.5;
+    const cy = y0 + this.ap * 6.6;
+    ctx.fillStyle = (fl & 1) ? 'rgba(255, 170, 60, 0.17)' : 'rgba(255, 170, 60, 0.13)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, cs * 2.6, cs * 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 200, 90, 0.14)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, cs * 1.3, cs * 0.75, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** A fire seen from the front: ring stones, a crossed log, a flickering flame rising above them. */
+  private drawFire(x0: number, y0: number, fl: number): void {
+    const f1 = fl & 1;
+    const f2 = fl >> 1;
+    this.R(x0, y0, 1.8, 7.0, 5.6, 0.9, SHADOW);
+    this.R(x0, y0, 0.8, 6.2, 1.2, 1.0, '#8a817c'); // stones, lit on top
+    this.R(x0, y0, 0.8, 6.2, 1.2, 0.4, '#bcb8b1');
+    this.R(x0, y0, 6.0, 6.2, 1.2, 1.0, '#6d655f');
+    this.R(x0, y0, 6.0, 6.2, 1.2, 0.4, '#a39b94');
+    this.R(x0, y0, 2.0, 5.5, 4.0, 0.9, '#3a2616'); // back log
+    this.R(x0, y0, 2.5 - 0, 3.4 - f1 * 0.6, 3.0, 2.8 + f1 * 0.6, '#d85a10'); // flame
+    this.R(x0, y0, 3.4, 2.4 - f2 * 0.5, 1.2, 1.3, '#d85a10'); // tip
+    this.R(x0, y0, 3.0, 3.0 - f2 * 0.6, 2.0, 3.2 + f2 * 0.6, '#ffb030');
+    this.R(x0, y0, 3.5, 4.4, 1.0, 1.6, '#fff0a0');
+    this.R(x0, y0, 1.6, 6.2, 4.8, 1.0, '#4a3020'); // front log
+    this.R(x0, y0, 1.6, 6.2, 4.8, 0.4, '#7a5434'); // lit top edge
+    this.R(x0, y0, 1.5, 6.3, 0.8, 0.8, '#c8a070'); // cut end
+  }
+
+  /**
+   * A dry-stone hut seen from the front: a rounded roof of slabs rising above the tile, a wall of
+   * coursed stones lit on the left and shaded on the right, and a dark doorway under a lintel. A
+   * sound hut (higher durability) has a taller capstone.
+   */
+  private drawHut(x0: number, y0: number, lv: number): void {
+    const R = (u: number, v: number, w: number, h: number, c: string): void => this.R(x0, y0, u, v, w, h, c);
+    R(1.4, 7.1, 6.8, 0.9, SHADOW); // cast shadow, south-east
+    if (lv >= 2) { R(3.0, -1.0, 2.0, 0.9, '#a49a90'); R(3.0, -1.0, 2.0, 0.3, '#c4bcb4'); } // capstone
+    R(2.2, 0.0, 3.6, 1.0, '#a49a90'); R(2.2, 0.0, 3.6, 0.3, '#c4bcb4'); // roof courses, narrowing upward
+    R(1.4, 1.0, 5.2, 1.0, '#9a9086'); R(1.4, 1.0, 5.2, 0.3, '#bcb2a8'); R(5.6, 1.0, 1.0, 1.0, '#7d756f');
+    R(0.8, 2.0, 6.4, 1.0, '#8f867d'); R(0.8, 2.0, 6.4, 0.3, '#b0a8a0'); R(6.2, 2.0, 1.0, 1.0, '#6d655f');
+    R(0.6, 3.0, 6.8, 4.4, '#8f867d'); // wall
+    R(0.6, 4.4, 6.8, 0.3, '#6d655f'); R(0.6, 5.8, 6.8, 0.3, '#6d655f'); // stone courses
+    R(2.0, 3.0, 0.3, 1.4, '#6d655f'); R(5.0, 3.0, 0.3, 1.4, '#6d655f'); R(1.2, 4.7, 0.3, 1.1, '#6d655f'); R(4.4, 4.7, 0.3, 1.1, '#6d655f'); R(6.0, 5.8, 0.3, 1.6, '#6d655f');
+    R(0.6, 3.0, 0.8, 4.4, '#b6aca2'); // lit left edge
+    R(6.4, 3.0, 1.0, 4.4, '#6d655f'); // shaded right edge
+    R(0.6, 7.1, 6.8, 0.4, '#5f5852'); // foot
+    R(2.6, 4.2, 2.8, 0.5, '#b6aca2'); // lintel
+    R(2.8, 4.7, 2.4, 2.7, '#16110d'); R(3.2, 5.3, 1.6, 2.1, '#000000'); // doorway
+  }
+
+  /** A fresh grave: a low earth mound with a stick cross and a few bones. */
+  private drawGrave(x0: number, y0: number): void {
+    const R = (u: number, v: number, w: number, h: number, c: string): void => this.R(x0, y0, u, v, w, h, c);
+    R(1.6, 7.0, 5.6, 0.8, SHADOW);
+    R(1.4, 6.0, 5.2, 1.4, '#6b5238'); R(1.4, 6.0, 5.2, 0.4, '#8a6c4a'); R(5.6, 6.2, 1.0, 1.2, '#4a3624');
+    R(3.6, 2.8, 0.7, 3.4, '#cbbd9a'); R(2.6, 3.6, 2.7, 0.6, '#cbbd9a'); R(3.6, 2.8, 0.3, 3.4, '#e6dbbc');
+    R(1.8, 6.6, 0.8, 0.4, '#e6dbbc'); R(5.0, 6.8, 0.9, 0.4, '#e6dbbc');
+  }
+
+  /**
+   * A cave as a rock face: a lit top slab, a front face shaded on the right and at the foot, and the
+   * dark mouth on it. East and west facings put the mouth to that side with a shaded jamb so it reads
+   * as turned; a north facing hides the mouth behind the ridge, seen as a dark notch in the top slab.
+   */
+  private drawCave(x0: number, y0: number, f: number): void {
+    const R = (u: number, v: number, w: number, h: number, c: string): void => this.R(x0, y0, u, v, w, h, c);
+    R(1.6, 6.9, 6.6, 1.1, SHADOW); // cast shadow, south-east
+    R(7.4, 3.4, 0.9, 4.4, SHADOW);
+    R(0.6, 2.6, 6.8, 5.0, '#7d756f'); // front face
+    R(0.6, 7.0, 6.8, 0.6, '#5f5852'); // shaded foot
+    R(6.2, 2.6, 1.2, 5.0, '#5f5852'); // shaded right side
+    R(0.6, 2.8, 0.8, 4.2, '#948b84'); // lit left edge
+    R(1.4, 3.6, 1.0, 0.8, '#948b84'); // boulders on the face
+    R(5.0, 3.2, 0.9, 0.8, '#6d655f');
+    R(0.8, 1.4, 6.4, 1.4, '#b0a8a0'); // top slab
+    R(1.2, 0.6, 5.6, 0.9, '#c8c0b8'); // lit crown
+    R(5.6, 1.4, 1.6, 1.4, '#948b84'); // top, shaded to the right
+    if (f === 3) {
+      // Opening on the far side: only a dark notch over the ridge shows
+      R(2.2, 1.0, 3.4, 1.3, '#16110d');
+      R(2.6, 1.6, 2.6, 0.7, '#000000');
+      R(2.0, 0.7, 3.8, 0.4, '#c8c0b8');
+      return;
+    }
+    const ox = f === 0 ? 4.6 : f === 1 ? 1.0 : 2.6;
+    const ow = f === 2 ? 2.8 : 2.0;
+    if (f === 0) R(ox - 0.5, 3.6, 0.5, 4.0, '#5f5852'); // jamb on the near side
+    else if (f === 1) R(ox + ow, 3.6, 0.5, 4.0, '#5f5852');
+    R(ox - 0.3, 3.0, ow + 0.6, 0.6, '#c4bcb4'); // lintel stone catching the light
+    R(ox, 4.2, ow, 3.4, '#16110d'); // the mouth
+    R(ox + 0.4, 3.6, ow - 0.8, 0.7, '#16110d'); // arched top
+    R(ox + 0.5, 5.0, ow - 1.0, 2.6, '#000000'); // deep inside
+    R(ox - 0.3, 7.4, ow + 0.6, 0.5, '#9c8764'); // worn earth at the mouth
+  }
+
+  /** Nests (a thatched hut), plank granary floors, food heaps and brush heaps, from the structure byte. */
+  private drawStructure(x0: number, y0: number, st: number, wx: number, wy: number, forest: boolean): void {
+    const level = st & 7;
+    const form = (st >> 3) & 3;
+    const bLevel = forest ? 0 : st >> 5; // on woodland these bits mean thinning, not a brush heap
+    const ap = this.ap;
+    const cs = this.cellSize;
+    const R = (u: number, v: number, w: number, h: number, c: string): void => this.R(x0, y0, u, v, w, h, c);
+
+    if (form === 3) {
+      // Nest / lean-to as a little thatched hut: an A-frame of brush, lit left, shaded right, dark door
+      R(1.8, 7.0, 6.4, 1.0, SHADOW);
+      for (let r = 0; r < 6; r++) {
+        const hw = 0.9 + r * 0.55;
+        R(4 - hw, 1.4 + r, hw, 1.0, THATCH_LIT[r & 1]);
+        R(4, 1.4 + r, hw, 1.0, THATCH_SHADE[r & 1]);
+      }
+      R(3.7, 0.6, 0.6, 1.1, '#5a3c1c'); // crossed pole tips
+      R(3.1, 4.6, 1.8, 0.5, '#5a3c1c'); // lintel
+      R(3.1, 5.1, 1.8, 2.3, '#241608'); // doorway
+      return;
+    }
+
+    let floorV = 7.4;
+    if (form === 2) {
+      // Granary: a raised plank platform seen from the front, top lit, front face and posts in shade
+      R(1.6, 7.4, 6.8, 0.8, SHADOW);
+      R(0.6, 5.6, 6.8, 1.9, '#4a2e14'); // front face
+      R(0.6, 6.6, 6.8, 0.9, '#35200e');
+      R(0.8, 5.6, 0.6, 1.9, '#5a3a1c'); // posts
+      R(6.4, 5.6, 0.6, 1.9, '#35200e');
+      R(0.6, 3.2, 6.8, 2.6, '#8a5a30'); // top surface
+      R(0.6, 3.2, 6.8, 0.4, '#b07a44');
+      R(0.6, 3.2, 0.8, 2.6, '#a36e3c');
+      R(0.6, 4.2, 6.8, 0.4, '#6a4220'); // plank seams
+      R(0.6, 5.0, 6.8, 0.4, '#6a4220');
+      floorV = 5.3;
+    }
+
+    if (bLevel > 0 && level === 0 && form === 1) {
+      // Brush heap: a loose crisscross of thin sticks, more of them with a bigger heap
+      R(1.4, 6.8, 5.6, 0.9, SHADOW);
+      const n = Math.min(9, 3 + bLevel);
+      const len = Math.max(4, Math.round(cs * 0.55));
+      const th = Math.max(1, Math.round(ap * 0.6));
+      const ctx = this.ctx;
+      for (let k = 0; k < n; k++) {
+        const h = ((wx * 73856093) ^ (wy * 19349663) ^ (k * 83492791)) >>> 0;
+        const sx = x0 + Math.round(cs * 0.15 + ((h % 1000) / 1000) * cs * 0.5);
+        const sy = y0 + Math.round(cs * 0.6 + (((h >> 10) % 1000) / 1000) * cs * 0.3);
+        const dir = h & 1 ? 1 : -1;
+        const slope = 0.4 + ((h >> 20) & 3) * 0.3;
+        ctx.fillStyle = STICK_COLORS[(h >> 22) % STICK_COLORS.length];
+        for (let i = 0; i < len; i += th) ctx.fillRect(sx + dir * i, sy - Math.round(i * slope), th, th);
+      }
+      return;
+    }
+
+    if (level > 0) {
+      // Food heap: a pyramid of round gathered food, lit top-left, shaded bottom-right, taller and wider with the heap
+      const rows = Math.min(4, 1 + Math.ceil(level * 0.45));
+      const d = Math.max(2, Math.round(ap * 1.5));
+      const floorY = y0 + Math.round(floorV * ap);
+      const baseW = (rows + 1) * d;
+      if (form !== 2) {
+        this.ctx.fillStyle = SHADOW;
+        this.ctx.fillRect(x0 + Math.round((cs - baseW) / 2) + d, floorY - Math.round(ap * 0.6), baseW, Math.max(1, Math.round(ap * 1.0)));
+      }
+      const ctx = this.ctx;
+      for (let r = 0; r < rows; r++) {
+        const n = rows - r + 1;
+        const rx = x0 + Math.round((cs - n * d) / 2);
+        const ry = floorY - (r + 1) * d;
+        for (let k = 0; k < n; k++) {
+          ctx.fillStyle = FOOD_DOT_COLORS[(wx * 7 + wy * 3 + r * 2 + k) % FOOD_DOT_COLORS.length];
+          ctx.fillRect(rx + k * d, ry, d - (d > 2 ? 1 : 0), d - (d > 2 ? 1 : 0));
+          if (ap >= 2) {
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.fillRect(rx + k * d, ry, 1, 1);
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.fillRect(rx + k * d + d - 2, ry + d - 2, 1, 1);
+          }
+        }
+      }
+    }
+  }
+
+  /** Mirrored rectangle for a creature facing left or right (art-pixels, 8 wide). */
+  private M(x0: number, y0: number, face: boolean, u: number, v: number, w: number, h: number, c: string): void {
+    this.R(x0, y0, face ? u : 8 - u - w, v, w, h, c);
+  }
+
+  /** A herd animal in side view, standing: lit back, shaded belly and rump, shadow to the south-east. */
+  private drawDeer(x0: number, y0: number, cx: number, cy: number): void {
+    const face = ((cx * 31 + cy * 17) & 1) === 0;
+    const M = (u: number, v: number, w: number, h: number, c: string): void => this.M(x0, y0, face, u, v, w, h, c);
+    M(1.6, 6.9, 6.0, 0.9, SHADOW);
+    for (const lx of [1.6, 2.6, 4.4, 5.4]) M(lx, 5, 0.6, 2, '#6b4220'); // legs
+    M(1.2, 3, 5.4, 2.2, '#b8793c'); // body
+    M(1.2, 4.6, 5.4, 0.6, '#8f5a2a'); // shaded belly
+    M(5.6, 3.4, 1.0, 1.8, '#9a6030'); // shaded haunch on the far side from the light
+    M(1.2, 3, 5.4, 0.7, '#d9a35c'); // lit back
+    M(6.2, 2.2, 1.6, 1.8, '#9a6030'); // head and neck
+    M(6.8, 1.2, 0.5, 1.1, '#e8d8b0'); // antler tines
+    M(7.2, 2.8, 0.4, 0.4, '#1c1008'); // eye
+  }
+
+  /** A wolf in side view: lean, ears up, tail out. */
+  private drawWolf(x0: number, y0: number, cx: number, cy: number): void {
+    const face = ((cx * 29 + cy * 13) & 1) === 0;
+    const M = (u: number, v: number, w: number, h: number, c: string): void => this.M(x0, y0, face, u, v, w, h, c);
+    M(1.4, 6.9, 6.0, 0.9, SHADOW);
+    for (const lx of [1.4, 2.4, 4.6, 5.6]) M(lx, 5, 0.6, 2, '#3a3a44'); // legs
+    M(1.0, 3, 5.2, 2.2, '#7c7c88'); // lean body
+    M(1.0, 4.6, 5.2, 0.6, '#5c5c68'); // shaded belly
+    M(1.0, 3, 5.2, 0.6, '#a4a4b0'); // back light
+    M(6.0, 2.4, 2, 1.6, '#5c5c68'); // head and snout
+    M(7.4, 3.2, 0.8, 0.8, '#5c5c68');
+    M(6.2, 1.6, 0.6, 0.9, '#3a3a44'); // ears
+    M(7.0, 1.6, 0.6, 0.9, '#3a3a44');
+    M(0, 2.6, 1.2, 0.7, '#7c7c88'); // tail
+    M(7.0, 2.7, 0.4, 0.4, '#e8c020'); // eye
+  }
+
+  /** A fresh kill: a dead animal on its back, legs in the air, with blood on the ground. */
+  private drawCarcass(x0: number, y0: number, cx: number, cy: number): void {
+    const face = ((cx * 31 + cy * 17) & 1) === 0;
+    this.R(x0, y0, 1.8, 6.9, 5.8, 0.9, SHADOW);
+    this.R(x0, y0, 1.2, 4.6, 5.4, 2.2, '#7a3a20'); // belly-up body
+    this.R(x0, y0, 1.2, 6.2, 5.4, 0.6, '#5a2a14'); // shaded underside on the ground
+    this.R(x0, y0, 1.6, 5.2, 4.6, 0.8, '#c99a6a'); // pale belly
+    for (const lx of [1.6, 2.7, 4.2, 5.4]) this.R(x0, y0, lx, 3.2, 0.6, 1.5, '#4a2810'); // four legs up
+    this.R(x0, y0, face ? 6.4 : 0, 5.2, 1.6, 1.5, '#6a3a1c'); // head, fallen to the side
+    this.R(x0, y0, face ? 7.2 : 0.2, 4.2, 0.5, 1.0, '#e8d8b0'); // antler
+    this.R(x0, y0, 2, 6.8, 3.2, 0.6, '#a01818'); // blood
+  }
+
+  /** Zoomed-out features: tiny flat marks, as before. */
+  private renderFeaturesFlat(screenWidth: number, screenHeight: number, worldW: number, worldH: number): void {
     const feats = this.world.featurePositions;
     if (!feats || feats.length < 3) return;
     const cs = this.cellSize;
     const ctx = this.ctx;
-    const ap = cs / 8;
-    const q = (v: number) => Math.round(v * ap);
     const worldPxW = worldW * cs;
     const worldPxH = worldH * cs;
     const flick = Math.floor(performance.now() / 120);
@@ -928,300 +1527,55 @@ export class CanvasRenderer {
       const fl = (flick + feats[i] * 7 + feats[i + 1] * 13) & 3;
       for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
         for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
-          if (kind >= 16) {
-            // A cave seen from above: a rocky outcrop in the hillside (light from the north-west) with a
-            // dark arched opening on the downhill face. The rock is drawn fixed; the opening turns to face `f`.
-            const f = kind - 16;
-            const R = (u: number, v: number, w: number, h: number): void => {
-              const ru = f === 2 ? u : f === 3 ? u : f === 0 ? v : 8 - v - h;
-              const rv = f === 2 ? v : f === 3 ? 8 - v - h : u;
-              const rw = f >= 2 ? w : h;
-              const rh = f >= 2 ? h : w;
-              ctx.fillRect(x0 + q(ru), y0 + q(rv), Math.max(1, q(rw)), Math.max(1, q(rh)));
-            };
-            const P = (u: number, v: number, w: number, h: number): void => {
-              ctx.fillRect(x0 + q(u), y0 + q(v), Math.max(1, q(w)), Math.max(1, q(h)));
-            };
-            if (!zoomedIn) {
-              ctx.fillStyle = '#6d655f'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
-              ctx.fillStyle = '#16110d'; ctx.fillRect(x0 + cs * 0.3, y0 + cs * 0.3, Math.max(1, cs * 0.4), Math.max(1, cs * 0.4));
-              continue;
-            }
-            ctx.fillStyle = '#5a524c'; P(1.2, 1.6, 6.8, 6.4); // cast shadow, south-east
-            ctx.fillStyle = '#948b84'; P(0.4, 0.6, 6.8, 6.6); // rock mass
-            ctx.fillStyle = '#6d655f'; P(5.8, 1.4, 1.4, 5.8); P(0.8, 6.2, 6.4, 1); // shaded east and south edges
-            ctx.fillStyle = '#c4bcb4'; P(0.4, 0.6, 6.4, 1); P(0.4, 0.6, 1, 5.6); // lit north and west edges
-            ctx.fillStyle = '#7d756f'; P(1.8, 1.8, 1.2, 1); P(4.2, 2.2, 1.2, 1.1); // boulders
-            ctx.fillStyle = '#b0a8a0'; P(1.8, 1.8, 1.2, 0.4); P(4.2, 2.2, 1.2, 0.4);
-            ctx.fillStyle = '#16110d'; R(2.2, 4.2, 3.6, 3.4); R(2.8, 3.6, 2.4, 0.8); // the opening
-            ctx.fillStyle = '#000000'; R(3, 5.2, 2, 2.4);
-            ctx.fillStyle = '#b0a8a0'; R(2.4, 3.2, 3.2, 0.5); // lintel stone catching the light
-            ctx.fillStyle = '#9c8764'; R(2.6, 7.6, 2.8, 0.4); // worn earth at the mouth
+          if (kind >= 8 && kind < 12) {
+            ctx.fillStyle = '#a49a90'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
+            ctx.fillStyle = '#2a2420'; ctx.fillRect(x0 + cs * 0.35, y0 + cs * 0.55, Math.max(1, cs * 0.3), Math.max(1, cs * 0.4));
             continue;
           }
-          // A fire: warm glow first, then the flame.
+          if (kind === 5) {
+            ctx.fillStyle = '#8a2e22'; ctx.fillRect(x0, y0, Math.max(2, cs * 0.8), Math.max(2, cs * 0.8));
+            continue;
+          }
+          if (kind >= 16) {
+            ctx.fillStyle = '#6d655f'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
+            ctx.fillStyle = '#16110d'; ctx.fillRect(x0 + cs * 0.3, y0 + cs * 0.3, Math.max(1, cs * 0.4), Math.max(1, cs * 0.4));
+            continue;
+          }
           ctx.fillStyle = 'rgba(255, 170, 60, 0.16)';
           const g = Math.max(cs * 5, 6);
           ctx.fillRect(x0 + cs / 2 - g / 2, y0 + cs / 2 - g / 2, g, g);
-          if (!zoomedIn) { ctx.fillStyle = fl & 1 ? '#ffb030' : '#ff7a18'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs)); continue; }
-          ctx.fillStyle = '#4a3020'; // logs
-          ctx.fillRect(x0 + q(1.5), y0 + q(6), q(5), q(1));
-          ctx.fillStyle = '#d85a10';
-          ctx.fillRect(x0 + q(2.4), y0 + q(3.6 - (fl & 1) * 0.6), q(3.2), q(2.6 + (fl & 1) * 0.6));
-          ctx.fillStyle = '#ffb030';
-          ctx.fillRect(x0 + q(3), y0 + q(2.8 - (fl >> 1) * 0.6), q(2), q(3.2 + (fl >> 1) * 0.6));
-          ctx.fillStyle = '#fff0a0';
-          ctx.fillRect(x0 + q(3.5), y0 + q(4.4), q(1), q(1.4));
+          ctx.fillStyle = fl & 1 ? '#ffb030' : '#ff7a18';
+          ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
         }
       }
     }
   }
 
-  /** Herd animals: tan dots zoomed out, little pixel-art quadrupeds zoomed in. They snap tile to tile. */
-  private renderHerds(screenWidth: number, screenHeight: number, worldW: number, worldH: number, zoomedIn: boolean): void {
+  /** Zoomed-out herds, wolves and kills: coloured dots, as before. They snap tile to tile. */
+  private renderHerdsFlat(screenWidth: number, screenHeight: number, worldW: number, worldH: number): void {
     const cs = this.cellSize;
     const ctx = this.ctx;
-    const ap = cs / 8;
-    const q = (v: number) => Math.round(v * ap);
     const worldPxW = worldW * cs;
     const worldPxH = worldH * cs;
-
-    // Fresh kills: a dead animal on its back, legs in the air, in the lower half of the heap's tile.
-    const dead = this.world.carcassPositions;
-    if (dead) {
-      for (let i = 0; i + 1 < dead.length; i += 2) {
-        let sx = Math.round(dead[i] * cs + this.panX);
-        let sy = Math.round(dead[i + 1] * cs + this.panY);
+    const d = Math.max(2, Math.round(cs * 0.9));
+    const lists: [Uint8Array | undefined, string][] = [
+      [this.world.carcassPositions, '#8a2e22'],
+      [this.world.wolfPositions, '#3c3c46'],
+      [this.world.herdPositions, '#d9a441'],
+    ];
+    for (let l = 0; l < 3; l++) {
+      const pos = lists[l][0];
+      if (!pos) continue;
+      ctx.fillStyle = lists[l][1];
+      for (let i = 0; i + 1 < pos.length; i += 2) {
+        let sx = Math.round(pos[i] * cs + this.panX);
+        let sy = Math.round(pos[i + 1] * cs + this.panY);
         if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
         if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
-        const face = ((dead[i] * 31 + dead[i + 1] * 17) & 1) === 0;
         // One copy when the world fits the screen on an axis, so nothing is drawn in the void.
         for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
           for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
-            if (!zoomedIn) {
-              ctx.fillStyle = '#8a2e22';
-              const d = Math.max(2, Math.round(cs * 0.9));
-              ctx.fillRect(x0, y0, d, d);
-              continue;
-            }
-            ctx.fillStyle = '#7a3a20'; // belly-up body
-            ctx.fillRect(x0 + q(1.2), y0 + q(4.6), q(5.4), q(2.2));
-            ctx.fillStyle = '#c99a6a'; // pale underside
-            ctx.fillRect(x0 + q(1.6), y0 + q(5.2), q(4.6), Math.max(1, q(0.8)));
-            ctx.fillStyle = '#4a2810'; // four legs sticking up
-            for (const lx of [1.6, 2.7, 4.2, 5.4]) ctx.fillRect(x0 + q(lx), y0 + q(3.2), Math.max(1, q(0.6)), q(1.5));
-            ctx.fillStyle = '#6a3a1c'; // head, fallen to the side
-            ctx.fillRect(x0 + q(face ? 6.4 : 0), y0 + q(5.2), q(1.6), q(1.5));
-            ctx.fillStyle = '#e8d8b0'; // antler
-            ctx.fillRect(x0 + q(face ? 7.2 : 0.2), y0 + q(4.2), Math.max(1, q(0.5)), q(1));
-            ctx.fillStyle = '#a01818'; // blood
-            ctx.fillRect(x0 + q(2), y0 + q(6.8), q(3.2), Math.max(1, q(0.6)));
-          }
-        }
-      }
-    }
-
-    // Wolves: grey, lean, ears up, tail out; dark grey dots zoomed out.
-    const wolves = this.world.wolfPositions;
-    if (wolves) {
-      for (let i = 0; i + 1 < wolves.length; i += 2) {
-        let sx = Math.round(wolves[i] * cs + this.panX);
-        let sy = Math.round(wolves[i + 1] * cs + this.panY);
-        if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
-        if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
-        const face = ((wolves[i] * 29 + wolves[i + 1] * 13) & 1) === 0;
-        for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
-          for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
-            if (!zoomedIn) {
-              ctx.fillStyle = '#3c3c46';
-              const d = Math.max(2, Math.round(cs * 0.9));
-              ctx.fillRect(x0, y0, d, d);
-              continue;
-            }
-            const fx = (v: number, w = 0) => x0 + q(face ? v : 8 - v - w);
-            ctx.fillStyle = '#3a3a44'; // legs
-            for (const lx of [1.4, 2.4, 4.6, 5.6]) ctx.fillRect(fx(lx, 0.6), y0 + q(5), Math.max(1, q(0.6)), q(2));
-            ctx.fillStyle = '#7c7c88'; // lean body
-            ctx.fillRect(fx(1.0, 5.2), y0 + q(3), q(5.2), q(2.2));
-            ctx.fillStyle = '#a4a4b0'; // back light
-            ctx.fillRect(fx(1.0, 5.2), y0 + q(3), q(5.2), Math.max(1, q(0.6)));
-            ctx.fillStyle = '#5c5c68'; // head and snout
-            ctx.fillRect(fx(6.0, 2), y0 + q(2.4), q(2), q(1.6));
-            ctx.fillRect(fx(7.4, 0.8), y0 + q(3.2), q(0.8), q(0.8));
-            ctx.fillStyle = '#3a3a44'; // ears
-            ctx.fillRect(fx(6.2, 0.6), y0 + q(1.6), Math.max(1, q(0.6)), q(0.9));
-            ctx.fillRect(fx(7.0, 0.6), y0 + q(1.6), Math.max(1, q(0.6)), q(0.9));
-            ctx.fillStyle = '#7c7c88'; // tail
-            ctx.fillRect(fx(0, 1.2), y0 + q(2.6), q(1.2), Math.max(1, q(0.7)));
-            ctx.fillStyle = '#e8c020'; // eye
-            ctx.fillRect(fx(7.0, 0.4), y0 + q(2.7), Math.max(1, q(0.4)), Math.max(1, q(0.4)));
-          }
-        }
-      }
-    }
-
-    const pos = this.world.herdPositions;
-    if (!pos || pos.length === 0) return;
-    for (let i = 0; i + 1 < pos.length; i += 2) {
-      let sx = Math.round(pos[i] * cs + this.panX);
-      let sy = Math.round(pos[i + 1] * cs + this.panY);
-      if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
-      if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
-      const face = ((pos[i] * 31 + pos[i + 1] * 17) & 1) === 0;
-      for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
-        for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
-          if (!zoomedIn) {
-            ctx.fillStyle = '#d9a441';
-            const d = Math.max(2, Math.round(cs * 0.9));
             ctx.fillRect(x0, y0, d, d);
-            continue;
-          }
-          ctx.fillStyle = '#6b4220'; // legs
-          for (const lx of [1.6, 2.6, 4.4, 5.4]) ctx.fillRect(x0 + q(face ? lx : 7.6 - lx), y0 + q(5), Math.max(1, q(0.6)), q(2));
-          ctx.fillStyle = '#b8793c'; // body
-          ctx.fillRect(x0 + q(1.2), y0 + q(3), q(5.4), q(2.2));
-          ctx.fillStyle = '#d9a35c'; // back light
-          ctx.fillRect(x0 + q(1.2), y0 + q(3), q(5.4), Math.max(1, q(0.7)));
-          ctx.fillStyle = '#9a6030'; // head and neck
-          ctx.fillRect(x0 + q(face ? 6.2 : 0.2), y0 + q(2.2), q(1.6), q(1.8));
-          ctx.fillStyle = '#e8d8b0'; // antler tines
-          ctx.fillRect(x0 + q(face ? 6.8 : 0.8), y0 + q(1.2), Math.max(1, q(0.5)), q(1.1));
-          ctx.fillStyle = '#1c1008'; // eye
-          ctx.fillRect(x0 + q(face ? 7.2 : 0.4), y0 + q(2.8), Math.max(1, q(0.4)), Math.max(1, q(0.4)));
-        }
-      }
-    }
-  }
-
-  /**
-   * Heaps and granary floors, zoomed in. Pure pixel art from fillRect: a golden mound whose width
-   * and height grow with the heap, and a plank floor (a tamped, built-up heap) with grain on it.
-   */
-  private renderStructures(screenWidth: number, screenHeight: number, worldW: number, worldH: number): void {
-    const data = this.world.landStructures;
-    if (!data) return;
-    const cs = this.cellSize;
-    const ctx = this.ctx;
-    const ap = cs / 8; // one "art pixel"
-    const minCellX = Math.floor(-this.panX / cs) - 1;
-    const maxCellX = Math.ceil((screenWidth - this.panX) / cs) + 1;
-    const minCellY = Math.floor(-this.panY / cs) - 1;
-    const maxCellY = Math.ceil((screenHeight - this.panY) / cs) + 1;
-
-    for (let cy = minCellY; cy <= maxCellY; cy++) {
-      const wy = ((cy % worldH) + worldH) % worldH;
-      for (let cx = minCellX; cx <= maxCellX; cx++) {
-        const wx = ((cx % worldW) + worldW) % worldW;
-        const st = data[wy * worldW + wx];
-        if (st === 0) continue;
-        if (this.world.elevation && this.world.elevation.water[wy * worldW + wx] > 0) {
-          // Fish: one or two little silver fish, placed by cell so they hold still; fewer as the stock is fished out.
-          const fx0 = Math.round(cx * cs + this.panX);
-          const fy0 = Math.round(cy * cs + this.panY);
-          const hh = (wx * 97 + wy * 57) & 15;
-          // Sparse: about half the shore tiles show a fish, one at most, and a thin stock (level 1 to 2) shows fewer.
-          const n = (hh & 1) === 0 && (st >= 3 || (hh & 2) === 0) ? 1 : 0;
-          for (let k = 0; k < n; k++) {
-            const sx = ((hh + k * 5) % 5) + 1;
-            const sy = (((hh >> 1) + k * 3) % 5) + 1;
-            const left = ((hh + k) & 1) === 0;
-            const q = (v: number) => Math.round(v * ap);
-            ctx.fillStyle = '#e8f2f0'; // body
-            ctx.fillRect(fx0 + q(sx), fy0 + q(sy), q(2.2), Math.max(1, q(1)));
-            ctx.fillStyle = '#8fb4c4'; // back
-            ctx.fillRect(fx0 + q(sx), fy0 + q(sy), q(2.2), Math.max(1, q(0.4)));
-            ctx.fillStyle = '#e8f2f0'; // tail
-            ctx.fillRect(fx0 + q(left ? sx + 2.2 : sx - 0.8), fy0 + q(sy - 0.3), Math.max(1, q(0.8)), Math.max(1, q(1.6)));
-            ctx.fillStyle = '#1c3a4a'; // eye
-            ctx.fillRect(fx0 + q(left ? sx + 0.3 : sx + 1.7), fy0 + q(sy + 0.2), Math.max(1, q(0.4)), Math.max(1, q(0.4)));
-          }
-          continue;
-        }
-        const level = st & 7;
-        const form = (st >> 3) & 3;
-        const inForest = this.isForest[wy * worldW + wx] === 1;
-        // On woodland these bits mean thinning, not a brush heap.
-        const bLevel = inForest ? 0 : st >> 5;
-        const x0 = Math.round(cx * cs + this.panX);
-        const y0 = Math.round(cy * cs + this.panY);
-
-        if (inForest && (st >> 5) === 6 && form === 0 && level === 0) {
-          // Stumps: cut trunks with pale tops, a few per cell, placed by cell so they hold still.
-          const px = (n: number) => Math.round(n * ap);
-          const h = (wx * 73 + wy * 151) & 7;
-          const spots = [[1, 1.5], [4.5, 0.8], [2.5, 4.6], [5.6, 4.2], [0.8, 5.8]];
-          for (let k = 0; k < 3; k++) {
-            const [sx, sy] = spots[(h + k * 2) % spots.length];
-            ctx.fillStyle = '#4a2e14';
-            ctx.fillRect(x0 + px(sx), y0 + px(sy + 0.8), px(2), px(1.4));
-            ctx.fillStyle = '#d8b878';
-            ctx.fillRect(x0 + px(sx), y0 + px(sy), px(2), Math.max(1, px(1)));
-          }
-          continue;
-        }
-
-        if (form === 3) {
-          // Nest / lean-to: a thatched brush roof slanting down from a pole, with a dark sheltered gap
-          const px = (n: number) => Math.round(n * ap);
-          ctx.fillStyle = '#241608';
-          ctx.fillRect(x0 + px(2), y0 + px(5.5), px(5), px(1.5));
-          const thatch = ['#d9b45a', '#c49a46', '#b08838', '#9a7630'];
-          for (let r = 0; r < 4; r++) {
-            ctx.fillStyle = thatch[r];
-            ctx.fillRect(x0 + px(1 + r * 0.6), y0 + px(2 + r * 0.9), px(6.2 - r * 0.5), Math.max(1, px(1)));
-          }
-          ctx.fillStyle = '#5a3c1c';
-          ctx.fillRect(x0 + px(0.8), y0 + px(1.5), Math.max(1, px(0.7)), px(5.6));
-          ctx.fillRect(x0 + px(7), y0 + px(5.3), Math.max(1, px(0.7)), px(1.8));
-          continue;
-        }
-        if (bLevel > 0 && level === 0 && form === 1) {
-          // Brush heap: a loose crisscross of thin sticks, more of them with a bigger heap
-          const n = Math.min(9, 3 + bLevel);
-          const len = Math.max(4, Math.round(cs * 0.55));
-          const th = Math.max(1, Math.round(ap * 0.6));
-          for (let k = 0; k < n; k++) {
-            const h = ((wx * 73856093) ^ (wy * 19349663) ^ (k * 83492791)) >>> 0;
-            const sx = x0 + Math.round(cs * 0.15 + ((h % 1000) / 1000) * cs * 0.5);
-            const sy = y0 + Math.round(cs * 0.6 + (((h >> 10) % 1000) / 1000) * cs * 0.3);
-            const dir = h & 1 ? 1 : -1;
-            const slope = 0.4 + ((h >> 20) & 3) * 0.3;
-            ctx.fillStyle = STICK_COLORS[(h >> 22) % STICK_COLORS.length];
-            for (let i = 0; i < len; i += th) ctx.fillRect(sx + dir * i, sy - Math.round(i * slope), th, th);
-          }
-          continue;
-        }
-
-        if (form === 2) {
-          // Plank floor with a dark border and plank seams
-          ctx.fillStyle = '#4a2e14';
-          ctx.fillRect(x0 + Math.round(ap * 0.5), y0 + Math.round(ap * 0.5), Math.round(cs - ap), Math.round(cs - ap));
-          ctx.fillStyle = '#8a5a30';
-          ctx.fillRect(x0 + Math.round(ap), y0 + Math.round(ap), Math.round(cs - 2 * ap), Math.round(cs - 2 * ap));
-          ctx.fillStyle = '#6a4220';
-          for (let k = 3; k < 8; k += 2) ctx.fillRect(x0 + Math.round(ap), y0 + Math.round(k * ap), Math.round(cs - 2 * ap), Math.max(1, Math.round(ap * 0.5)));
-        }
-
-        if (level > 0) {
-          // Food heap: a pyramid of round gathered food (berries, roots, fruit, greens), so it
-          // reads as produce and not as a swirl. Taller and wider with the heap.
-          const rows = Math.min(4, 1 + Math.ceil(level * 0.45));
-          const d = Math.max(2, Math.round(ap * 1.5));
-          const floorY = form === 2 ? y0 + cs - Math.round(1.5 * ap) : y0 + cs - Math.round(0.5 * ap);
-          for (let r = 0; r < rows; r++) {
-            const n = rows - r + 1;
-            const rowW = n * d;
-            const rx = x0 + Math.round((cs - rowW) / 2);
-            const ry = floorY - (r + 1) * d;
-            for (let k = 0; k < n; k++) {
-              const col = FOOD_DOT_COLORS[(wx * 7 + wy * 3 + r * 2 + k) % FOOD_DOT_COLORS.length];
-              ctx.fillStyle = col;
-              ctx.fillRect(rx + k * d, ry, d - (d > 2 ? 1 : 0), d - (d > 2 ? 1 : 0));
-              if (ap >= 2) {
-                ctx.fillStyle = 'rgba(255,255,255,0.45)';
-                ctx.fillRect(rx + k * d, ry, 1, 1);
-              }
-            }
           }
         }
       }
@@ -1229,17 +1583,10 @@ export class CanvasRenderer {
   }
 
   /**
-   * People rendering:
-   * - Zoomed out: writes colored pixels straight into ImageData buffer.
-   * - Zoomed in: draws stick-figure sprites on screen with deterministic cell offsets.
+   * Zoomed-out people: coloured pixels written straight into a 256x256 ImageData, scaled up.
+   * (Zoomed in, people are collected and sorted with the other objects: see renderObjects.)
    */
-  private renderPeople(
-    screenWidth: number,
-    screenHeight: number,
-    worldW: number,
-    worldH: number,
-    isZoomedIn: boolean
-  ): void {
+  private renderPeopleFlat(screenWidth: number, screenHeight: number, worldW: number, worldH: number): void {
     if (this.activeCount === 0) return;
 
     const now = performance.now();
@@ -1253,198 +1600,82 @@ export class CanvasRenderer {
     let selectedRenderY = -1;
     let hasSelected = false;
 
-    if (!isZoomedIn) {
-      // Zoomed out: Draw into 256x256 overlay (one pixel per cell) and scale up with nearest neighbor
-      this.peopleData32.fill(0); // clear transparent 256x256 overlay
+    this.peopleData32.fill(0); // clear transparent 256x256 overlay
 
-      for (let i = 0; i < this.activeCount; i++) {
-        const slot = this.activeSlots[i];
-        const p0x = this.prevX[slot];
-        const p1x = this.currX[slot];
-        const p0y = this.prevY[slot];
-        const p1y = this.currY[slot];
+    for (let i = 0; i < this.activeCount; i++) {
+      const slot = this.activeSlots[i];
+      const p0x = this.prevX[slot];
+      const p1x = this.currX[slot];
+      const p0y = this.prevY[slot];
+      const p1y = this.currY[slot];
 
-        let dx = p1x - p0x;
-        if (dx > worldW / 2) dx -= worldW;
-        else if (dx < -worldW / 2) dx += worldW;
+      let dx = p1x - p0x;
+      if (dx > worldW / 2) dx -= worldW;
+      else if (dx < -worldW / 2) dx += worldW;
 
-        let dy = p1y - p0y;
-        if (dy > worldH / 2) dy -= worldH;
-        else if (dy < -worldH / 2) dy += worldH;
+      let dy = p1y - p0y;
+      if (dy > worldH / 2) dy -= worldH;
+      else if (dy < -worldH / 2) dy += worldH;
 
-        let rx = p0x + dx * t;
-        if (rx < 0) rx += worldW;
-        else if (rx >= worldW) rx -= worldW;
+      let rx = p0x + dx * t;
+      if (rx < 0) rx += worldW;
+      else if (rx >= worldW) rx -= worldW;
 
-        let ry = p0y + dy * t;
-        if (ry < 0) ry += worldH;
-        else if (ry >= worldH) ry -= worldH;
+      let ry = p0y + dy * t;
+      if (ry < 0) ry += worldH;
+      else if (ry >= worldH) ry -= worldH;
 
-        const cellX = Math.floor(rx) & 255;
-        const cellY = Math.floor(ry) & 255;
+      const cellX = Math.floor(rx) & 255;
+      const cellY = Math.floor(ry) & 255;
 
-        if (slot === this.selectedSlot) {
-          selectedRenderX = Math.round(rx * cellSize + this.panX);
-          selectedRenderY = Math.round(ry * cellSize + this.panY);
-          if (selectedRenderX < 0) selectedRenderX += worldW * cellSize;
-          if (selectedRenderY < 0) selectedRenderY += worldH * cellSize;
-          hasSelected = true;
-        }
-
-        let colorABGR = 0;
-        if (this.colorMode === 'bands') {
-          const rId = this.rootLeaderIds[slot];
-          const bandSize = this.bandSizes.get(rId) ?? 0;
-          colorABGR = bandSize <= 1 ? COLOR_PEOPLE_LONER : hashRootLeaderToABGR(rId);
-        } else {
-          const look = this.lookBytes[slot];
-          const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
-          const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
-          const stage = (look & LOOK_STAGE_MASK) >> 2;
-          const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
-
-          colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
-          if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
-          else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
-          else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
-          else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
-        }
-
-        this.peopleData32[cellY * 256 + cellX] = colorABGR;
+      if (slot === this.selectedSlot) {
+        selectedRenderX = Math.round(rx * cellSize + this.panX);
+        selectedRenderY = Math.round(ry * cellSize + this.panY);
+        if (selectedRenderX < 0) selectedRenderX += worldW * cellSize;
+        if (selectedRenderY < 0) selectedRenderY += worldH * cellSize;
+        hasSelected = true;
       }
 
-      this.peopleCtx.putImageData(this.peopleImgData, 0, 0);
-      const worldPxW = worldW * cellSize;
-      const worldPxH = worldH * cellSize;
-      for (let ty = this.panY; ty < (this.wrapY ? screenHeight : this.panY + 1); ty += worldPxH) {
-        for (let tx = this.panX; tx < (this.wrapX ? screenWidth : this.panX + 1); tx += worldPxW) {
-          this.ctx.drawImage(this.peopleCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
-        }
-      }
-    } else {
-      // Zoomed in: Draw stick-figure sprites for on-screen people with deterministic ID offsets
-      const scale = Math.max(1, Math.floor(cellSize / 8));
-
-      for (let i = 0; i < this.activeCount; i++) {
-        const slot = this.activeSlots[i];
-        const p0x = this.prevX[slot];
-        const p1x = this.currX[slot];
-        const p0y = this.prevY[slot];
-        const p1y = this.currY[slot];
-
-        let dx = p1x - p0x;
-        if (dx > worldW / 2) dx -= worldW;
-        else if (dx < -worldW / 2) dx += worldW;
-
-        let dy = p1y - p0y;
-        if (dy > worldH / 2) dy -= worldH;
-        else if (dy < -worldH / 2) dy += worldH;
-
-        let rx = p0x + dx * t;
-        if (rx < 0) rx += worldW;
-        else if (rx >= worldW) rx -= worldW;
-
-        let ry = p0y + dy * t;
-        if (ry < 0) ry += worldH;
-        else if (ry >= worldH) ry -= worldH;
-
-        // Deterministic sub-pixel offset from slot ID so people sharing a cell don't stack
-        const hVal = (slot * 2654435761) >>> 0;
-        let offX = ((hVal & 7) - 3.5) / 10;
-        let offY = (((hVal >>> 3) & 7) - 3.5) / 10;
-        const water = this.world.elevation?.water;
-        if (water) {
-          // Beside water the figure stays on its own tile instead of spilling onto the water.
-          const ccx = Math.round(rx) & 255, ccy = Math.round(ry) & 255;
-          if (offX > 0 && water[(ccy << 8) | ((ccx + 1) & 255)] > 0) offX = 0;
-          else if (offX < 0 && water[(ccy << 8) | ((ccx - 1) & 255)] > 0) offX = 0;
-          if (offY > 0 && water[(((ccy + 1) & 255) << 8) | ccx] > 0) offY = 0;
-          else if (offY < 0 && water[(((ccy - 1) & 255) << 8) | ccx] > 0) offY = 0;
-        }
-
-        const baseX = Math.round((rx + offX) * cellSize + this.panX);
-        const baseY = Math.round((ry + offY) * cellSize + this.panY);
-        const worldPxW = worldW * cellSize;
-        const worldPxH = worldH * cellSize;
-
-        // Wrapped world: the copy of this person that lands on screen (first one if several)
-        let screenX = baseX;
-        while (screenX > -cellSize) screenX -= worldPxW;
-        while (screenX < -cellSize) screenX += worldPxW;
-        let screenY = baseY;
-        while (screenY > -cellSize) screenY -= worldPxH;
-        while (screenY < -cellSize) screenY += worldPxH;
-
-        if (slot === this.selectedSlot) {
-          selectedRenderX = screenX;
-          selectedRenderY = screenY;
-          hasSelected = true;
-        }
-
-        // View frustum culling: skip people with no copy inside the visible screen bounds
-        if (screenX > screenWidth + cellSize || screenY > screenHeight + cellSize) {
-          continue;
-        }
-        const firstX = screenX;
-        const firstY = screenY;
-
+      let colorABGR = 0;
+      if (this.colorMode === 'bands') {
+        const rId = this.rootLeaderIds[slot];
+        const bandSize = this.bandSizes.get(rId) ?? 0;
+        colorABGR = bandSize <= 1 ? COLOR_PEOPLE_LONER : hashRootLeaderToABGR(rId);
+      } else {
         const look = this.lookBytes[slot];
         const sex = (look & LOOK_SEX_MASK) === 1 ? 'male' : 'female';
         const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
         const stage = (look & LOOK_STAGE_MASK) >> 2;
         const energyLevel = (look & LOOK_ENERGY_MASK) >> 4;
 
-        // Walking animation frame
-        const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
-        const walkFrame = isMoving
-          ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 'walk_0' : 'walk_1')
-          : 'idle';
+        colorABGR = sex === 'male' ? COLOR_PEOPLE_MALE : COLOR_PEOPLE_FEMALE;
+        if (energyLevel <= 1) colorABGR = COLOR_PEOPLE_STARVING;
+        else if (pregnant) colorABGR = COLOR_PEOPLE_PREGNANT;
+        else if (stage === LOOK_STAGE_CHILD) colorABGR = COLOR_PEOPLE_CHILD;
+        else if (stage === LOOK_STAGE_ELDER) colorABGR = COLOR_PEOPLE_ELDER;
+      }
 
-        let typeStr: string = sex;
-        if (energyLevel <= 1) typeStr = 'starving';
-        else if (pregnant) typeStr = 'pregnant';
-        else if (stage === LOOK_STAGE_CHILD) typeStr = 'child';
-        else if (stage === LOOK_STAGE_ELDER) typeStr = 'elder';
+      this.peopleData32[cellY * 256 + cellX] = colorABGR;
+    }
 
-        const spriteKey = `person_${typeStr}_${walkFrame}` as SpriteKey;
-        const spr = this.atlas.getSprite(spriteKey);
-
-        const dw = spr.w * scale;
-        const dh = spr.h * scale;
-        const bandFill =
-          this.colorMode === 'bands'
-            ? (this.bandSizes.get(this.rootLeaderIds[slot]) ?? 0) <= 1
-              ? '#888888'
-              : hashRootLeaderToHex(this.rootLeaderIds[slot])
-            : null;
-
-        for (let cy = firstY; cy <= screenHeight + cellSize; cy += worldPxH) {
-          for (let cx = firstX; cx <= screenWidth + cellSize; cx += worldPxW) {
-            if (bandFill !== null) {
-              this.ctx.fillStyle = bandFill;
-              this.ctx.beginPath();
-              this.ctx.arc(cx, cy + spr.h * scale * 0.45, Math.max(3, 3 * scale), 0, Math.PI * 2);
-              this.ctx.fill();
-            }
-            this.ctx.drawImage(
-              this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
-              Math.round(cx - spr.anchorX * scale), Math.round(cy - spr.anchorY * scale), dw, dh
-            );
-          }
-        }
+    this.peopleCtx.putImageData(this.peopleImgData, 0, 0);
+    const worldPxW = worldW * cellSize;
+    const worldPxH = worldH * cellSize;
+    for (let ty = this.panY; ty < (this.wrapY ? screenHeight : this.panY + 1); ty += worldPxH) {
+      for (let tx = this.panX; tx < (this.wrapX ? screenWidth : this.panX + 1); tx += worldPxW) {
+        this.ctx.drawImage(this.peopleCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
       }
     }
 
-    // Draw selection indicator if person selected
     if (hasSelected) {
-      this.drawSelectionIndicator(selectedRenderX, selectedRenderY, cellSize, now);
+      this.drawSelectionIndicator(selectedRenderX, selectedRenderY, cellSize, now, false);
     }
   }
 
   /**
    * Bouncing golden ring and chevron over selected person.
    */
-  private drawSelectionIndicator(x: number, y: number, cellSize: number, now: number): void {
+  private drawSelectionIndicator(x: number, y: number, cellSize: number, now: number, oblique: boolean): void {
     const ctx = this.ctx;
     const cx = x;
     const cy = y;
@@ -1452,21 +1683,23 @@ export class CanvasRenderer {
     const pulse = Math.sin(now * 0.008);
     const ringRadius = Math.max(8, cellSize * 0.6) + pulse * 2;
 
-    // Glowing selection ring
+    // Glowing selection ring: flat on the ground around the feet when zoomed in
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
+    if (oblique) ctx.ellipse(cx, cy - this.ap, ringRadius, ringRadius * 0.5, 0, 0, Math.PI * 2);
+    else ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Bouncing chevron sprite
+    // Bouncing chevron sprite, above the head when zoomed in
     const spr = this.atlas.getSprite('selector_chevron');
     const bounce = Math.abs(Math.sin(now * 0.006)) * 6;
     const scale = Math.max(1, Math.floor(cellSize / 12));
     const dw = spr.w * scale;
     const dh = spr.h * scale;
     const dx = Math.round(cx - spr.anchorX * scale);
-    const dy = Math.round(cy - ringRadius - 8 - bounce - spr.anchorY * scale);
+    const lift = oblique ? this.ap * 10 + 4 : ringRadius + 8;
+    const dy = Math.round(cy - lift - bounce - spr.anchorY * scale);
 
     ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
   }

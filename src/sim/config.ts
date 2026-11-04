@@ -215,6 +215,35 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // coldComfort an unsheltered person pays extra upkeep, up to coldUpkeep x metabolism at full cold.
   // Shelter is a cave, a nest, or the warm radius of a fire. A cold, resting person on a big enough
   // brush heap lights it; it burns the brush down and warms a radius while it lasts.
+  // Phase 5f: stone and dry-stone huts. Well-fed people on rock (hill) tiles pick up stone, carry it
+  // to where people gather and set it down; each stone adds durability to that tile. At hutDurability
+  // the tile is a hut (shelter from the cold, cheaper upkeep). Durability erodes in a rotating slice
+  // of cells, so a hut nobody tops up falls back to rubble.
+  // Combat injury: a clash or a wolf bite wounds. While wounded a person pays extra upkeep
+  // (injuryUpkeep x metabolism at full injury) and sometimes cannot step (up to injurySlow of
+  // steps lost at full injury). Wounds heal only when fed (injuryHeal per tick above injuryHealEnergy
+  // of maxEnergy), so a hungry wounded person bleeds out. Violent and wound deaths leave a grave mark.
+  injuryEnabled: true,
+  clashInjury: 60, // injury the loser of a clash takes ...
+  clashInjuryWinner: 0.25, // ... and the winner takes this fraction of it
+  injuryUpkeep: 0.3, // extra upkeep at full injury, as a multiple of metabolism
+  injurySlow: 0.6, // fraction of steps lost at full injury
+  injuryHealEnergy: 0.5, // heals only above this fraction of maxEnergy
+  injuryHeal: 0.3, // injury healed per tick
+  wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
+  wolfInjury: 150, // injury from a wolf bite
+  graveTicks: 150, // how long a fresh grave mark stays visible
+  buildingEnabled: true,
+  stoneCap: 30.0, // stone on a rock tile (finite, does not regrow)
+  stoneBite: 1.0, // stone picked up per tick on rock
+  stoneCarryMax: 8.0,
+  stoneEnergy: 0.6, // picks up stone above this fraction of maxEnergy
+  buildGain: 4.0, // durability added per unit of stone set down
+  durabilityCap: 255, // most durability a tile holds
+  hutDurability: 60, // a tile at or above this is a hut ...
+  hutKeep: 20, // ... until erosion takes it below this
+  erosionSlices: 64, // each tile loses 1 durability once per this many ticks
+  hutUpkeep: 0.5, // upkeep multiplier for anyone standing in a hut
   coldEnabled: true,
   cavesEnabled: true,
   firesEnabled: true,

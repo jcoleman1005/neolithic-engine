@@ -72,15 +72,25 @@ describe('Phase 6a wolves', () => {
     expect(herds.carcassLeft.some((v) => v > 0)).toBe(true);
   });
 
-  it('a wolf takes a lone person beside it but leaves two together alone', () => {
+  it('a wolf bites a lone person beside it (energy taken, wounded) but leaves two together alone', () => {
     const c = { ...cfg, wolfAttackChance: 1 };
     const a = oneWolf(c);
     a.people.spawn((a.wolves.x[a.s] + 1) & 255, a.wolves.y[a.s], 50, 0);
     a.ledger.begin(a.people.totalEnergy(), 0);
     a.wolves.step(a.land, a.people, a.herds, a.fields, a.ledger, c);
-    expect(a.people.count).toBe(0);
-    expect(a.wolves.killedPeople).toBe(1);
-    expect(a.ledger.deathFat).toBeCloseTo(50, 3);
+    expect(a.people.count).toBe(1);
+    expect(a.wolves.killedPeople).toBe(0);
+    expect(a.ledger.deathFat).toBeCloseTo(c.wolfBiteEnergy, 3);
+    const slot = [...Array(a.people.capacity).keys()].find((k) => a.people.alive[k] === 1)!;
+    expect(a.people.energy[slot]).toBeCloseTo(50 - c.wolfBiteEnergy, 3);
+    expect(a.people.injury[slot]).toBe(c.wolfInjury);
+
+    const weak = oneWolf(c);
+    weak.people.spawn((weak.wolves.x[weak.s] + 1) & 255, weak.wolves.y[weak.s], 10, 0);
+    weak.wolves.step(weak.land, weak.people, weak.herds, weak.fields, weak.ledger, c);
+    expect(weak.people.count).toBe(0);
+    expect(weak.wolves.killedPeople).toBe(1);
+    expect(weak.land.violentDeaths).toBe(1);
 
     const b = oneWolf(c);
     b.people.spawn((b.wolves.x[b.s] + 1) & 255, b.wolves.y[b.s], 50, 0);

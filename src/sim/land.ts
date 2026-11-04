@@ -48,6 +48,9 @@ export interface LandState {
   readonly cleared?: readonly number[];
   readonly berries?: readonly number[];
   readonly fire?: readonly number[];
+  readonly stone?: readonly number[];
+  readonly durability?: readonly number[];
+  readonly structure?: readonly number[];
 }
 
 export class Land {
@@ -101,6 +104,20 @@ export class Land {
   public readonly warmDist: Uint8Array;
   /** Height above the lowland, 0..1 (0 with no elevation). Derived. */
   public readonly upland: Float32Array;
+  /** Quarryable stone on rock (hill) cells. Finite. Saved. */
+  public readonly stone: Float32Array;
+  /** Build progress per cell, 0..durabilityCap; erodes slowly. Saved. */
+  public readonly durability: Uint8Array;
+  /** 0 none, 1 hut. Set when durability reaches hutDurability, cleared when erosion takes it under hutKeep. Saved. */
+  public readonly structure: Uint8Array;
+  public hutCount = 0;
+  /** Fresh grave marks (viewer only, not saved or hashed): a ring of 64. */
+  public readonly graveX = new Uint8Array(64);
+  public readonly graveY = new Uint8Array(64);
+  public readonly graveLeft = new Uint16Array(64);
+  private graveHead = 0;
+  /** Violent and wound deaths so far (a tally for reports; not saved or hashed). */
+  public violentDeaths = 0;
   public caveCells: number[] = [];
   public fireCount = 0;
   private warmDirty = true;
@@ -137,6 +154,9 @@ export class Land {
     this.berryMax = new Float32Array(TOTAL_CELLS);
     this.wooded = new Uint8Array(TOTAL_CELLS);
     this.cave = new Uint8Array(TOTAL_CELLS);
+    this.stone = new Float32Array(TOTAL_CELLS);
+    this.durability = new Uint8Array(TOTAL_CELLS);
+    this.structure = new Uint8Array(TOTAL_CELLS);
     this.fire = new Uint8Array(TOTAL_CELLS);
     this.fireNear = new Uint8Array(TOTAL_CELLS);
     this.warmDist = new Uint8Array(TOTAL_CELLS).fill(255);
@@ -428,6 +448,10 @@ export class Land {
     const elev = this.elevation;
     if (!elev) return;
     for (let i = 0; i < TOTAL_CELLS; i++) this.upland[i] = elev.upland01(i);
+    const rockLevel = config.elevationHillLevel ?? 0.68;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.isWater[i] === 0 && elev.elevation[i] / 65535 >= rockLevel) this.stone[i] = config.stoneCap ?? 30;
+    }
     if (config.cavesEnabled === false) return;
     const hill = config.elevationHillLevel ?? 0.68;
     const mountain = config.elevationMountainLevel ?? 0.8;
@@ -463,6 +487,56 @@ export class Land {
     this.caveCells.sort((a, b) => a - b);
   }
 
+  /** Leaves a grave mark where someone died violently or of a wound. */
+  public markDeath(x: number, y: number, ticks: number): void {
+    this.violentDeaths++;
+    const i = this.graveHead++ & 63;
+    this.graveX[i] = x & COORD_MASK;
+    this.graveY[i] = y & COORD_MASK;
+    this.graveLeft[i] = ticks;
+  }
+
+  /** Ages grave marks by one tick. */
+  public ageGraves(): void {
+    for (let i = 0; i < 64; i++) if (this.graveLeft[i] > 0) this.graveLeft[i]--;
+  }
+
+  /** Takes up to `want` stone from a rock cell; returns what came away. */
+  public quarry(x: number, y: number, want: number): number {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    const got = Math.min(want, this.stone[i]);
+    if (got <= 0) return 0;
+    this.stone[i] -= got;
+    return got;
+  }
+
+  /** Sets stone down on a cell: adds durability, and the cell becomes a hut once it holds enough. */
+  public build(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
+    const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
+    if (this.isWater[i] === 1) return;
+    const cap = config.durabilityCap ?? 255;
+    this.durability[i] = Math.min(cap, Math.round(this.durability[i] + amount * (config.buildGain ?? 4)));
+    if (this.structure[i] === 0 && this.durability[i] >= (config.hutDurability ?? 60)) {
+      this.structure[i] = 1;
+      this.hutCount++;
+    }
+  }
+
+  /** Wears every built tile down by 1, one slice of the map a tick, so each loses 1 per erosionSlices ticks. */
+  public erode(tick: number, config: Readonly<SimulationConfig>): void {
+    const slices = Math.max(1, config.erosionSlices ?? 64);
+    const keep = config.hutKeep ?? 20;
+    for (let i = tick % slices; i < TOTAL_CELLS; i += slices) {
+      const d = this.durability[i];
+      if (d === 0) continue;
+      this.durability[i] = d - 1;
+      if (this.structure[i] === 1 && d - 1 < keep) {
+        this.structure[i] = 0;
+        this.hutCount--;
+      }
+    }
+  }
+
   /** Sets this tick's seasonal temperature and the cold thresholds (called once a tick by the life system). */
   public setSeason(temp: number, config: Readonly<SimulationConfig>): void {
     this.seasonTemp = temp;
@@ -479,7 +553,7 @@ export class Land {
 
   /** Out of the cold: in a cave, beside a burning fire, or standing in a built nest. */
   public sheltered(i: number): boolean {
-    return this.cave[i] === 1 || this.fireNear[i] === 1 || this.form[i] === FORM_NEST;
+    return this.cave[i] === 1 || this.fireNear[i] === 1 || this.form[i] === FORM_NEST || this.structure[i] === 1;
   }
 
   /** Lights a fire on a brush heap that is big enough (and not a built nest). Returns whether it caught. */
@@ -550,9 +624,9 @@ export class Land {
     }
   }
 
-  /** Caves and burning fires for the viewer: x, y, kind per entry (16 + facing for a cave, 2 + level for a fire). */
+  /** Caves and burning fires for the viewer: x, y, kind per entry (16 + facing for a cave, 2 + level for a fire, 8 + level for a hut, 5 for a grave mark). */
   public packFeatures(config: Readonly<SimulationConfig>): Uint8Array {
-    const out = new Uint8Array((this.caveCells.length + this.fireCount) * 3);
+    const out = new Uint8Array((this.caveCells.length + this.fireCount + this.hutCount + 64) * 3);
     let o = 0;
     for (let k = 0; k < this.caveCells.length; k++) {
       const c = this.caveCells[k];
@@ -577,6 +651,18 @@ export class Land {
         const lvl = Math.min(2, Math.floor((this.brush[i] / scale) * 1.0));
         out[o++] = i & COORD_MASK; out[o++] = i >> 8; out[o++] = 2 + lvl;
       }
+    }
+    if (this.hutCount > 0) {
+      const span = Math.max(1, (config.durabilityCap ?? 255) - (config.hutDurability ?? 60));
+      for (let i = 0; i < TOTAL_CELLS && o < out.length; i++) {
+        if (this.structure[i] === 0) continue;
+        const lvl = Math.min(3, Math.floor((Math.max(0, this.durability[i] - (config.hutDurability ?? 60)) / span) * 4));
+        out[o++] = i & COORD_MASK; out[o++] = i >> 8; out[o++] = 8 + lvl;
+      }
+    }
+    for (let i = 0; i < 64; i++) {
+      if (this.graveLeft[i] === 0) continue;
+      out[o++] = this.graveX[i]; out[o++] = this.graveY[i]; out[o++] = 5;
     }
     return out.subarray(0, o);
   }
@@ -802,6 +888,9 @@ export class Land {
       cleared: Array.from(this.cleared),
       berries: Array.from(this.berries),
       fire: Array.from(this.fire),
+      stone: Array.from(this.stone),
+      durability: Array.from(this.durability),
+      structure: Array.from(this.structure),
     };
   }
 
@@ -842,5 +931,9 @@ export class Land {
     this.fireCount = 0;
     if (state.fire) for (let i = 0; i < len; i++) { this.fire[i] = state.fire[i] ?? 0; this.fireCount += this.fire[i]; }
     this.warmDirty = true;
+    if (state.stone) for (let i = 0; i < len; i++) this.stone[i] = state.stone[i] ?? 0;
+    this.hutCount = 0;
+    if (state.durability) for (let i = 0; i < len; i++) this.durability[i] = state.durability[i] ?? 0;
+    if (state.structure) for (let i = 0; i < len; i++) { this.structure[i] = state.structure[i] ?? 0; this.hutCount += this.structure[i]; }
   }
 }
