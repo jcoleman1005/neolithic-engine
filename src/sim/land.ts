@@ -550,13 +550,25 @@ export class Land {
     }
   }
 
-  /** Caves and burning fires for the viewer: x, y, kind per entry (1 cave, 2 + level fire level 0..2). */
+  /** Caves and burning fires for the viewer: x, y, kind per entry (16 + facing for a cave, 2 + level for a fire). */
   public packFeatures(config: Readonly<SimulationConfig>): Uint8Array {
     const out = new Uint8Array((this.caveCells.length + this.fireCount) * 3);
     let o = 0;
     for (let k = 0; k < this.caveCells.length; k++) {
       const c = this.caveCells[k];
-      out[o++] = c & COORD_MASK; out[o++] = c >> 8; out[o++] = 1;
+      // Kind 16 + the way the cave faces: toward the lowest neighbour (0 east, 1 west, 2 south, 3 north).
+      let face = 2;
+      const elev = this.elevation;
+      if (elev) {
+        const x = c & COORD_MASK, y = c >> 8;
+        const ns = [(y << 8) | ((x + 1) & COORD_MASK), (y << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | x, (((y - 1) & COORD_MASK) << 8) | x];
+        let low = Infinity;
+        for (let d = 0; d < 4; d++) {
+          const e = elev.elevation[ns[d]];
+          if (e < low) { low = e; face = d; }
+        }
+      }
+      out[o++] = c & COORD_MASK; out[o++] = c >> 8; out[o++] = 16 + face;
     }
     if (this.fireCount > 0) {
       const scale = Math.max(1e-6, config.fireIgniteBrush ?? 6);

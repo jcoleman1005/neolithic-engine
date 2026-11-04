@@ -928,13 +928,35 @@ export class CanvasRenderer {
       const fl = (flick + feats[i] * 7 + feats[i + 1] * 13) & 3;
       for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
         for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
-          if (kind === 1) {
-            if (!zoomedIn) { ctx.fillStyle = '#1c1612'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs)); continue; }
-            ctx.fillStyle = '#3a3128'; // rock lip
-            ctx.fillRect(x0 + q(0.5), y0 + q(1.5), q(7), q(5.5));
-            ctx.fillStyle = '#120e0b'; // dark mouth
-            ctx.fillRect(x0 + q(1.6), y0 + q(3), q(4.8), q(4));
-            ctx.fillRect(x0 + q(2.4), y0 + q(2.2), q(3.2), q(1));
+          if (kind >= 16) {
+            // A cave seen from above: a rocky outcrop in the hillside (light from the north-west) with a
+            // dark arched opening on the downhill face. The rock is drawn fixed; the opening turns to face `f`.
+            const f = kind - 16;
+            const R = (u: number, v: number, w: number, h: number): void => {
+              const ru = f === 2 ? u : f === 3 ? u : f === 0 ? v : 8 - v - h;
+              const rv = f === 2 ? v : f === 3 ? 8 - v - h : u;
+              const rw = f >= 2 ? w : h;
+              const rh = f >= 2 ? h : w;
+              ctx.fillRect(x0 + q(ru), y0 + q(rv), Math.max(1, q(rw)), Math.max(1, q(rh)));
+            };
+            const P = (u: number, v: number, w: number, h: number): void => {
+              ctx.fillRect(x0 + q(u), y0 + q(v), Math.max(1, q(w)), Math.max(1, q(h)));
+            };
+            if (!zoomedIn) {
+              ctx.fillStyle = '#6d655f'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
+              ctx.fillStyle = '#16110d'; ctx.fillRect(x0 + cs * 0.3, y0 + cs * 0.3, Math.max(1, cs * 0.4), Math.max(1, cs * 0.4));
+              continue;
+            }
+            ctx.fillStyle = '#5a524c'; P(1.2, 1.6, 6.8, 6.4); // cast shadow, south-east
+            ctx.fillStyle = '#948b84'; P(0.4, 0.6, 6.8, 6.6); // rock mass
+            ctx.fillStyle = '#6d655f'; P(5.8, 1.4, 1.4, 5.8); P(0.8, 6.2, 6.4, 1); // shaded east and south edges
+            ctx.fillStyle = '#c4bcb4'; P(0.4, 0.6, 6.4, 1); P(0.4, 0.6, 1, 5.6); // lit north and west edges
+            ctx.fillStyle = '#7d756f'; P(1.8, 1.8, 1.2, 1); P(4.2, 2.2, 1.2, 1.1); // boulders
+            ctx.fillStyle = '#b0a8a0'; P(1.8, 1.8, 1.2, 0.4); P(4.2, 2.2, 1.2, 0.4);
+            ctx.fillStyle = '#16110d'; R(2.2, 4.2, 3.6, 3.4); R(2.8, 3.6, 2.4, 0.8); // the opening
+            ctx.fillStyle = '#000000'; R(3, 5.2, 2, 2.4);
+            ctx.fillStyle = '#b0a8a0'; R(2.4, 3.2, 3.2, 0.5); // lintel stone catching the light
+            ctx.fillStyle = '#9c8764'; R(2.6, 7.6, 2.8, 0.4); // worn earth at the mouth
             continue;
           }
           // A fire: warm glow first, then the flame.
