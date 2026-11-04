@@ -111,6 +111,13 @@ export class Land {
   /** 0 none, 1 hut. Set when durability reaches hutDurability, cleared when erosion takes it under hutKeep. Saved. */
   public readonly structure: Uint8Array;
   public hutCount = 0;
+  /** Fresh grave marks (viewer only, not saved or hashed): a ring of 64. */
+  public readonly graveX = new Uint8Array(64);
+  public readonly graveY = new Uint8Array(64);
+  public readonly graveLeft = new Uint16Array(64);
+  private graveHead = 0;
+  /** Violent and wound deaths so far (a tally for reports; not saved or hashed). */
+  public violentDeaths = 0;
   public caveCells: number[] = [];
   public fireCount = 0;
   private warmDirty = true;
@@ -480,6 +487,20 @@ export class Land {
     this.caveCells.sort((a, b) => a - b);
   }
 
+  /** Leaves a grave mark where someone died violently or of a wound. */
+  public markDeath(x: number, y: number, ticks: number): void {
+    this.violentDeaths++;
+    const i = this.graveHead++ & 63;
+    this.graveX[i] = x & COORD_MASK;
+    this.graveY[i] = y & COORD_MASK;
+    this.graveLeft[i] = ticks;
+  }
+
+  /** Ages grave marks by one tick. */
+  public ageGraves(): void {
+    for (let i = 0; i < 64; i++) if (this.graveLeft[i] > 0) this.graveLeft[i]--;
+  }
+
   /** Takes up to `want` stone from a rock cell; returns what came away. */
   public quarry(x: number, y: number, want: number): number {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
@@ -603,9 +624,9 @@ export class Land {
     }
   }
 
-  /** Caves and burning fires for the viewer: x, y, kind per entry (16 + facing for a cave, 2 + level for a fire). */
+  /** Caves and burning fires for the viewer: x, y, kind per entry (16 + facing for a cave, 2 + level for a fire, 8 + level for a hut, 5 for a grave mark). */
   public packFeatures(config: Readonly<SimulationConfig>): Uint8Array {
-    const out = new Uint8Array((this.caveCells.length + this.fireCount + this.hutCount) * 3);
+    const out = new Uint8Array((this.caveCells.length + this.fireCount + this.hutCount + 64) * 3);
     let o = 0;
     for (let k = 0; k < this.caveCells.length; k++) {
       const c = this.caveCells[k];
@@ -638,6 +659,10 @@ export class Land {
         const lvl = Math.min(3, Math.floor((Math.max(0, this.durability[i] - (config.hutDurability ?? 60)) / span) * 4));
         out[o++] = i & COORD_MASK; out[o++] = i >> 8; out[o++] = 8 + lvl;
       }
+    }
+    for (let i = 0; i < 64; i++) {
+      if (this.graveLeft[i] === 0) continue;
+      out[o++] = this.graveX[i]; out[o++] = this.graveY[i]; out[o++] = 5;
     }
     return out.subarray(0, o);
   }

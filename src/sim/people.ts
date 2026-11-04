@@ -60,6 +60,7 @@ export interface PackedPerson {
   readonly carry?: number;
   readonly carryKind?: number;
   readonly hydration?: number;
+  readonly injury?: number;
   readonly rootLeaderId?: number;
 }
 
@@ -97,6 +98,8 @@ export class People {
   public carryKind: Uint8Array;
   /** Water in the body, 0 to thirstMax: falls each tick, refilled beside fresh water. */
   public hydration: Float32Array;
+  /** Wounds from clashes and bites, 0 to 255: drain energy and slow movement, heal only when fed. */
+  public injury: Float32Array;
   public genes: Uint8Array; // capacity * GENE_COUNT
   public habits: Uint8Array; // capacity * HABIT_COUNT
 
@@ -123,6 +126,7 @@ export class People {
     this.carry = new Float32Array(this.capacity);
     this.carryKind = new Uint8Array(this.capacity);
     this.hydration = new Float32Array(this.capacity).fill(100);
+    this.injury = new Float32Array(this.capacity);
     this.genes = new Uint8Array(this.capacity * GENE_COUNT);
     this.habits = new Uint8Array(this.capacity * HABIT_COUNT);
 
@@ -141,6 +145,7 @@ export class People {
       this.carry[i] = 0;
       this.carryKind[i] = 0;
       this.hydration[i] = 100;
+      this.injury[i] = 0;
     }
   }
 
@@ -202,6 +207,7 @@ export class People {
     this.carry = copyF32(this.carry);
     this.carryKind = copyU8(this.carryKind);
     this.hydration = copyF32(this.hydration);
+    this.injury = copyF32(this.injury);
     this.genes = copyGenes(this.genes);
     this.habits = copyHabits(this.habits);
 
@@ -249,6 +255,7 @@ export class People {
     this.carry[slot] = 0;
     this.carryKind[slot] = 0;
     this.hydration[slot] = 100;
+    this.injury[slot] = 0;
     const personId = makePersonId(slot, slotGen);
     this.rootLeaderId[slot] = leaderId !== 0 ? leaderId : personId;
 
@@ -285,6 +292,7 @@ export class People {
     this.carry[slot] = 0;
     this.carryKind[slot] = 0;
     this.hydration[slot] = 100;
+    this.injury[slot] = 0;
     this.leaderId[slot] = 0;
     this.rootLeaderId[slot] = 0;
     this.freeList[this.freeCount++] = slot;
@@ -399,6 +407,7 @@ export class People {
           carry: this.carry[slot],
           carryKind: this.carryKind[slot],
           hydration: this.hydration[slot],
+          injury: this.injury[slot],
           genes: Array.from(this.genes.subarray(gOff, gOff + GENE_COUNT)),
           habits: Array.from(this.habits.subarray(hOff, hOff + HABIT_COUNT)),
         });
@@ -451,6 +460,7 @@ export class People {
       this.carry[slot] = p.carry ?? 0;
       // Older saves carried seeds only, with no kind.
       this.hydration[slot] = p.hydration ?? 100;
+      this.injury[slot] = p.injury ?? 0;
       this.carryKind[slot] = p.carryKind ?? ((p.carry ?? 0) > 0 ? 1 : 0);
       this.rootLeaderId[slot] = p.rootLeaderId ?? p.leaderId ?? makePersonId(slot, genFromId(p.id));
 

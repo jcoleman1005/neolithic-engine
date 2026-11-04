@@ -219,6 +219,20 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // to where people gather and set it down; each stone adds durability to that tile. At hutDurability
   // the tile is a hut (shelter from the cold, cheaper upkeep). Durability erodes in a rotating slice
   // of cells, so a hut nobody tops up falls back to rubble.
+  // Combat injury: a clash or a wolf bite wounds. While wounded a person pays extra upkeep
+  // (injuryUpkeep x metabolism at full injury) and sometimes cannot step (up to injurySlow of
+  // steps lost at full injury). Wounds heal only when fed (injuryHeal per tick above injuryHealEnergy
+  // of maxEnergy), so a hungry wounded person bleeds out. Violent and wound deaths leave a grave mark.
+  injuryEnabled: true,
+  clashInjury: 60, // injury the loser of a clash takes ...
+  clashInjuryWinner: 0.25, // ... and the winner takes this fraction of it
+  injuryUpkeep: 0.3, // extra upkeep at full injury, as a multiple of metabolism
+  injurySlow: 0.6, // fraction of steps lost at full injury
+  injuryHealEnergy: 0.5, // heals only above this fraction of maxEnergy
+  injuryHeal: 0.3, // injury healed per tick
+  wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
+  wolfInjury: 150, // injury from a wolf bite
+  graveTicks: 150, // how long a fresh grave mark stays visible
   buildingEnabled: true,
   stoneCap: 30.0, // stone on a rock tile (finite, does not regrow)
   stoneBite: 1.0, // stone picked up per tick on rock

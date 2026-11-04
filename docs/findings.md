@@ -562,3 +562,27 @@ Target stated before measuring: huts exist and some persist by year 10; people w
 | 3 | +1% / 0% / 0% | 15 / 30 / 47 | 2.7% | 2.4% |
 
 Perf 4.4 us / person / tick at about 13,700 people.
+
+## Combat injury and wolf bites
+
+Why: a clash only made the loser forfeit 25% of energy (death only if that left zero), so 0 to 3 of thousands of clashes a year were fatal; wolves took 2 to 17 people a year and died out on seed 1.
+
+Target stated first: 20 to 60 violent or wound deaths a year around year 10, population within about 15% of an injury-off run, wolves persist.
+
+| Setting | Old | New | Why |
+|:--|:--|:--|:--|
+| `clashInjury` | 90 (first guess) | 60 | At 90 with `injuryUpkeep` 1.5, everyone stayed wounded and population stalled near 1450 vs 3350 off (-57%). |
+| `injuryUpkeep` | 1.5 | 0.3 | Same. A set with 0.5 / 40 / 0.4 was close (-15% at y10) but the next set fit better. |
+| `injuryHeal` | 0.15 | 0.3 | Fed people recover sooner; hungry people still bleed out. |
+
+Unchanged first guesses: `clashInjuryWinner` 0.25, `injurySlow` 0.6, `injuryHealEnergy` 0.5, `wolfBiteEnergy` 25, `wolfInjury` 150, `graveTicks` 150. A wolf now bites a lone person (takes 25 energy, wounds them) and only a person left with nothing falls; this replaces the instant kill.
+
+Result with the adopted set, people vs injury off:
+
+| Seed | y10 | y12 | Violent deaths a year (y10) | Wolves y10 |
+|:--|--:|--:|--:|--:|
+| 1 | -10% | -13% | about 53 | 33 |
+| 2 | -8% | -5% | about 63 | 40 |
+| 3 | -12% | -16% | about 53 | 40 |
+
+Injury off: 0 to 9 violent deaths a year. Wolves now persist on all three seeds (they died out by year 9 on seed 1 before).

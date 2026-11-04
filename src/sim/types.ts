@@ -266,6 +266,16 @@ export interface SimulationConfig {
   nestKeepMass: number;
   nestKeepCompaction: number;
   nestUpkeep: number;
+  injuryEnabled: boolean;
+  clashInjury: number;
+  clashInjuryWinner: number;
+  injuryUpkeep: number;
+  injurySlow: number;
+  injuryHealEnergy: number;
+  injuryHeal: number;
+  wolfBiteEnergy: number;
+  wolfInjury: number;
+  graveTicks: number;
   buildingEnabled: boolean;
   stoneCap: number;
   stoneBite: number;

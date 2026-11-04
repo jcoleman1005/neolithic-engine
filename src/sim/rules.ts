@@ -710,6 +710,11 @@ export class Rules {
         people.energy[loserSlot] -= loserLoss;
         people.energy[winnerSlot] += actualLoot;
         ledger.attack += struggleWaste;
+        if (config.injuryEnabled !== false) {
+          const hurt = config.clashInjury ?? 60;
+          people.injury[loserSlot] = Math.min(255, people.injury[loserSlot] + hurt);
+          people.injury[winnerSlot] = Math.min(255, people.injury[winnerSlot] + hurt * (config.clashInjuryWinner ?? 0.25));
+        }
 
         if (config.experienceHabitsEnabled ?? true) {
           Rules.nudgeHabit(people, winnerSlot, HABIT_BELLIGERENCE, config.habitWinStep ?? 3);
@@ -729,6 +734,7 @@ export class Rules {
             ledger.overdraft += -people.energy[loserSlot];
           }
           fields.depositDanger(px, py, config.scentDangerDeath ?? 10.0);
+          land.markDeath(px, py, config.graveTicks ?? 150);
           people.kill(loserSlot);
         } else {
           fields.depositDanger(px, py, config.scentDangerClash ?? 5.0);

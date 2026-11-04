@@ -49,6 +49,7 @@ export class LifeSystem {
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
     if (config.buildingEnabled !== false) land.erode(tick, config);
+    land.ageGraves();
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
     const diffInterval = config.scentDiffusionInterval ?? 4;
@@ -83,6 +84,13 @@ export class LifeSystem {
     const nestUpkeep = config.nestUpkeep ?? 0.7;
     const hutUpkeepMul = config.hutUpkeep ?? 0.5;
     const coldUpkeep = config.coldUpkeep ?? 0.6;
+    const injuryOn = config.injuryEnabled !== false;
+    const injuryUpkeep = config.injuryUpkeep ?? 0.3;
+    const injurySlow = config.injurySlow ?? 0.6;
+    const healAbove = (config.injuryHealEnergy ?? 0.5) * (config.maxEnergy ?? 100);
+    const injuryHeal = config.injuryHeal ?? 0.3;
+    const graveTicks = config.graveTicks ?? 150;
+    const injury = people.injury;
     const igniteBrush = config.fireIgniteBrush ?? 6;
     const igniteChance = config.fireIgniteChance ?? 0.2;
     const thirstOn = config.finiteResourcesEnabled !== false && config.thirstEnabled !== false;
@@ -128,6 +136,12 @@ export class LifeSystem {
           ledger.upkeep += extra;
         }
       }
+      if (injuryOn && injury[slot] > 0) {
+        const extra = metabolism * injuryUpkeep * (injury[slot] / 255);
+        energy[slot] -= extra;
+        ledger.upkeep += extra;
+        if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
+      }
       if (thirstOn) {
         let h = hydration[slot] - thirstRate;
         if (land.waterDist[(py[slot] << 8) | px[slot]] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
@@ -149,6 +163,7 @@ export class LifeSystem {
           ledger.overdraft += -energy[slot];
         }
         fields.depositDanger(px[slot], py[slot], dangerDeath);
+        if (injury[slot] > 0) land.markDeath(px[slot], py[slot], graveTicks);
         people.kill(slot);
         continue;
       }
@@ -368,6 +383,11 @@ export class LifeSystem {
         }
       }
 
+      // A wounded person loses some steps (a hash of tick and slot: no random draw).
+      if (injuryOn && dir < 4 && injury[slot] > 0) {
+        const hs = (Math.imul(tick + 7, 2246822519) ^ Math.imul(slot + 1, 3266489917)) >>> 0;
+        if (hs / 4294967296 < injurySlow * (injury[slot] / 255)) dir = 4;
+      }
       if (dir < 4) {
         let dx = 0;
         let dy = 0;
@@ -396,6 +416,7 @@ export class LifeSystem {
               ledger.overdraft += -energy[slot];
             }
             fields.depositDanger(nx, ny, dangerDeath);
+            if (injury[slot] > 0) land.markDeath(nx, ny, graveTicks);
             people.kill(slot);
             continue;
           }
