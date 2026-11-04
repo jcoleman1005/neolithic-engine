@@ -116,7 +116,6 @@ const LEGS_DARK = hexToABGR('#1e293b');
 // Foliage & Bark Palette
 const BARK_OAK = hexToABGR('#78350f');
 const BARK_OAK_DARK = hexToABGR('#451a03');
-const BARK_PINE = hexToABGR('#3e2723');
 
 const LEAF_DARK = hexToABGR('#1b4332');
 const LEAF_MID = hexToABGR('#2d6a4f');
@@ -130,8 +129,34 @@ const PINE_LIGHT = hexToABGR('#10b981');
 const FRUIT_RED = hexToABGR('#ef4444');
 const GOLD_ACCENT = hexToABGR('#facc15');
 
+// Oblique (3/4 top-down) painting: light from the north-west, so highlights sit on upper-left
+// faces, shade on right and bottom faces, and a soft shadow falls south-east on the ground.
+const SKIN_SHADE = hexToABGR('#d9a578');
+const FEET = hexToABGR('#3b2a1c');
+const GROUND_SHADOW = hexToABGR('#1a1208', 72);
+const BARK_LIGHT = hexToABGR('#9a5a22');
+const LEAF_HI_PINE = hexToABGR('#34d399');
+
+/** Paints a character map (one char per art pixel, '.' is transparent) through a palette. */
+function paintMap(
+  buf: PixelBuffer,
+  ox: number,
+  oy: number,
+  rows: readonly string[],
+  palette: Readonly<Record<string, number>>
+): void {
+  for (let y = 0; y < rows.length; y++) {
+    const row = rows[y];
+    for (let x = 0; x < row.length; x++) {
+      const c = palette[row[x]];
+      if (c !== undefined) buf.setPixel(ox + x, oy + y, c);
+    }
+  }
+}
+
 /**
- * Draws an 8x10 stick figure into the pixel buffer at (ox, oy).
+ * Draws an 8x10 front-facing figure (seen from a little above) into the pixel buffer at (ox, oy).
+ * The feet end on row 7 and a soft shadow sits on row 8, offset one pixel to the south-east.
  */
 function drawPerson(
   buf: PixelBuffer,
@@ -145,13 +170,9 @@ function drawPerson(
   const isPregnant = type === 'pregnant';
   const isStarving = type === 'starving';
 
-  // Skin tone
   const skin = isElder ? SKIN_ELDER : isStarving ? SKIN_PALE : SKIN;
-
-  // Hair color
   const hair = isElder ? HAIR_ELDER : HAIR_BROWN;
 
-  // Tunic colors
   let tunic = TUNIC_MALE;
   let tunicDark = TUNIC_MALE_DARK;
   if (type === 'female') {
@@ -171,127 +192,139 @@ function drawPerson(
     tunicDark = TUNIC_STARVING_DARK;
   }
 
-  // Children are smaller (offset down 2 pixels)
+  // Ground shadow first, south-east of the feet (one pixel right, on the row under them)
+  buf.fillRect(ox + 2, oy + 8, 6, 1, GROUND_SHADOW);
+
+  // Children are smaller (shifted down 2 pixels, shorter torso) but their feet share the adult baseline
   const yOff = isChild ? 2 : 0;
 
-  // 1. Head (Hair & Face)
-  // Hair cap
+  // 1. Head: hair on top, face lit on the left, a shade pixel on the right cheek
   buf.fillRect(ox + 2, oy + yOff + 0, 4, 1, hair);
   buf.setPixel(ox + 2, oy + yOff + 1, hair);
   buf.setPixel(ox + 5, oy + yOff + 1, hair);
   if (type === 'female' || isPregnant) {
-    // Longer side locks
     buf.setPixel(ox + 1, oy + yOff + 1, hair);
     buf.setPixel(ox + 1, oy + yOff + 2, hair);
     buf.setPixel(ox + 6, oy + yOff + 1, hair);
     buf.setPixel(ox + 6, oy + yOff + 2, hair);
   }
-
-  // Face
   buf.fillRect(ox + 3, oy + yOff + 1, 2, 2, skin);
-  // Eye dot
-  buf.setPixel(ox + 4, oy + yOff + 1, HAIR_DARK);
+  buf.setPixel(ox + 4, oy + yOff + 1, HAIR_DARK); // eye
+  if (!isElder && !isStarving) buf.setPixel(ox + 4, oy + yOff + 2, SKIN_SHADE);
+  if (isElder) buf.fillRect(ox + 3, oy + yOff + 3, 2, 1, HAIR_ELDER); // beard
 
-  if (isElder) {
-    // Beard
-    buf.fillRect(ox + 3, oy + yOff + 3, 2, 1, HAIR_ELDER);
-  }
-
-  // 2. Torso (Tunic)
+  // 2. Torso: lit left, shaded right column, belt row at the bottom
   const torsoY = oy + yOff + 3;
-  buf.fillRect(ox + 2, torsoY, 4, 3, tunic);
-  // Tunic shadow/belt
-  buf.fillRect(ox + 2, torsoY + 2, 4, 1, tunicDark);
+  const torsoH = isChild ? 2 : 3;
+  buf.fillRect(ox + 2, torsoY, 4, torsoH, tunic);
+  buf.fillRect(ox + 5, torsoY, 1, torsoH, tunicDark);
+  buf.fillRect(ox + 2, torsoY + torsoH - 1, 4, 1, tunicDark);
 
-  // Arms
+  // Arms: left in the light, right in shade
   buf.setPixel(ox + 1, torsoY + 1, skin);
-  buf.setPixel(ox + 6, torsoY + 1, skin);
+  buf.setPixel(ox + 6, torsoY + 1, SKIN_SHADE);
 
-  // Pregnant belly bump
   if (isPregnant) {
-    buf.fillRect(ox + 5, torsoY + 1, 2, 2, BELLY_HIGHLIGHT);
+    buf.fillRect(ox + 4, torsoY + 1, 2, 2, BELLY_HIGHLIGHT);
+    buf.setPixel(ox + 5, torsoY + 2, tunicDark);
   }
 
-  // 3. Legs & Walking Animation
-  const legY = torsoY + 3;
+  // 3. Legs and feet (feet on row 7 for every figure)
+  const legY = torsoY + torsoH;
   if (isChild) {
-    // Tiny legs
-    buf.setPixel(ox + 3, legY, LEGS_DARK);
-    buf.setPixel(ox + 4, legY, LEGS_DARK);
+    buf.setPixel(ox + 3, legY, FEET);
+    buf.setPixel(ox + 4, legY, FEET);
   } else if (walkFrame === 0) {
-    // Idle stance
-    buf.fillRect(ox + 2, legY, 1, 2, LEGS_DARK);
-    buf.fillRect(ox + 5, legY, 1, 2, LEGS_DARK);
+    buf.setPixel(ox + 2, legY, LEGS_DARK);
+    buf.setPixel(ox + 5, legY, LEGS_DARK);
+    buf.setPixel(ox + 2, legY + 1, FEET);
+    buf.setPixel(ox + 5, legY + 1, FEET);
   } else if (walkFrame === 1) {
-    // Step forward with left leg
-    buf.fillRect(ox + 2, legY, 1, 2, LEGS_DARK);
-    buf.setPixel(ox + 1, legY + 1, LEGS_DARK);
-    buf.fillRect(ox + 5, legY, 1, 1, LEGS_DARK);
+    buf.setPixel(ox + 2, legY, LEGS_DARK);
+    buf.setPixel(ox + 2, legY + 1, FEET);
+    buf.setPixel(ox + 1, legY + 1, FEET);
+    buf.setPixel(ox + 5, legY, FEET);
   } else {
-    // Step forward with right leg
-    buf.fillRect(ox + 2, legY, 1, 1, LEGS_DARK);
-    buf.fillRect(ox + 5, legY, 1, 2, LEGS_DARK);
-    buf.setPixel(ox + 6, legY + 1, LEGS_DARK);
+    buf.setPixel(ox + 2, legY, FEET);
+    buf.setPixel(ox + 5, legY, LEGS_DARK);
+    buf.setPixel(ox + 5, legY + 1, FEET);
+    buf.setPixel(ox + 6, legY + 1, FEET);
   }
 }
 
-/**
- * Draws tree variants into the pixel buffer.
- */
+/** Trunk and ground shadow shared by the tree sprites (12x14, base on row 13). */
+const TREE_PALETTE_BASE = {
+  k: BARK_LIGHT,
+  T: BARK_OAK,
+  t: BARK_OAK_DARK,
+};
+
+/** Front view of a broadleaf tree: round canopy lit top-left and shaded bottom-right, trunk below. */
 function drawOakTree(buf: PixelBuffer, ox: number, oy: number): void {
-  // 12x14 Oak Tree
-  // Trunk: rows 8..12
-  buf.fillRect(ox + 5, oy + 8, 2, 5, BARK_OAK);
-  buf.setPixel(ox + 6, oy + 8, BARK_OAK_DARK);
-  buf.setPixel(ox + 6, oy + 10, BARK_OAK_DARK);
-  buf.setPixel(ox + 4, oy + 12, BARK_OAK); // root flare
-  buf.setPixel(ox + 7, oy + 12, BARK_OAK);
-
-  // Layered foliage (rows 1..8)
-  // Base shadow
-  buf.fillRect(ox + 2, oy + 6, 8, 3, LEAF_DARK);
-  buf.fillRect(ox + 1, oy + 4, 10, 3, LEAF_MID);
-  buf.fillRect(ox + 2, oy + 2, 8, 3, LEAF_LIGHT);
-  buf.fillRect(ox + 4, oy + 1, 4, 2, LEAF_HIGHLIGHT);
-
-  // Highlights & texture
-  buf.setPixel(ox + 3, oy + 2, LEAF_HIGHLIGHT);
+  // Soft shadow on the ground to the south-east of the trunk
+  buf.fillRect(ox + 4, oy + 12, 7, 1, GROUND_SHADOW);
+  buf.fillRect(ox + 3, oy + 13, 9, 1, GROUND_SHADOW);
+  buf.fillRect(ox + 6, oy + 14, 5, 1, GROUND_SHADOW);
+  paintMap(
+    buf, ox, oy,
+    [
+      '...HLLLL....',
+      '..HHLLLLMM..',
+      '.HHLLLLLMMM.',
+      '.HLLLLLMMMMD',
+      'HLLLLLMMMMDD',
+      'LLLLMMMMMDDD',
+      'LLLMMMMMMDDD',
+      '.LMMMMMMDDD.',
+      '.MMMMDDDDDD.',
+      '..DDDDDDDD..',
+      '.....kT.....',
+      '.....kT.....',
+      '....kkTt....',
+      '...kkTTtt...',
+    ],
+    { ...TREE_PALETTE_BASE, H: LEAF_HIGHLIGHT, L: LEAF_LIGHT, M: LEAF_MID, D: LEAF_DARK }
+  );
+  // A few leaf flecks so the canopy is not flat
   buf.setPixel(ox + 5, oy + 3, LEAF_HIGHLIGHT);
-  buf.setPixel(ox + 8, oy + 3, LEAF_LIGHT);
-  buf.setPixel(ox + 2, oy + 7, LEAF_DARK);
-  buf.setPixel(ox + 9, oy + 7, LEAF_DARK);
+  buf.setPixel(ox + 8, oy + 5, LEAF_LIGHT);
+  buf.setPixel(ox + 3, oy + 7, LEAF_MID);
 }
 
+/** Front view of a conifer: stacked tiers, lit on the left, shaded on the right. */
 function drawPineTree(buf: PixelBuffer, ox: number, oy: number): void {
-  // 12x14 Pine Tree
-  // Trunk: rows 10..12
-  buf.fillRect(ox + 5, oy + 10, 2, 3, BARK_PINE);
-
-  // Bottom tier (rows 7..9)
-  buf.fillRect(ox + 2, oy + 9, 8, 1, PINE_DARK);
-  buf.fillRect(ox + 3, oy + 8, 6, 1, PINE_MID);
-  buf.fillRect(ox + 4, oy + 7, 4, 1, PINE_LIGHT);
-
-  // Middle tier (rows 4..6)
-  buf.fillRect(ox + 3, oy + 6, 6, 1, PINE_DARK);
-  buf.fillRect(ox + 4, oy + 5, 4, 1, PINE_MID);
-  buf.fillRect(ox + 5, oy + 4, 2, 1, PINE_LIGHT);
-
-  // Top tier (rows 1..3)
-  buf.fillRect(ox + 4, oy + 3, 4, 1, PINE_MID);
-  buf.fillRect(ox + 5, oy + 2, 2, 1, PINE_LIGHT);
-  buf.setPixel(ox + 5, oy + 1, PINE_LIGHT); // top tip
+  buf.fillRect(ox + 4, oy + 12, 7, 1, GROUND_SHADOW);
+  buf.fillRect(ox + 3, oy + 13, 9, 1, GROUND_SHADOW);
+  buf.fillRect(ox + 6, oy + 14, 5, 1, GROUND_SHADOW);
+  paintMap(
+    buf, ox, oy,
+    [
+      '.....HL.....',
+      '....HLLM....',
+      '...HLLMMD...',
+      '....LLMMD...',
+      '...HLLMMMD..',
+      '..HLLMMMMDD.',
+      '....LLMMMD..',
+      '..HLLMMMMDD.',
+      '.HLLLMMMMDDD',
+      'HLLLMMMMMMDD',
+      '.....kT.....',
+      '.....kT.....',
+      '....kkTt....',
+      '...kkTTtt...',
+    ],
+    { ...TREE_PALETTE_BASE, H: LEAF_HI_PINE, L: PINE_LIGHT, M: PINE_MID, D: PINE_DARK }
+  );
 }
 
 function drawFruitTree(buf: PixelBuffer, ox: number, oy: number): void {
-  // Draw base oak
   drawOakTree(buf, ox, oy);
-
-  // Sprinkle red fruit apples
   buf.setPixel(ox + 3, oy + 4, FRUIT_RED);
   buf.setPixel(ox + 7, oy + 3, FRUIT_RED);
   buf.setPixel(ox + 5, oy + 6, FRUIT_RED);
   buf.setPixel(ox + 8, oy + 6, FRUIT_RED);
+  buf.setPixel(ox + 7, oy + 7, hexToABGR('#b02a2a')); // one in the shade
 }
 
 /**
@@ -363,7 +396,7 @@ export function createWorldBoxSpriteAtlas(): SpriteAtlas {
     w: 16,
     h: 16,
     anchorX: 8,
-    anchorY: 14,
+    anchorY: 15,
   };
   curX += 16;
 
@@ -375,7 +408,7 @@ export function createWorldBoxSpriteAtlas(): SpriteAtlas {
     w: 16,
     h: 16,
     anchorX: 8,
-    anchorY: 14,
+    anchorY: 15,
   };
   curX += 16;
 
@@ -387,7 +420,7 @@ export function createWorldBoxSpriteAtlas(): SpriteAtlas {
     w: 16,
     h: 16,
     anchorX: 8,
-    anchorY: 14,
+    anchorY: 15,
   };
   curX += 16;
 
