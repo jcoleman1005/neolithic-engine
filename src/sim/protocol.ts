@@ -167,6 +167,8 @@ export type FromWorker =
       readonly packedWolves?: string;
       /** Fresh kills, two bytes per carcass (see World.packCarcassFrame). */
       readonly packedCarcasses?: string;
+      /** Caves and burning fires, three bytes per entry (see World.packFeaturesFrame). */
+      readonly packedFeatures?: string;
       readonly peopleCount: number;
       readonly terrain?: TerrainState;
       readonly landOverlay?: string;

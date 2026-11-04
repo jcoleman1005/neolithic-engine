@@ -211,6 +211,25 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   nestKeepMass: 3.0, // a nest reverts below this mass ...
   nestKeepCompaction: 0.5, // ... or this compaction
   nestUpkeep: 0.7, // upkeep multiplier for anyone standing in a nest
+  // Phase 5d: cold, caves and campfires. Winter and height lower the temperature; below
+  // coldComfort an unsheltered person pays extra upkeep, up to coldUpkeep x metabolism at full cold.
+  // Shelter is a cave, a nest, or the warm radius of a fire. A cold, resting person on a big enough
+  // brush heap lights it; it burns the brush down and warms a radius while it lasts.
+  coldEnabled: true,
+  cavesEnabled: true,
+  firesEnabled: true,
+  coldSeasonAmp: 1.0, // seasonal temperature swing: +/- this around 0 (winter -1, summer +1)
+  coldComfort: -0.4, // temperature below this is cold ...
+  coldSpan: 0.6, // ... and it is bitter (1.0) this much lower
+  coldUpkeep: 0.6, // extra upkeep at full cold, as a fraction of metabolism
+  coldSeekEnergy: 0.5, // cold people head for shelter (and stay) only above this fraction of maxEnergy
+  caveCount: 40, // natural caves on hill edges
+  caveSpacing: 6, // caves are at least this many tiles apart
+  fireIgniteBrush: 6.0, // brush on a tile needed to light a fire
+  fireIgniteChance: 0.2, // chance a cold resting person lights it each tick
+  fireBurnRate: 0.15, // brush burned per tick
+  fireWarmRadius: 2, // tiles (square) around a fire that count as sheltered
+  fireSeekRadius: 12, // cold people sense a fire or cave within this many steps
   farmingEnabled: true,
   ritualEnabled: true,
 

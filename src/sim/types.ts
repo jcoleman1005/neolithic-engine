@@ -266,6 +266,21 @@ export interface SimulationConfig {
   nestKeepMass: number;
   nestKeepCompaction: number;
   nestUpkeep: number;
+  coldEnabled: boolean;
+  cavesEnabled: boolean;
+  firesEnabled: boolean;
+  coldSeasonAmp: number;
+  coldComfort: number;
+  coldSpan: number;
+  coldUpkeep: number;
+  coldSeekEnergy: number;
+  caveCount: number;
+  caveSpacing: number;
+  fireIgniteBrush: number;
+  fireIgniteChance: number;
+  fireBurnRate: number;
+  fireWarmRadius: number;
+  fireSeekRadius: number;
   farmingEnabled: boolean;
   ritualEnabled: boolean;
 

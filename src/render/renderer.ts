@@ -104,6 +104,7 @@ export class CanvasRenderer {
     herdPositions?: Uint8Array;
     wolfPositions?: Uint8Array;
     carcassPositions?: Uint8Array;
+    featurePositions?: Uint8Array;
     peopleCount?: number;
     running?: boolean;
     getSelectedPerson?(): any;
@@ -196,6 +197,7 @@ export class CanvasRenderer {
     herdPositions?: Uint8Array;
     wolfPositions?: Uint8Array;
     carcassPositions?: Uint8Array;
+    featurePositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
       getSelectedPerson?(): any;
@@ -274,6 +276,7 @@ export class CanvasRenderer {
     herdPositions?: Uint8Array;
     wolfPositions?: Uint8Array;
     carcassPositions?: Uint8Array;
+    featurePositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
       getSelectedPerson?(): any;
@@ -681,6 +684,7 @@ export class CanvasRenderer {
 
     // 5. Render People (Direct ImageData blit zoomed out; Stick-figure sprites zoomed in)
     this.renderPeople(width, height, w, h, isZoomedIn);
+    this.renderFeatures(width, height, w, h, isZoomedIn);
     this.renderHerds(width, height, w, h, isZoomedIn);
 
     this.ctx.restore();
@@ -899,6 +903,53 @@ export class CanvasRenderer {
           const dy = Math.round(screenY - spr.anchorY * scale + this.panY);
 
           this.ctx.drawImage(this.atlas.canvas, spr.x, spr.y, spr.w, spr.h, dx, dy, dw, dh);
+        }
+      }
+    }
+  }
+
+  /** Caves (dark mouths in the hill edge) and burning fires (a flickering flame and a faint warm glow). */
+  private renderFeatures(screenWidth: number, screenHeight: number, worldW: number, worldH: number, zoomedIn: boolean): void {
+    const feats = this.world.featurePositions;
+    if (!feats || feats.length < 3) return;
+    const cs = this.cellSize;
+    const ctx = this.ctx;
+    const ap = cs / 8;
+    const q = (v: number) => Math.round(v * ap);
+    const worldPxW = worldW * cs;
+    const worldPxH = worldH * cs;
+    const flick = Math.floor(performance.now() / 120);
+    for (let i = 0; i + 2 < feats.length; i += 3) {
+      const kind = feats[i + 2];
+      let sx = Math.round(feats[i] * cs + this.panX);
+      let sy = Math.round(feats[i + 1] * cs + this.panY);
+      if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
+      if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
+      const fl = (flick + feats[i] * 7 + feats[i + 1] * 13) & 3;
+      for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
+        for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
+          if (kind === 1) {
+            if (!zoomedIn) { ctx.fillStyle = '#1c1612'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs)); continue; }
+            ctx.fillStyle = '#3a3128'; // rock lip
+            ctx.fillRect(x0 + q(0.5), y0 + q(1.5), q(7), q(5.5));
+            ctx.fillStyle = '#120e0b'; // dark mouth
+            ctx.fillRect(x0 + q(1.6), y0 + q(3), q(4.8), q(4));
+            ctx.fillRect(x0 + q(2.4), y0 + q(2.2), q(3.2), q(1));
+            continue;
+          }
+          // A fire: warm glow first, then the flame.
+          ctx.fillStyle = 'rgba(255, 170, 60, 0.16)';
+          const g = Math.max(cs * 5, 6);
+          ctx.fillRect(x0 + cs / 2 - g / 2, y0 + cs / 2 - g / 2, g, g);
+          if (!zoomedIn) { ctx.fillStyle = fl & 1 ? '#ffb030' : '#ff7a18'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs)); continue; }
+          ctx.fillStyle = '#4a3020'; // logs
+          ctx.fillRect(x0 + q(1.5), y0 + q(6), q(5), q(1));
+          ctx.fillStyle = '#d85a10';
+          ctx.fillRect(x0 + q(2.4), y0 + q(3.6 - (fl & 1) * 0.6), q(3.2), q(2.6 + (fl & 1) * 0.6));
+          ctx.fillStyle = '#ffb030';
+          ctx.fillRect(x0 + q(3), y0 + q(2.8 - (fl >> 1) * 0.6), q(2), q(3.2 + (fl >> 1) * 0.6));
+          ctx.fillStyle = '#fff0a0';
+          ctx.fillRect(x0 + q(3.5), y0 + q(4.4), q(1), q(1.4));
         }
       }
     }

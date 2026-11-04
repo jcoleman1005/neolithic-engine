@@ -255,6 +255,11 @@ export class World {
     return fastBase64Encode(buf);
   }
 
+  /** Caves and burning fires for the viewer: three bytes (x, y, kind) per entry, base64. */
+  public packFeaturesFrame(): string {
+    return fastBase64Encode(this.land.packFeatures(this.config));
+  }
+
   /** Fresh kills for the viewer: two bytes (x, y) per carcass, base64. */
   public packCarcassFrame(): string {
     const h = this.herds;
@@ -477,6 +482,7 @@ export class World {
     h.updateFloatArray(land.fish);
     h.updateFloatArray(land.stumpAge);
     h.updateIntArray(land.cleared);
+    h.updateIntArray(land.fire);
     h.updateFloatArray(land.berries);
     h.updateIntArray(land.isWater);
 

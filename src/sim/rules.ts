@@ -218,6 +218,26 @@ export class Rules {
       }
     }
 
+    // Cold: a fed person in the cold heads for the nearest cave or fire and stays once sheltered.
+    if (config.coldEnabled !== false && people.energy[slot] >= (config.coldSeekEnergy ?? 0.5) * (config.maxEnergy ?? 100)) {
+      const here = (py << 8) | px;
+      if (land.coldAt(here) > 0.2) {
+        if (land.sheltered(here)) return 4;
+        const hd = land.warmDist[here];
+        if (hd < 255) {
+          let best = 4;
+          let bestD = hd;
+          for (let d = 0; d < 4; d++) {
+            const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
+            const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
+            const nd = land.warmDist[(ny << 8) | nx];
+            if (nd < bestD && Rules.canStep(px, py, d, land)) { best = d; bestD = nd; }
+          }
+          if (best !== 4) return best;
+        }
+      }
+    }
+
     // Calm movement: a person on a rich enough tile stays and grazes, unless a leader is
     // pulling them along. Hungry people want a richer tile before they settle for it.
     const calm = config.calmMovementEnabled ?? true;

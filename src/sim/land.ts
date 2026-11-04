@@ -1,5 +1,6 @@
 import { type ElevationField, generateElevation } from './elevation';
 import { type TerrainField, generateTerrain } from './terrain';
+import { PRNG } from './prng';
 import type { SimulationConfig } from './types';
 
 export const GRID_SIZE = 256;
@@ -46,6 +47,7 @@ export interface LandState {
   readonly stumpAge?: readonly number[];
   readonly cleared?: readonly number[];
   readonly berries?: readonly number[];
+  readonly fire?: readonly number[];
 }
 
 export class Land {
@@ -89,6 +91,24 @@ export class Land {
   public readonly berryMax: Float32Array;
   /** 1 on woodland cells (cover 0.5 or more), where brush can be gathered. Derived from the terrain; not saved. */
   public readonly wooded: Uint8Array;
+  /** 1 on natural cave cells (hill edges): shelter from the cold. Derived from the elevation and seed; not saved. */
+  public readonly cave: Uint8Array;
+  /** 1 where a campfire burns its brush heap. Saved. */
+  public readonly fire: Uint8Array;
+  /** 1 within the warm radius of a burning fire. Derived; rebuilt when the set of fires changes. */
+  public readonly fireNear: Uint8Array;
+  /** Steps to the nearest burning fire or cave (255 = none within the seek radius). Derived like fireNear. */
+  public readonly warmDist: Uint8Array;
+  /** Height above the lowland, 0..1 (0 with no elevation). Derived. */
+  public readonly upland: Float32Array;
+  public caveCells: number[] = [];
+  public fireCount = 0;
+  private warmDirty = true;
+  /** Seasonal temperature this tick (set by the life system), and the cold thresholds it is judged by. */
+  public seasonTemp = 0;
+  private coldComfort = -0.4;
+  private coldSpan = 0.6;
+  private coldLapse = 0.4;
 
   public terrain: TerrainField | null = null;
   public elevation: ElevationField | null = null;
@@ -116,6 +136,11 @@ export class Land {
     this.cleared = new Uint8Array(TOTAL_CELLS);
     this.berryMax = new Float32Array(TOTAL_CELLS);
     this.wooded = new Uint8Array(TOTAL_CELLS);
+    this.cave = new Uint8Array(TOTAL_CELLS);
+    this.fire = new Uint8Array(TOTAL_CELLS);
+    this.fireNear = new Uint8Array(TOTAL_CELLS);
+    this.warmDist = new Uint8Array(TOTAL_CELLS).fill(255);
+    this.upland = new Float32Array(TOTAL_CELLS);
 
     const gridConfig = (config.gridWidth === GRID_SIZE && config.gridHeight === GRID_SIZE)
       ? config
@@ -142,6 +167,7 @@ export class Land {
       }
     }
     this.initWater(config);
+    this.initCaves(config);
     const treeCap = config.treeCap ?? 100;
     const berryCap = config.berryCap ?? 15;
     this.berryCapSaved = berryCap;
@@ -397,6 +423,152 @@ export class Land {
     }
   }
 
+  /** Natural caves on the edges of the hills, spaced apart, picked with a seeded shuffle. */
+  private initCaves(config: Readonly<SimulationConfig>): void {
+    const elev = this.elevation;
+    if (!elev) return;
+    for (let i = 0; i < TOTAL_CELLS; i++) this.upland[i] = elev.upland01(i);
+    if (config.cavesEnabled === false) return;
+    const hill = config.elevationHillLevel ?? 0.68;
+    const mountain = config.elevationMountainLevel ?? 0.8;
+    const cands: number[] = [];
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.isWater[i] === 1) continue;
+      const h = elev.elevation[i] / 65535;
+      if (h < hill || h >= mountain) continue;
+      const x = i & COORD_MASK, y = i >> 8;
+      const ns = [(y << 8) | ((x + 1) & COORD_MASK), (y << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | x, (((y - 1) & COORD_MASK) << 8) | x];
+      let edge = false;
+      for (let k = 0; k < 4; k++) if (elev.elevation[ns[k]] / 65535 < hill && this.isWater[ns[k]] === 0) edge = true;
+      if (edge) cands.push(i);
+    }
+    const rng = new PRNG(((config.seed ?? 0) ^ 0x5ca5e) >>> 0);
+    for (let k = cands.length - 1; k > 0; k--) {
+      const j = rng.nextInt(0, k + 1);
+      const t = cands[k]; cands[k] = cands[j]; cands[j] = t;
+    }
+    const want = config.caveCount ?? 40;
+    const gap = config.caveSpacing ?? 6;
+    for (let k = 0; k < cands.length && this.caveCells.length < want; k++) {
+      const c = cands[k];
+      const cx = c & COORD_MASK, cy = c >> 8;
+      let ok = true;
+      for (let m = 0; m < this.caveCells.length && ok; m++) {
+        const o = this.caveCells[m];
+        const dx = Math.abs(((o & COORD_MASK) - cx + 384) % 256 - 128), dy = Math.abs((((o >> 8) - cy + 384) % 256) - 128);
+        if (Math.max(dx, dy) < gap) ok = false;
+      }
+      if (ok) { this.caveCells.push(c); this.cave[c] = 1; }
+    }
+    this.caveCells.sort((a, b) => a - b);
+  }
+
+  /** Sets this tick's seasonal temperature and the cold thresholds (called once a tick by the life system). */
+  public setSeason(temp: number, config: Readonly<SimulationConfig>): void {
+    this.seasonTemp = temp;
+    this.coldComfort = config.coldComfort ?? -0.4;
+    this.coldSpan = Math.max(1e-6, config.coldSpan ?? 0.6);
+    this.coldLapse = config.elevationLapse ?? 0.4;
+  }
+
+  /** How cold a cell feels, 0 (comfortable) to 1 (bitter): the season and the height. */
+  public coldAt(i: number): number {
+    const c = (this.coldComfort - (this.seasonTemp - this.coldLapse * this.upland[i])) / this.coldSpan;
+    return c <= 0 ? 0 : c >= 1 ? 1 : c;
+  }
+
+  /** Out of the cold: in a cave, beside a burning fire, or standing in a built nest. */
+  public sheltered(i: number): boolean {
+    return this.cave[i] === 1 || this.fireNear[i] === 1 || this.form[i] === FORM_NEST;
+  }
+
+  /** Lights a fire on a brush heap that is big enough (and not a built nest). Returns whether it caught. */
+  public ignite(i: number, config: Readonly<SimulationConfig>): boolean {
+    if (this.fire[i] === 1 || this.isWater[i] === 1 || this.form[i] === FORM_NEST) return false;
+    if (this.brush[i] < (config.fireIgniteBrush ?? 6)) return false;
+    this.fire[i] = 1;
+    this.fireCount++;
+    this.warmDirty = true;
+    return true;
+  }
+
+  /** Burns each fire's brush down; a fire with no brush left goes out. */
+  public burnFires(config: Readonly<SimulationConfig>): void {
+    if (this.fireCount === 0) return;
+    const rate = config.fireBurnRate ?? 0.15;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.fire[i] === 0) continue;
+      const b = this.brush[i] - rate;
+      if (b <= 0) {
+        this.brush[i] = 0;
+        this.fire[i] = 0;
+        this.fireCount--;
+        this.warmDirty = true;
+      } else this.brush[i] = b;
+    }
+  }
+
+  /** Rebuilds the warm radius mask and the distance to fire or cave, but only when the fires changed. */
+  public refreshWarmth(config: Readonly<SimulationConfig>): void {
+    if (!this.warmDirty) return;
+    this.warmDirty = false;
+    const radius = config.fireWarmRadius ?? 2;
+    const seek = Math.min(254, config.fireSeekRadius ?? 12);
+    this.fireNear.fill(0);
+    this.warmDist.fill(255);
+    const queue: number[] = [];
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.fire[i] === 1) {
+        const x = i & COORD_MASK, y = i >> 8;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const n = (((y + dy) & COORD_MASK) << 8) | ((x + dx) & COORD_MASK);
+            if (this.isWater[n] === 0) this.fireNear[n] = 1;
+          }
+        }
+        this.warmDist[i] = 0;
+        queue.push(i);
+      }
+    }
+    for (let k = 0; k < this.caveCells.length; k++) {
+      const c = this.caveCells[k];
+      this.warmDist[c] = 0;
+      queue.push(c);
+    }
+    for (let head = 0; head < queue.length; head++) {
+      const c = queue[head];
+      const d = this.warmDist[c] + 1;
+      if (d > seek) continue;
+      const x = c & COORD_MASK, y = c >> 8;
+      const ns = [(y << 8) | ((x + 1) & COORD_MASK), (y << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | x, (((y - 1) & COORD_MASK) << 8) | x];
+      for (let k = 0; k < 4; k++) {
+        const n = ns[k];
+        if (this.warmDist[n] !== 255 || this.isWater[n] === 1) continue;
+        this.warmDist[n] = d;
+        queue.push(n);
+      }
+    }
+  }
+
+  /** Caves and burning fires for the viewer: x, y, kind per entry (1 cave, 2 + level fire level 0..2). */
+  public packFeatures(config: Readonly<SimulationConfig>): Uint8Array {
+    const out = new Uint8Array((this.caveCells.length + this.fireCount) * 3);
+    let o = 0;
+    for (let k = 0; k < this.caveCells.length; k++) {
+      const c = this.caveCells[k];
+      out[o++] = c & COORD_MASK; out[o++] = c >> 8; out[o++] = 1;
+    }
+    if (this.fireCount > 0) {
+      const scale = Math.max(1e-6, config.fireIgniteBrush ?? 6);
+      for (let i = 0; i < TOTAL_CELLS && o < out.length; i++) {
+        if (this.fire[i] === 0) continue;
+        const lvl = Math.min(2, Math.floor((this.brush[i] / scale) * 1.0));
+        out[o++] = i & COORD_MASK; out[o++] = i >> 8; out[o++] = 2 + lvl;
+      }
+    }
+    return out.subarray(0, o);
+  }
+
   /** Takes fish from a water tile beside (x, y); returns the food got. Beside = the four neighbours, in a fixed order. */
   public catchFish(x: number, y: number, want: number): number {
     const ns = [((y & COORD_MASK) << 8) | ((x + 1) & COORD_MASK), ((y & COORD_MASK) << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | (x & COORD_MASK), (((y - 1) & COORD_MASK) << 8) | (x & COORD_MASK)];
@@ -617,6 +789,7 @@ export class Land {
       stumpAge: Array.from(this.stumpAge),
       cleared: Array.from(this.cleared),
       berries: Array.from(this.berries),
+      fire: Array.from(this.fire),
     };
   }
 
@@ -654,5 +827,8 @@ export class Land {
       }
     }
     if (state.berries) for (let i = 0; i < len; i++) this.berries[i] = state.berries[i] ?? 0;
+    this.fireCount = 0;
+    if (state.fire) for (let i = 0; i < len; i++) { this.fire[i] = state.fire[i] ?? 0; this.fireCount += this.fire[i]; }
+    this.warmDirty = true;
   }
 }

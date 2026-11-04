@@ -29,6 +29,9 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 ## Wolves (branch `phase-6a-wolves`)
 - **6a-4 built**: wolves wander, chase herd prey, kill and leave meat and a carcass, leave danger scent, take lone people; herds flee them. 12 to 38 wolves over 30 years, about 29 people killed a year, people 5% below wolves off at year 30 (a 12% dip at year 20). Tuning stopped here on purpose; the threat is for later phases to answer. Needs a server restart and a watch.
 
+## Phase 5d cold, caves and campfires (branch `phase-5d-cold`)
+- **Built**: a seasonal cold (winter and height) that adds upkeep to anyone unsheltered; 40 natural caves on hill edges; campfires that a cold, resting person lights on a big enough brush heap, which burn the brush down and shelter a 2-tile radius; cold, fed people walk to the nearest cave or fire and stay. Caves are drawn as dark mouths, fires as a flickering flame with a faint warm glow. Switches `coldEnabled`, `cavesEnabled`, `firesEnabled`. Tests `tests/cold.test.ts` (8). Perf 4.3 us / person / tick at 13,680 people. People run 3% / 6% / 10% under cold-off at years 5 / 10 / 20 (mean of 3 seeds; seed 2 is 16% under at year 20). Needs a server restart, a reset, and a watch (rule 13): look for glowing fires in winter and bands clustered at fires and cave mouths.
+
 ## Next Steps
 1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
 2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.

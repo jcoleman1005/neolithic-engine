@@ -1,5 +1,5 @@
 import type { SimulationConfig } from './types';
-import { seasonGrowthFactor } from './seasons';
+import { seasonGrowthFactor, yearPhase } from './seasons';
 import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH } from './people';
 import { FORM_NEST } from './land';
 import {
@@ -37,7 +37,17 @@ export class LifeSystem {
     herds?: Herds
   ): void {
     // 1. Land food regrowth
+    const coldOn = config.coldEnabled !== false;
+    const firesOn = coldOn && config.firesEnabled !== false && config.nestsEnabled !== false;
+    land.setSeason(
+      coldOn && config.seasonsEnabled !== false
+        ? (config.coldSeasonAmp ?? 1.0) * Math.sin(2 * Math.PI * (yearPhase(tick, config) - 0.125))
+        : 0,
+      config
+    );
+    land.refreshWarmth(config);
     land.step(config, seasonGrowthFactor(tick, config));
+    if (firesOn) land.burnFires(config);
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
     const diffInterval = config.scentDiffusionInterval ?? 4;
@@ -70,6 +80,9 @@ export class LifeSystem {
     const metabolism = config.metabolismCost ?? 0.25;
     const nestsOn = config.nestsEnabled !== false;
     const nestUpkeep = config.nestUpkeep ?? 0.7;
+    const coldUpkeep = config.coldUpkeep ?? 0.6;
+    const igniteBrush = config.fireIgniteBrush ?? 6;
+    const igniteChance = config.fireIgniteChance ?? 0.2;
     const thirstOn = config.finiteResourcesEnabled !== false && config.thirstEnabled !== false;
     const thirstRate = config.thirstRate ?? 0.4;
     const thirstMax = config.thirstMax ?? 100;
@@ -102,6 +115,15 @@ export class LifeSystem {
       const upkeep = nestsOn && land.form[(py[slot] << 8) | px[slot]] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
       energy[slot] -= upkeep;
       ledger.upkeep += upkeep;
+      if (coldOn) {
+        const cell = (py[slot] << 8) | px[slot];
+        const cold = land.coldAt(cell);
+        if (cold > 0 && !land.sheltered(cell)) {
+          const extra = metabolism * coldUpkeep * cold;
+          energy[slot] -= extra;
+          ledger.upkeep += extra;
+        }
+      }
       if (thirstOn) {
         let h = hydration[slot] - thirstRate;
         if (land.waterDist[(py[slot] << 8) | px[slot]] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
@@ -297,6 +319,14 @@ export class LifeSystem {
           land.dropBrush(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;
+        }
+      }
+      // A cold person resting on a big enough brush heap lights it (a hash of tick and cell, no random draw).
+      if (firesOn && dir === 4) {
+        const c = (py[slot] << 8) | px[slot];
+        if (land.brush[c] >= igniteBrush && land.fire[c] === 0 && land.coldAt(c) > 0.2 && land.wooded[c] === 0) {
+          const hsh = (Math.imul(tick + 1, 2654435761) ^ Math.imul(c + 1, 40503)) >>> 0;
+          if (hsh / 4294967296 < igniteChance) land.ignite(c, config);
         }
       }
       // A carrier resting where people congregate (or who is full) unloads the food on the spot.

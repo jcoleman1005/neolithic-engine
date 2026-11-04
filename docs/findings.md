@@ -528,3 +528,25 @@ Switch `wolvesEnabled`. Own typed arrays and PRNG (`src/sim/wolves.ts`), one wol
 | **adopted**: upkeep 0.06, sense 8, kill 0.6, breed energy 50, birth 20, lone radius 0 | 12 to 38, from y5 to y30 | 879 in 30y (about 29 a year) | herds hold at 297; people vs wolves off: -3.4% y5, -4.4% y10, -10% y15, -12% y20, -7% y25, -5% y30 |
 
 Targets (set first): wolves persist (5 to 80), herds above 100, people within 10% of wolves off, deaths under 1% a year. All met except the middle years, where people dip 10 to 12% below. Finding: herds alone cannot feed wolves, since prey flees at the wolf's own speed (kills stayed in the tens to hundreds in 30 years); wolves persist only because lone people are abundant. Left as is on purpose: the threat is for later phases (fire and hearths 5d, barricades Phase 7, weather 6b) to answer through the land and costs, not for more wolf rules. Single seed.
+
+## Phase 5d cold, caves and campfires
+
+Target stated before the sweep: population within 10% of a cold-off run at years 5, 10 and 20 (30 years was too slow to sweep); fires burn every winter; at least 25% of winter person-ticks sheltered.
+
+| Setting | Old | New | Why |
+|:--|:--|:--|:--|
+| `coldUpkeep` | 0.8 (first guess) | 0.6 | At 0.8 population ran 15% under cold-off by year 15 (seed 1) and 18% (seed 2). |
+| `coldSeekEnergy` | 0.3 (first guess) | 0.5 | People sat in shelter until 30% energy, then foraged hungry. Leaving at 50% kept them foraging; lowering `coldUpkeep` alone did not help (0.5 gave 24% under at year 20, noise). |
+
+Other values, unchanged from the first guess: `coldComfort` -0.4, `coldSpan` 0.6, `coldSeasonAmp` 1.0, `caveCount` 40, `caveSpacing` 6, `fireIgniteBrush` 6, `fireIgniteChance` 0.2, `fireBurnRate` 0.15, `fireWarmRadius` 2, `fireSeekRadius` 12.
+
+Result with the adopted set, people vs cold off (700 founders):
+
+| Seed | y5 | y10 | y15 | y20 |
+|:--|--:|--:|--:|--:|
+| 1 | -2% | -3% | -8% | -5% |
+| 2 | -2% | -4% | -11% | -16% |
+| 3 | -6% | -10% | -9% | -10% |
+| mean | -3% | -6% | -9% | -10% |
+
+Seed 2 misses the 10% target at year 20. Winter shelter: 45% to 52% of person-ticks sheltered (10% to 18% in caves, rest at fires), 45 to 70 fires burning on average in winter, about 1200 to 1800 lit per 20 years. With fires off (cave-only shelter) population ends about 5% lower than with fires on (seed 1), so fires earn their place. Perf 4.3 us / person / tick at 13,680 people.
