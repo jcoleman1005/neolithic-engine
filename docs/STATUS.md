@@ -1,3 +1,12 @@
+## Wolf & Herd Animation Polish (branch `fix-wolf-animation`)
+- **Done**: Fixed the wolf (and deer) flip-every-tick bug and added smooth inter-frame interpolation:
+  - **Heading Tracking**: Replaced coordinate-parity flip `((cx * 29 + cy * 13) & 1) === 0` with persistent heading tracking based on delta movement. Animals face East when moving right, West when moving left, and preserve their facing when moving vertically or idling.
+  - **Motion Interpolation**: Interpolated animal positions `rx, ry` between simulation ticks using `(now - lastFrameTime) / frameInterval` with toroidal wrapping for both close-up oblique sprites and flat zoomed-out dots (`renderHerdsFlat`).
+  - **Trotting Gait**: Added a 2-phase diagonal trotting gait for quadruped legs and slight tail bob when moving, returning to a neutral grounded stance when resting.
+  - **Memory & Allocation**: Used preallocated Float32Array/Uint8Array tracking buffers (`prevWolfX`, `currWolfX`, `nextWolfX`, etc.) on `CanvasRenderer` with zero per-frame garbage collection allocations.
+  - **Fingerprint**: Strictly unaffected (simulation logic untouched).
+  - **Perf**: **8.93 µs / person / tick** at 11,313 people (under heavy background load, well under 15.0 µs desktop budget).
+
 ## Unified Graphics & Zoom Consistency (branch `graphics-unification`)
 - **Done**: Completed visual audit and established shared style rules (NW lighting, SE soft ground shadows `rgba(26, 18, 8, 0.30)`, 8-px art unit `ap`).
   - **Graves**: Retinted flat/zoomed-out marker from crimson `#8a2e22` (which conflicted with animal carcasses) to earth mound `#6b5238` with stick/bone cross `#e6dbbc`.

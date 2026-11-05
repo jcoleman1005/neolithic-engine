@@ -199,6 +199,29 @@ export class CanvasRenderer {
   private lastFrameTime = 0;
   private frameInterval = 333; // ms between sim frames
 
+  // Animal tracking for smooth interpolation and stable heading (up to 256 wolves, 512 deer)
+  private readonly prevWolfX = new Float32Array(256);
+  private readonly prevWolfY = new Float32Array(256);
+  private readonly currWolfX = new Float32Array(256);
+  private readonly currWolfY = new Float32Array(256);
+  private readonly nextWolfX = new Float32Array(256);
+  private readonly nextWolfY = new Float32Array(256);
+  private readonly wolfFacing = new Uint8Array(256); // 1 = East (right), 0 = West (left)
+  private readonly nextWolfFacing = new Uint8Array(256);
+  private wolfCount = 0;
+
+  private readonly prevDeerX = new Float32Array(512);
+  private readonly prevDeerY = new Float32Array(512);
+  private readonly currDeerX = new Float32Array(512);
+  private readonly currDeerY = new Float32Array(512);
+  private readonly nextDeerX = new Float32Array(512);
+  private readonly nextDeerY = new Float32Array(512);
+  private readonly deerFacing = new Uint8Array(512);
+  private readonly nextDeerFacing = new Uint8Array(512);
+  private deerCount = 0;
+
+  private readonly animalMatched = new Uint8Array(512);
+
   // Selection & Follow
   public selectedSlot: number | null = null;
   public followSelected = false;
@@ -325,6 +348,8 @@ export class CanvasRenderer {
     }
   ): void {
     this.world = world;
+    this.wolfCount = 0;
+    this.deerCount = 0;
   }
 
   public startLoop(): void {
@@ -645,6 +670,135 @@ export class CanvasRenderer {
 
     this.activeMask.set(newMask);
     this.activeCount = count;
+    this.updateAnimalTracking();
+  }
+
+  private updateAnimalTracking(): void {
+    // 1. Wolves
+    const wolves = this.world.wolfPositions;
+    const wolfN = wolves ? wolves.length >> 1 : 0;
+    const oldWolfN = this.wolfCount;
+    const targetW = Math.min(256, wolfN);
+    this.animalMatched.fill(0);
+
+    for (let i = 0; i < targetW; i++) {
+      const nx = wolves![i * 2];
+      const ny = wolves![i * 2 + 1];
+      let bestJ = -1;
+
+      // Fast path: same slot index
+      if (i < oldWolfN && this.animalMatched[i] === 0) {
+        let dx = nx - this.currWolfX[i];
+        if (dx > 128) dx -= 256; else if (dx < -128) dx += 256;
+        let dy = ny - this.currWolfY[i];
+        if (dy > 128) dy -= 256; else if (dy < -128) dy += 256;
+        if (Math.abs(dx) <= 2 && Math.abs(dy) <= 2) {
+          bestJ = i;
+        }
+      }
+
+      // Fallback scan if index shifted due to spawn/death
+      if (bestJ < 0 && oldWolfN > 0) {
+        let minD = 1e9;
+        for (let j = 0; j < oldWolfN; j++) {
+          if (this.animalMatched[j] === 1) continue;
+          let dx = nx - this.currWolfX[j];
+          if (dx > 128) dx -= 256; else if (dx < -128) dx += 256;
+          let dy = ny - this.currWolfY[j];
+          if (dy > 128) dy -= 256; else if (dy < -128) dy += 256;
+          if (Math.abs(dx) <= 2 && Math.abs(dy) <= 2) {
+            const d = dx * dx + dy * dy;
+            if (d < minD) { minD = d; bestJ = j; }
+          }
+        }
+      }
+
+      if (bestJ >= 0) {
+        this.animalMatched[bestJ] = 1;
+        this.prevWolfX[i] = this.currWolfX[bestJ];
+        this.prevWolfY[i] = this.currWolfY[bestJ];
+        this.nextWolfX[i] = nx;
+        this.nextWolfY[i] = ny;
+        let mdx = nx - this.currWolfX[bestJ];
+        if (mdx > 128) mdx -= 256; else if (mdx < -128) mdx += 256;
+        this.nextWolfFacing[i] = Math.abs(mdx) > 0.01 ? (mdx > 0 ? 1 : 0) : this.wolfFacing[bestJ];
+      } else {
+        this.prevWolfX[i] = nx;
+        this.prevWolfY[i] = ny;
+        this.nextWolfX[i] = nx;
+        this.nextWolfY[i] = ny;
+        this.nextWolfFacing[i] = 1;
+      }
+    }
+
+    if (targetW > 0) {
+      this.currWolfX.set(this.nextWolfX.subarray(0, targetW));
+      this.currWolfY.set(this.nextWolfY.subarray(0, targetW));
+      this.wolfFacing.set(this.nextWolfFacing.subarray(0, targetW));
+    }
+    this.wolfCount = targetW;
+
+    // 2. Deer (herds)
+    const herds = this.world.herdPositions;
+    const deerN = herds ? herds.length >> 1 : 0;
+    const oldDeerN = this.deerCount;
+    const targetD = Math.min(512, deerN);
+    this.animalMatched.fill(0);
+
+    for (let i = 0; i < targetD; i++) {
+      const nx = herds![i * 2];
+      const ny = herds![i * 2 + 1];
+      let bestJ = -1;
+
+      if (i < oldDeerN && this.animalMatched[i] === 0) {
+        let dx = nx - this.currDeerX[i];
+        if (dx > 128) dx -= 256; else if (dx < -128) dx += 256;
+        let dy = ny - this.currDeerY[i];
+        if (dy > 128) dy -= 256; else if (dy < -128) dy += 256;
+        if (Math.abs(dx) <= 2 && Math.abs(dy) <= 2) {
+          bestJ = i;
+        }
+      }
+
+      if (bestJ < 0 && oldDeerN > 0) {
+        let minD = 1e9;
+        for (let j = 0; j < oldDeerN; j++) {
+          if (this.animalMatched[j] === 1) continue;
+          let dx = nx - this.currDeerX[j];
+          if (dx > 128) dx -= 256; else if (dx < -128) dx += 256;
+          let dy = ny - this.currDeerY[j];
+          if (dy > 128) dy -= 256; else if (dy < -128) dy += 256;
+          if (Math.abs(dx) <= 2 && Math.abs(dy) <= 2) {
+            const d = dx * dx + dy * dy;
+            if (d < minD) { minD = d; bestJ = j; }
+          }
+        }
+      }
+
+      if (bestJ >= 0) {
+        this.animalMatched[bestJ] = 1;
+        this.prevDeerX[i] = this.currDeerX[bestJ];
+        this.prevDeerY[i] = this.currDeerY[bestJ];
+        this.nextDeerX[i] = nx;
+        this.nextDeerY[i] = ny;
+        let mdx = nx - this.currDeerX[bestJ];
+        if (mdx > 128) mdx -= 256; else if (mdx < -128) mdx += 256;
+        this.nextDeerFacing[i] = Math.abs(mdx) > 0.01 ? (mdx > 0 ? 1 : 0) : this.deerFacing[bestJ];
+      } else {
+        this.prevDeerX[i] = nx;
+        this.prevDeerY[i] = ny;
+        this.nextDeerX[i] = nx;
+        this.nextDeerY[i] = ny;
+        this.nextDeerFacing[i] = 1;
+      }
+    }
+
+    if (targetD > 0) {
+      this.currDeerX.set(this.nextDeerX.subarray(0, targetD));
+      this.currDeerY.set(this.nextDeerY.subarray(0, targetD));
+      this.deerFacing.set(this.nextDeerFacing.subarray(0, targetD));
+    }
+    this.deerCount = targetD;
   }
 
   public render(): void {
@@ -1077,22 +1231,73 @@ export class CanvasRenderer {
     screenW: number, screenH: number, worldPxW: number, worldPxH: number, q: (v: number) => number
   ): void {
     const cs = this.cellSize;
-    const lists: [Uint8Array | undefined, number, number][] = [
-      [this.world.carcassPositions, D_CARCASS, q(6)],
-      [this.world.wolfPositions, D_WOLF, q(7.2)],
-      [this.world.herdPositions, D_DEER, q(7.2)],
-    ];
-    for (let l = 0; l < 3; l++) {
-      const pos = lists[l][0];
-      if (!pos) continue;
-      for (let i = 0; i + 1 < pos.length; i += 2) {
+    const worldW = 256;
+    const worldH = 256;
+    const now = performance.now();
+    const t =
+      this.world.running === false
+        ? 1.0
+        : Math.min(1.0, (now - this.lastFrameTime) / this.frameInterval);
+
+    // 1. Carcasses (static on ground)
+    const carcasses = this.world.carcassPositions;
+    if (carcasses) {
+      for (let i = 0; i + 1 < carcasses.length; i += 2) {
         this.emitAt(
-          lists[l][1],
-          Math.round(pos[i] * cs + this.panX), Math.round(pos[i + 1] * cs + this.panY),
-          0, pos[i] | (pos[i + 1] << 8), lists[l][2],
+          D_CARCASS,
+          Math.round(carcasses[i] * cs + this.panX), Math.round(carcasses[i + 1] * cs + this.panY),
+          0, carcasses[i] | (carcasses[i + 1] << 8), q(6),
           screenW, screenH, worldPxW, worldPxH
         );
       }
+    }
+
+    // 2. Wolves (interpolated, motion heading, trotting gait)
+    for (let k = 0; k < this.wolfCount; k++) {
+      let dx = this.currWolfX[k] - this.prevWolfX[k];
+      if (dx > worldW / 2) dx -= worldW; else if (dx < -worldW / 2) dx += worldW;
+      let dy = this.currWolfY[k] - this.prevWolfY[k];
+      if (dy > worldH / 2) dy -= worldH; else if (dy < -worldH / 2) dy += worldH;
+
+      let rx = this.prevWolfX[k] + dx * t;
+      if (rx < 0) rx += worldW; else if (rx >= worldW) rx -= worldW;
+      let ry = this.prevWolfY[k] + dy * t;
+      if (ry < 0) ry += worldH; else if (ry >= worldH) ry -= worldH;
+
+      const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+      const frame = isMoving ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2) : 0;
+      const face = this.wolfFacing[k] === 1;
+
+      this.emitAt(
+        D_WOLF,
+        Math.round(rx * cs + this.panX), Math.round(ry * cs + this.panY),
+        (face ? 1 : 0) | (frame << 1), Math.round(rx) | (Math.round(ry) << 8), q(7.2),
+        screenW, screenH, worldPxW, worldPxH
+      );
+    }
+
+    // 3. Deer (interpolated, motion heading, trotting gait)
+    for (let k = 0; k < this.deerCount; k++) {
+      let dx = this.currDeerX[k] - this.prevDeerX[k];
+      if (dx > worldW / 2) dx -= worldW; else if (dx < -worldW / 2) dx += worldW;
+      let dy = this.currDeerY[k] - this.prevDeerY[k];
+      if (dy > worldH / 2) dy -= worldH; else if (dy < -worldH / 2) dy += worldH;
+
+      let rx = this.prevDeerX[k] + dx * t;
+      if (rx < 0) rx += worldW; else if (rx >= worldW) rx -= worldW;
+      let ry = this.prevDeerY[k] + dy * t;
+      if (ry < 0) ry += worldH; else if (ry >= worldH) ry -= worldH;
+
+      const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+      const frame = isMoving ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2) : 0;
+      const face = this.deerFacing[k] === 1;
+
+      this.emitAt(
+        D_DEER,
+        Math.round(rx * cs + this.panX), Math.round(ry * cs + this.panY),
+        (face ? 1 : 0) | (frame << 1), Math.round(rx) | (Math.round(ry) << 8), q(7.2),
+        screenW, screenH, worldPxW, worldPxH
+      );
     }
   }
 
@@ -1176,8 +1381,8 @@ export class CanvasRenderer {
       case D_HUT: this.drawHut(x0, y0, a); break;
       case D_GRAVE: this.drawGrave(x0, y0); break;
       case D_CARCASS: this.drawCarcass(x0, y0, b & 255, b >> 8); break;
-      case D_WOLF: this.drawWolf(x0, y0, b & 255, b >> 8); break;
-      case D_DEER: this.drawDeer(x0, y0, b & 255, b >> 8); break;
+      case D_WOLF: this.drawWolf(x0, y0, (a & 1) === 1, a >> 1); break;
+      case D_DEER: this.drawDeer(x0, y0, (a & 1) === 1, a >> 1); break;
       case D_PERSON: this.drawPerson(x0, y0, a, b); break;
     }
   }
@@ -1470,11 +1675,25 @@ export class CanvasRenderer {
   }
 
   /** A herd animal in side view, standing: lit back, shaded belly and rump, shadow to the south-east. */
-  private drawDeer(x0: number, y0: number, cx: number, cy: number): void {
-    const face = ((cx * 31 + cy * 17) & 1) === 0;
+  private drawDeer(x0: number, y0: number, face: boolean, frame: number): void {
     const M = (u: number, v: number, w: number, h: number, c: string): void => this.M(x0, y0, face, u, v, w, h, c);
     M(1.6, 6.9, 6.0, 0.9, SHADOW);
-    for (const lx of [1.6, 2.6, 4.4, 5.4]) M(lx, 5, 0.6, 2, '#6b4220'); // legs
+
+    // Trotting gait or standing
+    if (frame === 1) {
+      M(1.2, 5, 0.6, 2, '#6b4220');
+      M(3.0, 5, 0.6, 2, '#6b4220');
+      M(4.0, 5, 0.6, 2, '#6b4220');
+      M(5.8, 5, 0.6, 2, '#6b4220');
+    } else if (frame === 2) {
+      M(2.0, 5, 0.6, 2, '#6b4220');
+      M(2.2, 5, 0.6, 2, '#6b4220');
+      M(4.8, 5, 0.6, 2, '#6b4220');
+      M(5.0, 5, 0.6, 2, '#6b4220');
+    } else {
+      for (const lx of [1.6, 2.6, 4.4, 5.4]) M(lx, 5, 0.6, 2, '#6b4220'); // legs
+    }
+
     M(1.2, 3, 5.4, 2.2, '#b8793c'); // body
     M(1.2, 4.6, 5.4, 0.6, '#8f5a2a'); // shaded belly
     M(5.6, 3.4, 1.0, 1.8, '#9a6030'); // shaded haunch on the far side from the light
@@ -1485,11 +1704,25 @@ export class CanvasRenderer {
   }
 
   /** A wolf in side view: lean, ears up, tail out. */
-  private drawWolf(x0: number, y0: number, cx: number, cy: number): void {
-    const face = ((cx * 29 + cy * 13) & 1) === 0;
+  private drawWolf(x0: number, y0: number, face: boolean, frame: number): void {
     const M = (u: number, v: number, w: number, h: number, c: string): void => this.M(x0, y0, face, u, v, w, h, c);
     M(1.4, 6.9, 6.0, 0.9, SHADOW);
-    for (const lx of [1.4, 2.4, 4.6, 5.6]) M(lx, 5, 0.6, 2, '#3a3a44'); // legs
+
+    // Trotting leg pairs or standing
+    if (frame === 1) {
+      M(1.0, 5, 0.6, 2, '#3a3a44');
+      M(2.8, 5, 0.6, 2, '#3a3a44');
+      M(4.2, 5, 0.6, 2, '#3a3a44');
+      M(6.0, 5, 0.6, 2, '#3a3a44');
+    } else if (frame === 2) {
+      M(1.8, 5, 0.6, 2, '#3a3a44');
+      M(2.0, 5, 0.6, 2, '#3a3a44');
+      M(5.0, 5, 0.6, 2, '#3a3a44');
+      M(5.2, 5, 0.6, 2, '#3a3a44');
+    } else {
+      for (const lx of [1.4, 2.4, 4.6, 5.6]) M(lx, 5, 0.6, 2, '#3a3a44'); // standing
+    }
+
     M(1.0, 3, 5.2, 2.2, '#7c7c88'); // lean body
     M(1.0, 4.6, 5.2, 0.6, '#5c5c68'); // shaded belly
     M(1.0, 3, 5.2, 0.6, '#a4a4b0'); // back light
@@ -1497,7 +1730,9 @@ export class CanvasRenderer {
     M(7.4, 3.2, 0.8, 0.8, '#5c5c68');
     M(6.2, 1.6, 0.6, 0.9, '#3a3a44'); // ears
     M(7.0, 1.6, 0.6, 0.9, '#3a3a44');
-    M(0, 2.6, 1.2, 0.7, '#7c7c88'); // tail
+
+    const tailY = frame === 1 ? 2.3 : frame === 2 ? 2.8 : 2.6;
+    M(0, tailY, 1.2, 0.7, '#7c7c88'); // tail
     M(7.0, 2.7, 0.4, 0.4, '#e8c020'); // eye
   }
 
@@ -1562,32 +1797,78 @@ export class CanvasRenderer {
     }
   }
 
-  /** Zoomed-out herds, wolves and kills: coloured dots, as before. They snap tile to tile. */
+  /** Zoomed-out herds, wolves and kills: coloured dots, smoothly interpolated. */
   private renderHerdsFlat(screenWidth: number, screenHeight: number, worldW: number, worldH: number): void {
     const cs = this.cellSize;
     const ctx = this.ctx;
     const worldPxW = worldW * cs;
     const worldPxH = worldH * cs;
     const d = Math.max(2, Math.round(cs * 0.9));
-    const lists: [Uint8Array | undefined, string][] = [
-      [this.world.carcassPositions, '#8a2e22'],
-      [this.world.wolfPositions, '#5c5c68'],
-      [this.world.herdPositions, '#d9a441'],
-    ];
-    for (let l = 0; l < 3; l++) {
-      const pos = lists[l][0];
-      if (!pos) continue;
-      ctx.fillStyle = lists[l][1];
-      for (let i = 0; i + 1 < pos.length; i += 2) {
-        let sx = Math.round(pos[i] * cs + this.panX);
-        let sy = Math.round(pos[i + 1] * cs + this.panY);
+    const now = performance.now();
+    const t =
+      this.world.running === false
+        ? 1.0
+        : Math.min(1.0, (now - this.lastFrameTime) / this.frameInterval);
+
+    // 1. Carcasses (static on ground)
+    const carcasses = this.world.carcassPositions;
+    if (carcasses) {
+      ctx.fillStyle = '#8a2e22';
+      for (let i = 0; i + 1 < carcasses.length; i += 2) {
+        let sx = Math.round(carcasses[i] * cs + this.panX);
+        let sy = Math.round(carcasses[i + 1] * cs + this.panY);
         if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
         if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
-        // One copy when the world fits the screen on an axis, so nothing is drawn in the void.
         for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
           for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
             ctx.fillRect(x0, y0, d, d);
           }
+        }
+      }
+    }
+
+    // 2. Wolves (interpolated dots)
+    ctx.fillStyle = '#5c5c68';
+    for (let k = 0; k < this.wolfCount; k++) {
+      let dx = this.currWolfX[k] - this.prevWolfX[k];
+      if (dx > worldW / 2) dx -= worldW; else if (dx < -worldW / 2) dx += worldW;
+      let dy = this.currWolfY[k] - this.prevWolfY[k];
+      if (dy > worldH / 2) dy -= worldH; else if (dy < -worldH / 2) dy += worldH;
+      let rx = this.prevWolfX[k] + dx * t;
+      if (rx < 0) rx += worldW; else if (rx >= worldW) rx -= worldW;
+      let ry = this.prevWolfY[k] + dy * t;
+      if (ry < 0) ry += worldH; else if (ry >= worldH) ry -= worldH;
+
+      let sx = Math.round(rx * cs + this.panX);
+      let sy = Math.round(ry * cs + this.panY);
+      if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
+      if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
+      for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
+        for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
+          ctx.fillRect(x0, y0, d, d);
+        }
+      }
+    }
+
+    // 3. Deer (interpolated dots)
+    ctx.fillStyle = '#d9a441';
+    for (let k = 0; k < this.deerCount; k++) {
+      let dx = this.currDeerX[k] - this.prevDeerX[k];
+      if (dx > worldW / 2) dx -= worldW; else if (dx < -worldW / 2) dx += worldW;
+      let dy = this.currDeerY[k] - this.prevDeerY[k];
+      if (dy > worldH / 2) dy -= worldH; else if (dy < -worldH / 2) dy += worldH;
+      let rx = this.prevDeerX[k] + dx * t;
+      if (rx < 0) rx += worldW; else if (rx >= worldW) rx -= worldW;
+      let ry = this.prevDeerY[k] + dy * t;
+      if (ry < 0) ry += worldH; else if (ry >= worldH) ry -= worldH;
+
+      let sx = Math.round(rx * cs + this.panX);
+      let sy = Math.round(ry * cs + this.panY);
+      if (this.wrapX) { while (sx > -cs) sx -= worldPxW; while (sx < -cs) sx += worldPxW; }
+      if (this.wrapY) { while (sy > -cs) sy -= worldPxH; while (sy < -cs) sy += worldPxH; }
+      for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
+        for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
+          ctx.fillRect(x0, y0, d, d);
         }
       }
     }
