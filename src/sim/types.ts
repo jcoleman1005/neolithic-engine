@@ -97,6 +97,11 @@ export interface SimulationConfig {
   climbEnabled: boolean;
   calmMovementEnabled: boolean;
   stayFoodFraction: number;
+  pathsEnabled: boolean;
+  wearStep: number;
+  wearDecaySlices: number;
+  pathCostCut: number;
+  pathPull: number;
   stayValueEnabled: boolean;
   stayRefFood: number;
   roamStayWeight: number;

@@ -695,3 +695,23 @@ Every round passes the population (year 20 at 125 to 142% of off), hamlet and wa
 The stay check and comfortable stay do nearly all of it; the rest add a little each; the wolf changes do almost nothing. The population rise comes from staying itself (less walking, more eating from heaps), not from safety.
 
 **Band cohesion, seed 1, year 30**: off 88 bands among 3503 people (largest 281); all on 128 among 6620 (largest 550). About the same bands per person, so comfortable stay does not break bands up.
+
+## S2 paths: targets and starting values
+Starting values (new): `wearStep` 16, `wearDecaySlices` 8 (a full trail fades in about 6 years unused; one step lasts about 128 ticks), `pathCostCut` 0.5, `pathPull` 0.3.
+
+**Targets, set before running** (seeds 1 to 3, year 30, paths on against paths off, everything else at the S1 defaults):
+- No seed dies out, and population at year 20 is at least 90% of off.
+- Hamlets or larger standing at year 30 at least 80% of off.
+- Trails visible but not everywhere: tiles worn to 64 or more cover between 1% and 15% of land at year 30.
+- Perf within budget.
+
+**S2 results, year 30** (paths on against paths off, both with S1 on):
+
+| | Seed 1 | Seed 2 | Seed 3 |
+|:--|:--|:--|:--|
+| Round 1 (`wearStep` 16, `wearDecaySlices` 8): worn land | 51% | 76% | 64% |
+| Round 2 (`wearStep` 4, `wearDecaySlices` 2): worn land | 7.3% | 11.4% | 9.7% |
+| Round 2 people at year 20, % of off | 91% | 100% | 98% |
+| Round 2 hamlets or larger, on / off | 13 / 16 (81%) | 21 / 21 | 10 / 16 (**62%, missed**) |
+
+Round 1 wore most of the land, so it read as worn ground everywhere rather than trails. Kept round 2: `wearStep` 16 to 4, `wearDecaySlices` 8 to 2, so a tile has to be stepped on about every 8 ticks to stay worn. The hamlet target is missed on seed 3; per the 2026-11-05 decision, tuning waits for the combined pass. On the map, worn ground forms bands along shores and around lakes and settlements more than trails that cross open land between camps; in the game view, people stand in lines along the worn ground near the largest settlement.

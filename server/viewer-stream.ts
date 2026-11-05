@@ -83,6 +83,7 @@ function merge(older: Frame, newer: Frame): Frame {
     ...(newer.landOverlay ? {} : older.landOverlay ? { landOverlay: older.landOverlay } : {}),
     ...(newer.landStructures ? {} : older.landStructures ? { landStructures: older.landStructures } : {}),
     ...(newer.settlements ? {} : older.settlements ? { settlements: older.settlements } : {}),
+    ...(newer.landPaths ? {} : older.landPaths ? { landPaths: older.landPaths } : {}),
   };
 }
 

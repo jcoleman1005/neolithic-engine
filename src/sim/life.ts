@@ -50,6 +50,8 @@ export class LifeSystem {
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
     if (config.buildingEnabled !== false) land.erode(tick, config);
+    const pathsOn = config.pathsEnabled !== false;
+    if (pathsOn) land.wearDown(tick, config);
     land.ageGraves();
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
@@ -333,6 +335,7 @@ export class LifeSystem {
     const berryBelow = (config.berryBelow ?? 0.8) * maxEnergy;
     const dropCrowd = config.dropCrowd ?? 3;
     const storeUnloadOn = config.storeUnloadEnabled !== false;
+    const pathCut = config.pathCostCut ?? 0.5;
     const dropWhenFull = config.dropWhenFull ?? false;
     const carryDrag = config.carryDrag ?? 0.5;
     const bodyMul = (slot: number): number =>
@@ -547,8 +550,12 @@ export class LifeSystem {
             : carryKind[slot] === CARRY_BRUSH ? moveCost * (1 + carryDrag * people.carry[slot] / (brushCarryMax * bodyMul(slot)))
             : carryKind[slot] === CARRY_STONE ? moveCost * (1 + carryDrag * people.carry[slot] / (stoneCarryMax * bodyMul(slot)))
             : moveCost;
-          energy[slot] -= stepCost;
-          ledger.move += stepCost;
+          // S2: worn ground is easier going, and every step wears it a little more.
+          const stepCell = (ny << 8) | nx;
+          const pathCost = pathsOn ? stepCost * (1 - pathCut * (land.wear[stepCell] / 255)) : stepCost;
+          if (pathsOn) land.trample(stepCell, config);
+          energy[slot] -= pathCost;
+          ledger.move += pathCost;
           if (fatigueOn) fatigue[slot] = fatigue[slot] + fatigueMove > 255 ? 255 : fatigue[slot] + fatigueMove;
 
           if (energy[slot] <= 0) {

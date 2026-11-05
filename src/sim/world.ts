@@ -223,6 +223,14 @@ export class World {
     return fastBase64Encode(this.overlayBuffer);
   }
 
+  private pathsBuffer = new Uint8Array(256 * 256);
+
+  /** S2 path wear for the viewer, base64 (see Land.packPaths). */
+  public packLandPaths(): string {
+    this.land.packPaths(this.pathsBuffer);
+    return fastBase64Encode(this.pathsBuffer);
+  }
+
   private structuresBuffer = new Uint8Array(256 * 256);
 
   /** Heap sizes and forms (heap, granary floor) for the viewer, base64 (see Land.packStructures). */
@@ -480,6 +488,7 @@ export class World {
     h.updateFloatArray(land.pile);
     h.updateFloatArray(land.compaction);
     h.updateIntArray(land.form);
+    if (this.config.pathsEnabled !== false) h.updateIntArray(land.wear);
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);
     h.updateFloatArray(land.fish);

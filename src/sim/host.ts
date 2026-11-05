@@ -250,6 +250,7 @@ export class SimulationHost {
       foodRegions: world.foodRegions.map((r) => ({ ...r })),
       landOverlay: world.packLandOverlay(),
       landStructures: world.packLandStructures(),
+      ...(world.config.pathsEnabled !== false ? { landPaths: world.packLandPaths() } : {}),
       settlements: this.chronicle.settlementViews(),
       events: this.eventLog.slice(),
     };
@@ -320,7 +321,7 @@ export class SimulationHost {
     const base = {
       ...this.baseFrame(fromStep),
       ...(terrainDue && terrain ? { terrain: terrain.exportState() } : {}),
-      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews() } : {}),
+      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews(), ...(this.world.config.pathsEnabled !== false ? { landPaths: this.world.packLandPaths() } : {}) } : {}),
     };
     if (overlayDue) {
       this.overlayDirty = false;

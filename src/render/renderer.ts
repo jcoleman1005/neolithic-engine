@@ -34,6 +34,7 @@ const COLOR_FARM_RGB = 0x3068a8; // rgb(168, 104, 48), warm terracotta
 const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
 const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
 const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food heap never reads as brown
+const COLOR_PATH_RGB = 0x3f5f80; // rgb(128, 95, 63), trodden earth on worn paths
 const COLOR_BRUSH_RGB = 0x305a7d; // rgb(125, 90, 48), wood stick flecks for brush heaps
 const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
 const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
@@ -172,6 +173,7 @@ export class CanvasRenderer {
   private readonly overlayData32: Uint32Array;
   private lastOverlayVersion = -1;
   private lastStructuresVersion = -1;
+  private lastPathsVersion = -1;
   private readonly peopleCanvas: HTMLCanvasElement;
   private readonly peopleCtx: CanvasRenderingContext2D;
   private readonly peopleImgData: ImageData;
@@ -1028,9 +1030,12 @@ export class CanvasRenderer {
     if (!data) return false;
     const version = this.world.landOverlayVersion ?? 0;
     const structVersion = this.world.landStructuresVersion ?? 0;
-    if (version !== this.lastOverlayVersion || structVersion !== this.lastStructuresVersion) {
+    const pathsVersion = this.world.landPathsVersion ?? 0;
+    if (version !== this.lastOverlayVersion || structVersion !== this.lastStructuresVersion || pathsVersion !== this.lastPathsVersion) {
       this.lastOverlayVersion = version;
       this.lastStructuresVersion = structVersion;
+      this.lastPathsVersion = pathsVersion;
+      const paths = this.world.landPaths;
       const structures = this.world.landStructures;
       const out = this.overlayData32;
       const waterArr = this.world.elevation?.water;
@@ -1046,6 +1051,9 @@ export class CanvasRenderer {
         else if (farm >= 2 && farm >= desert) c = ((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB; // worked soil: dark brown
         else if (desert >= 2) c = ((85 + desert * 20) << 24) | COLOR_DESERT_RGB; // stripped land: pale sand
         else if (farm === 1) c = ((70 + checker) << 24) | COLOR_FARM_RGB; // barely worked
+        // S2: worn paths show as trodden earth, stronger the more they are used.
+        const path = paths ? paths[i] : 0;
+        if (path >= 2) c = ((50 + path * 22) << 24) | COLOR_PATH_RGB;
         // Heaps and granary floors sit on top of everything else.
         const st = structures ? structures[i] : 0;
         if (waterArr && waterArr[i] > 0) {
