@@ -61,6 +61,8 @@ export interface PackedPerson {
   readonly carryKind?: number;
   readonly hydration?: number;
   readonly injury?: number;
+  readonly fatigue?: number;
+  readonly sick?: number;
   readonly rootLeaderId?: number;
 }
 
@@ -100,6 +102,10 @@ export class People {
   public hydration: Float32Array;
   /** Wounds from clashes and bites, 0 to 255: drain energy and slow movement, heal only when fed. */
   public injury: Float32Array;
+  /** Tiredness 0..255: raised by steps, cleared by standing still. */
+  public fatigue: Uint8Array;
+  /** Ticks of illness left (0 = well). */
+  public sick: Uint8Array;
   public genes: Uint8Array; // capacity * GENE_COUNT
   public habits: Uint8Array; // capacity * HABIT_COUNT
 
@@ -127,6 +133,8 @@ export class People {
     this.carryKind = new Uint8Array(this.capacity);
     this.hydration = new Float32Array(this.capacity).fill(100);
     this.injury = new Float32Array(this.capacity);
+    this.fatigue = new Uint8Array(this.capacity);
+    this.sick = new Uint8Array(this.capacity);
     this.genes = new Uint8Array(this.capacity * GENE_COUNT);
     this.habits = new Uint8Array(this.capacity * HABIT_COUNT);
 
@@ -146,6 +154,8 @@ export class People {
       this.carryKind[i] = 0;
       this.hydration[i] = 100;
       this.injury[i] = 0;
+      this.fatigue[i] = 0;
+      this.sick[i] = 0;
     }
   }
 
@@ -208,6 +218,8 @@ export class People {
     this.carryKind = copyU8(this.carryKind);
     this.hydration = copyF32(this.hydration);
     this.injury = copyF32(this.injury);
+    this.fatigue = copyU8(this.fatigue);
+    this.sick = copyU8(this.sick);
     this.genes = copyGenes(this.genes);
     this.habits = copyHabits(this.habits);
 
@@ -256,6 +268,8 @@ export class People {
     this.carryKind[slot] = 0;
     this.hydration[slot] = 100;
     this.injury[slot] = 0;
+    this.fatigue[slot] = 0;
+    this.sick[slot] = 0;
     const personId = makePersonId(slot, slotGen);
     this.rootLeaderId[slot] = leaderId !== 0 ? leaderId : personId;
 
@@ -293,6 +307,8 @@ export class People {
     this.carryKind[slot] = 0;
     this.hydration[slot] = 100;
     this.injury[slot] = 0;
+    this.fatigue[slot] = 0;
+    this.sick[slot] = 0;
     this.leaderId[slot] = 0;
     this.rootLeaderId[slot] = 0;
     this.freeList[this.freeCount++] = slot;
@@ -408,6 +424,8 @@ export class People {
           carryKind: this.carryKind[slot],
           hydration: this.hydration[slot],
           injury: this.injury[slot],
+          fatigue: this.fatigue[slot],
+          sick: this.sick[slot],
           genes: Array.from(this.genes.subarray(gOff, gOff + GENE_COUNT)),
           habits: Array.from(this.habits.subarray(hOff, hOff + HABIT_COUNT)),
         });
@@ -461,6 +479,8 @@ export class People {
       // Older saves carried seeds only, with no kind.
       this.hydration[slot] = p.hydration ?? 100;
       this.injury[slot] = p.injury ?? 0;
+      this.fatigue[slot] = p.fatigue ?? 0;
+      this.sick[slot] = p.sick ?? 0;
       this.carryKind[slot] = p.carryKind ?? ((p.carry ?? 0) > 0 ? 1 : 0);
       this.rootLeaderId[slot] = p.rootLeaderId ?? p.leaderId ?? makePersonId(slot, genFromId(p.id));
 
@@ -518,4 +538,9 @@ export class People {
       this.grow();
     }
   }
+}
+
+/** How much work a body gives at this age: children and elders manage less than adults. */
+export function stageWork(age: number, adultAge: number, elderAge: number, childWork: number, elderWork: number): number {
+  return age < adultAge ? childWork : age >= elderAge ? elderWork : 1;
 }

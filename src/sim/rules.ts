@@ -20,6 +20,7 @@ import {
   slotFromId,
   genFromId,
   GEN_MASK,
+  stageWork,
 } from './people';
 import type { Land } from './land';
 import { wrapDiff } from './land';
@@ -585,6 +586,19 @@ export class Rules {
   ): void {
     if (people.alive[slotA] === 0 || people.alive[slotB] === 0) return;
 
+    if (config.diseaseEnabled !== false) {
+      // Illness passes between people who touch (a hash of both slots and ages: no random draw).
+      const sa = people.sick[slotA];
+      const sb = people.sick[slotB];
+      if ((sa > 0) !== (sb > 0)) {
+        const hs = (Math.imul(people.age[slotA] + 3, 2246822519) ^ Math.imul(slotA * 65537 + slotB + 1, 3266489917)) >>> 0;
+        if (hs / 4294967296 < (config.sickSpread ?? 0.03)) {
+          const ill = sa > 0 ? slotB : slotA;
+          people.sick[ill] = config.sickTicks ?? 120;
+        }
+      }
+    }
+
     const allied = Rules.isAllied(slotA, slotB, people);
 
     const hOffA = slotA * HABIT_COUNT;
@@ -684,8 +698,14 @@ export class Rules {
         // Combat scores: strength + nearby allies + PRNG noise
         const alliesA = Rules.countNearbyAllies(slotA, px, py, people, spatial);
         const alliesB = Rules.countNearbyAllies(slotB, px, py, people, spatial);
-        const strA = people.genes[gOffA + GENE_STRENGTH] / 255;
-        const strB = people.genes[gOffB + GENE_STRENGTH] / 255;
+        let strA = people.genes[gOffA + GENE_STRENGTH] / 255;
+        let strB = people.genes[gOffB + GENE_STRENGTH] / 255;
+        if (config.stagesEnabled !== false) {
+          const adultAge = config.adultAge ?? 5760;
+          const elderAge = Math.floor((config.maxAge ?? 21600) * 0.75);
+          strA *= stageWork(people.age[slotA], adultAge, elderAge, config.childWork ?? 0.6, config.elderWork ?? 0.8);
+          strB *= stageWork(people.age[slotB], adultAge, elderAge, config.childWork ?? 0.6, config.elderWork ?? 0.8);
+        }
 
         const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
         const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;

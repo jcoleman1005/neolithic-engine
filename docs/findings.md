@@ -603,3 +603,15 @@ Deterministic physiological trauma and metabolic demands of reproduction, replac
 4. **Natural recovery**: Wounded mothers have higher upkeep and heal only when fed above 50 energy. Because maternal energy drops on delivery and `reproductionThreshold` is 65, mothers naturally cannot mate again until recovered and well-nourished.
 5. **Perf**: 4.66 µs / person / tick at 12,240 people (budget 15.0 µs). Exact energy balance confirmed (`ledger.violations === 0`).
 
+## Phase 5g bodies (stages, childcare, fatigue, disease)
+Targets set before running: at year 9 population within 10 to 25% below the all-switches-off run, peak sick share 2 to 15%, no seed dying out; stop at the first passing set. First set passed on seeds 1 to 3.
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| childWork / elderWork | n/a | 0.6 / 0.8 | weaker young and old |
+| strengthCarry | n/a | 0.6 | carry and work scale with strength |
+| childCare, careRadius | n/a | 0.05, 4 | mother (and mate) pay while child is near |
+| fatigueMove / Rest / Upkeep / Slow | n/a | 2 / 6 / 0.3 / 0.3 | mean fatigue about 80 to 140 of 255 |
+| sickSpread / sickBase / sickTicks / sickUpkeep / sickFedHeal | n/a | 0.03 / 0.00002 / 120 / 0.8 / 1 | endemic 1 to 3% sick, peaks 3 to 5% |
+
+Result (all on vs all off, seeds 1 to 3, year 9): people -13%, -12%, -18%; peak sick 3.2%, 3.9%, 4.6%. Perf 5.6 µs. Disease is endemic rather than epidemic at these values; sharper outbreaks would need a higher `sickSpread` or a crowding term, left to the tuning pass.
