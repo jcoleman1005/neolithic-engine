@@ -294,7 +294,6 @@ export const BIT_SE = 128;
 export const BITMASK_47_LOOKUP = new Uint8Array(256);
 
 function initBitmaskLookup(): void {
-  // Canonical 47-tile masks (blob autotiling standard)
   const canonical47 = [
     0, 2, 8, 10, 11, 16, 18, 22, 24, 26, 27, 30, 31, 64, 66, 72, 74, 75, 80, 82, 86, 88, 90, 91, 94, 95,
     104, 106, 107, 120, 122, 123, 126, 127, 208, 210, 214, 216, 218, 219, 222, 223, 248, 250, 251, 254, 255
@@ -303,7 +302,6 @@ function initBitmaskLookup(): void {
   canonical47.forEach((mask, idx) => map.set(mask, idx));
 
   for (let b = 0; b < 256; b++) {
-    // Mask out invalid corner bits if cardinal edges are missing
     let clean = b;
     if (!(clean & BIT_N) || !(clean & BIT_W)) clean &= ~BIT_NW;
     if (!(clean & BIT_N) || !(clean & BIT_E)) clean &= ~BIT_NE;
@@ -315,29 +313,72 @@ function initBitmaskLookup(): void {
 initBitmaskLookup();
 
 /**
- * Generates an offscreen canvas containing 47 procedural 16x16 autotile variations
- * for a material transitioning over a substrate (e.g. grass feathering over loam).
+ * Procedural 47-tile atlas generation via 8x8 quadrant decomposition.
+ * Instead of drawing 47 bespoke configurations, each 16x16 tile is composed of 4 independent
+ * 8x8 corner quadrants (NW, NE, SW, SE). Each quadrant has only 5 geometric cases:
+ * 0: Empty (all substrate)
+ * 1: Full (all material)
+ * 2: Orthogonal Edge (horizontal or vertical)
+ * 3: Outer Convex Corner
+ * 4: Inner Concave Corner
  */
 export function generateAutotileAtlas(ramp: MaterialRamp, substrateRamp: MaterialRamp): HTMLCanvasElement {
   const TILE_SIZE = 16;
+  const HALF = 8;
   const canvas = document.createElement('canvas');
   canvas.width = TILE_SIZE * 47;
   canvas.height = TILE_SIZE;
   const ctx = canvas.getContext('2d')!;
 
+  const canonical47 = [
+    0, 2, 8, 10, 11, 16, 18, 22, 24, 26, 27, 30, 31, 64, 66, 72, 74, 75, 80, 82, 86, 88, 90, 91, 94, 95,
+    104, 106, 107, 120, 122, 123, 126, 127, 208, 210, 214, 216, 218, 219, 222, 223, 248, 250, 251, 254, 255
+  ];
+
   for (let i = 0; i < 47; i++) {
+    const mask = canonical47[i];
     const ox = i * TILE_SIZE;
-    // Base substrate background
+
+    // Substrate base fill
     ctx.fillStyle = substrateRamp.baseHex;
     ctx.fillRect(ox, 0, TILE_SIZE, TILE_SIZE);
 
-    // Procedural organic transition mask drawn using ramp.baseHex and 1px edge rim
-    ctx.fillStyle = ramp.baseHex;
-    ctx.fillRect(ox + 2, 2, TILE_SIZE - 4, TILE_SIZE - 4);
-    ctx.strokeStyle = ramp.rimHex;
-    ctx.strokeRect(ox + 1.5, 1.5, TILE_SIZE - 3, TILE_SIZE - 3);
+    // Deconstruct mask into 4 quadrants
+    drawQuadrant(ctx, ox,        0,    (mask & BIT_W) !== 0, (mask & BIT_N) !== 0, (mask & BIT_NW) !== 0, ramp, 0); // NW
+    drawQuadrant(ctx, ox + HALF, 0,    (mask & BIT_E) !== 0, (mask & BIT_N) !== 0, (mask & BIT_NE) !== 0, ramp, 1); // NE
+    drawQuadrant(ctx, ox,        HALF, (mask & BIT_W) !== 0, (mask & BIT_S) !== 0, (mask & BIT_SW) !== 0, ramp, 2); // SW
+    drawQuadrant(ctx, ox + HALF, HALF, (mask & BIT_E) !== 0, (mask & BIT_S) !== 0, (mask & BIT_SE) !== 0, ramp, 3); // SE
   }
   return canvas;
+}
+
+function drawQuadrant(
+  ctx: CanvasRenderingContext2D,
+  qx: number, qy: number,
+  hEdge: boolean, vEdge: boolean, diag: boolean,
+  ramp: MaterialRamp,
+  quadrantIndex: number // 0=NW, 1=NE, 2=SW, 3=SE
+): void {
+  ctx.fillStyle = ramp.baseHex;
+  ctx.strokeStyle = ramp.rimHex;
+
+  if (hEdge && vEdge && diag) {
+    // Solid fill
+    ctx.fillRect(qx, qy, 8, 8);
+  } else if (hEdge && vEdge && !diag) {
+    // Inner concave corner: full with 1px notch on outer diagonal
+    ctx.fillRect(qx, qy, 8, 8);
+    ctx.fillStyle = ramp.rimHex;
+    const nx = (quadrantIndex & 1) === 0 ? qx : qx + 7;
+    const ny = (quadrantIndex & 2) === 0 ? qy : qy + 7;
+    ctx.fillRect(nx, ny, 1, 1);
+  } else if (!hEdge && !vEdge) {
+    // Empty: no material
+  } else {
+    // Orthogonal edge or outer convex corner
+    ctx.fillRect(qx + 1, qy + 1, 6, 6);
+    ctx.strokeRect(qx + 0.5, qy + 0.5, 7, 7);
+  }
 }
 
 /**
@@ -476,6 +517,26 @@ export function getWallBitmask(structure: Uint8Array, x: number, y: number): num
 }
 
 /**
+ * Builds a fast spatial occupancy mask from world feature positions (kind 8..11 = stone huts/walls).
+ * Reuses a single preallocated Uint8Array to avoid per-frame GC.
+ */
+export function populateWallSpatialMask(
+  featurePositions: Uint8Array | undefined,
+  outMask: Uint8Array
+): void {
+  outMask.fill(0);
+  if (!featurePositions) return;
+  for (let i = 0; i + 2 < featurePositions.length; i += 3) {
+    const kind = featurePositions[i + 2];
+    if (kind >= 8 && kind < 12) {
+      const x = featurePositions[i];
+      const y = featurePositions[i + 1];
+      outMask[(y << 8) | x] = 1;
+    }
+  }
+}
+
+/**
  * Draws a 1-cell thick top-down architectural stone wall with interior floor drop shadow.
  */
 export function drawCutawayWall(
@@ -508,20 +569,28 @@ export function drawCutawayWall(
 ### 8.6 Integration Hooks in `src/render/renderer.ts`
 
 ```typescript
-// Add state to CanvasRenderer:
+// 1. Add preallocated state to CanvasRenderer:
 private activeElevationSlice = 0; // 0 = all tiers visible; 1..5 = isolate tier
 private readonly terraceData = createTerraceData();
+private readonly wallOccupancyMask = new Uint8Array(65536);
 
-// In updateTerrainCache():
+// 2. In updateTerrainCache():
 if (elevation) {
   buildTerraces(elevation.elevation, this.terraceData);
 }
 
-// In render():
+// 3. In render():
 // When rendering ground tiles, modulate pixel color with applyAtmosphericHaze(color, tierDrop)
 // where tierDrop = Math.max(0, this.activeElevationSlice - cellTier).
 // When cellTier > this.activeElevationSlice && this.activeElevationSlice > 0,
 // render cell as translucent blueprint wireframe (rgba(20, 24, 36, 0.35)).
+
+// 4. In collectFeatures():
+// Populate wall spatial mask once per frame before iterating features:
+populateWallSpatialMask(this.world.featurePositions, this.wallOccupancyMask);
+// For huts (kind >= 8 && kind < 12), retrieve wall connection bitmask:
+const mask = getWallBitmask(this.wallOccupancyMask, featX, featY);
+drawCutawayWall(this.ctx, px, py, cs, mask);
 ```
 
 ---
@@ -541,6 +610,115 @@ if (elevation) {
     <option value="1">Tier 1 (Shores)</option>
   </select>
 </label>
+```
+
+---
+
+## 9. AI Systems Invariants & Hard Anti-Patterns
+
+Any autonomous agent implementing this design must strictly satisfy the following system invariants:
+
+| Rule | Invariant Constraint | Violation Trigger / Failure Mode |
+|---|---|---|
+| **Zero-Allocation Render Loop** | `render()`, `updateTerrainCache()`, `collect*`, and `draw*` functions must allocate **zero objects or arrays** per frame. | Any `new Array()`, `new Uint8Array()`, closure allocation inside tight loops, or dynamic object literal instantiation in hot render paths. |
+| **Deterministic Toroidal Math** | All grid neighbor calculations must use bitwise coord masking `(x & 255)` or `((x & 255) \| ((y & 255) << 8))`. | Using `% 256` (which produces negative numbers for negative inputs in JS) or floating-point coordinates. |
+| **DevicePixelRatio & Pixel Crispness** | Canvas contexts must retain `imageSmoothingEnabled = false`. Coordinates passed to canvas draw calls must be snapped via `Math.round()`. | Blurry anti-aliasing artifacts on high-DPI mobile screens (Galaxy S21 DPR = 2.625 or 3.0). |
+| **Protocol Decoupling** | Viewer modules in `src/render/` and `src/ui/` must treat `this.world` as **strictly read-only**. | Mutating simulation state arrays or invoking simulation RNG (`prng.next()`). The sim fingerprint must not change. |
+
+---
+
+## 10. Automated Vitest Verification Harnesses
+
+Add `tests/render-autotile.test.ts` to provide immediate feedback loops for coding agents:
+
+```typescript
+/**
+ * tests/render-autotile.test.ts
+ */
+import { describe, it, expect } from 'vitest';
+import { BITMASK_47_LOOKUP, BIT_N, BIT_S, BIT_E, BIT_W } from '../src/render/autotile';
+import { quantizeElevation01, buildTerraces, createTerraceData } from '../src/render/terrace';
+import { hexToABGR, applyAtmosphericHaze } from '../src/render/palette';
+
+describe('Planimetric Render Subsystem', () => {
+  it('maps all 256 8-neighbor bitmasks to valid canonical 0..46 indices', () => {
+    for (let b = 0; b < 256; b++) {
+      const idx = BITMASK_47_LOOKUP[b];
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(idx).toBeLessThan(47);
+    }
+    // Cardinal symmetry check: single edges
+    expect(BITMASK_47_LOOKUP[BIT_N]).toBe(BITMASK_47_LOOKUP[2]);
+    expect(BITMASK_47_LOOKUP[BIT_W]).toBe(BITMASK_47_LOOKUP[8]);
+  });
+
+  it('correctly quantizes elevation into discrete 0..5 tiers', () => {
+    expect(quantizeElevation01(0.10)).toBe(0); // Deep water
+    expect(quantizeElevation01(0.35)).toBe(1); // Shore
+    expect(quantizeElevation01(0.50)).toBe(2); // Lowland
+    expect(quantizeElevation01(0.70)).toBe(3); // Highland
+    expect(quantizeElevation01(0.85)).toBe(4); // Crag
+    expect(quantizeElevation01(0.95)).toBe(5); // Snow peak
+  });
+
+  it('generates bluff drop-shadow flags for lower cells adjacent to higher cells', () => {
+    const raw = new Uint16Array(65536);
+    // Make cell (10, 10) high peak (Tier 4), neighbors low meadow (Tier 2)
+    const center = (10 << 8) | 10;
+    raw.fill(Math.floor(0.5 * 65535)); // Tier 2
+    raw[center] = Math.floor(0.85 * 65535); // Tier 4
+
+    const data = createTerraceData();
+    buildTerraces(raw, data);
+
+    // Cell directly South of peak should flag South drop shadow (flags & 1)
+    const southOfCenter = (11 << 8) | 10;
+    expect(data.shadowMask[southOfCenter] & 1).toBe(1);
+
+    // Cell directly East of peak should flag East drop shadow (flags & 2)
+    const eastOfCenter = (10 << 8) | 11;
+    expect(data.shadowMask[eastOfCenter] & 2).toBe(2);
+  });
+
+  it('applies atmospheric slate-blue haze monotonically', () => {
+    const baseColor = hexToABGR('#608643'); // Lowland grass green
+    const tier0 = applyAtmosphericHaze(baseColor, 0);
+    const tier1 = applyAtmosphericHaze(baseColor, 1);
+    const tier2 = applyAtmosphericHaze(baseColor, 2);
+
+    expect(tier0).toBe(baseColor);
+    // Blue channel should increase relative to green/red as haze deepens
+    const b1 = (tier1 >>> 16) & 0xff;
+    const b2 = (tier2 >>> 16) & 0xff;
+    expect(b2).toBeGreaterThanOrEqual(b1);
+  });
+});
+```
+
+---
+
+## 11. Self-Verifying Implementation Runbook
+
+Follow these incremental steps, verifying invariants at each stage:
+
+1. **Step 1: Palette Module**
+   - Create `src/render/palette.ts`.
+   - Run `npx tsc -b` to verify types.
+2. **Step 2: Autotile & Terrace Modules**
+   - Create `src/render/autotile.ts` and `src/render/terrace.ts`.
+   - Create `tests/render-autotile.test.ts`.
+   - Run `npx vitest run tests/render-autotile.test.ts` to confirm 100% test pass.
+3. **Step 3: Renderer Cache Wire-in**
+   - Update `updateTerrainCache()` in `src/render/renderer.ts` to blit autotile terrain and terrace bluff drop shadows into `this.terrainCanvas`.
+   - Run `npm run fingerprint` to verify simulation fingerprint remains exactly `c85ce4bc93336df5`.
+4. **Step 4: Walls & Blueprint Cutaways**
+   - Create `src/render/walls.ts`.
+   - Replace 3/4 oblique `drawHut` in `src/render/renderer.ts` with `drawCutawayWall`.
+5. **Step 5: UI Scrubber & Verification**
+   - Wire `select-elevation-slice` in `src/ui/controls.ts`.
+   - Run `npm run verify` (`bash scripts/verify.sh`).
+   - Run `npm run perf` to verify viewer frame time remains within the $\le 15.0$ µs/person desktop budget.
+
 ```
 
 ---
