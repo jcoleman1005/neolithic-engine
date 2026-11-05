@@ -2,10 +2,10 @@
 - **Done**: Established architectural foundation and invariant unit tests for Odd Realm hybrid skin:
   - **Modules**: Created `src/render/palette.ts` (4-tone material ramps, atmospheric haze formula), `src/render/autotile.ts` (47-tile 8-neighbor lookup table, 8x8 quadrant decomposition procedural atlas builder, toroidal bitmask math), `src/render/terrace.ts` (6-tier quantization, bluff drop-shadow masking), and `src/render/walls.ts` (16-tile wall connection bitmasking, cutaway blueprint rendering).
   - **Tests**: Created `tests/render-autotile.test.ts` (6 tests passing: 256-bitmask canonical mapping, headless canvas safety, tier quantization, bluff drop shadows, monotonic slate-blue depth tint, wall connection bitmasking).
-  - **Spec**: Comprehensive plan and AI handover guide committed in `docs/art-style-planimetric.md`.
+  - **Spec**: Comprehensive plan, AI handover guide, and high-level mobile optimizations (direct 32-bit ImageData blitting, zoom-clamped LOD, single-byte tier/shadow packing) committed in `docs/art-style-planimetric.md`.
   - **Type Check**: `npx tsc -b` passes cleanly with 0 errors.
   - **Fingerprint**: Strictly untouched (`c85ce4bc93336df5`).
-- **Next**: Hand over to coding agent to wire `updateTerrainCache()` with autotile atlas and terrace drop shadows in `src/render/renderer.ts`.
+- **Next**: Hand over to coding agent on branch `art-planimetric-scaffold` to wire `updateTerrainCache()` with autotile blitting and terrace drop shadows in `src/render/renderer.ts`.
 
 ## Primitives 18, 24, 28: Body Drives, Life Stages & Strength Work (branch `feat-drives-life-stages`)
 - **Done**: Implemented internal dominant drives, life stage cost/yield differences, and strength work scaling:
