@@ -240,12 +240,12 @@ The architectural arc, and where each piece lives:
 | Stage | What appears | How (physics only) | Step | State |
 | --- | --- | --- | --- | --- |
 | 1 Nomadic | Brush nests and lean-tos | Brush gathered in woodland, dropped where people sleep and congregate, tamped by idle fed people; a big compacted heap snaps to a nest that cuts upkeep (code: `nest`) | 5c | built |
-| 1 Nomadic | Cave shelters | Natural caves in hills; sheltered cells cut the cold | 5d | planned |
-| 1 Nomadic | Campfire hearths | Fuel (brush) carried to where people gather in the cold and burned; warmth radius, glow | 5d | planned |
+| 1 Nomadic | Cave shelters | Natural caves in hills; sheltered cells cut the cold | 5d | built, not watched |
+| 1 Nomadic | Campfire hearths | Fuel (brush) carried to where people gather in the cold and burned; warmth radius, glow | 5d | built, not watched |
 | 2 Domestic | Trampled crop clearings | Tilled soil and dropped seeds regrow faster; overgrazed soil goes to desert | 5b | built |
 | 2 Domestic | Golden ripe crops | Ripeness drawn on worked cells; communal hearths persist where people settle | 5e | planned |
 | 3 Dry-stone | Preserved granaries | Compacted food heaps become a granary floor that spoils slowly; stone granary later | 5c / 5f | floor built |
-| 3 Dry-stone | Dry-stone huts, closed rooms | Stone gathered, dumped and tamped into wall cells; shelter grows with the walls around a cell | 5f | planned |
+| 3 Dry-stone | Dry-stone huts, closed rooms | Planned: stone gathered, dumped and tamped into wall cells; shelter grows with the walls around a cell. Built so far: stone set down on a tile until it reaches 60 durability and becomes a one-tile hut; no walls or rooms yet (see the open question) | 5f | huts built, not watched; rooms open |
 | 3 Dry-stone | Defensive barricades | Walls against raiders | Phase 7 | planned |
 
 Steps:
@@ -253,10 +253,12 @@ Steps:
 - Calm movement (done): people stay and graze on rich tiles so repeated work is real.
 - 5b Farming as physics (done): no unlock flag, no discovery step; seeds are an ordinary carried item.
 - 5c Mounds and nests (built, being watched): food heaps that grow where people gather, tamping, granary floors, brush nests. Stigmergic: nothing is ordered.
-- 5-pre Finite wild resources (prototyped on `exp-finite-resources`, to be ported, not merged as is): finite trees (wood), seasonal berries, fish, fresh water with thirst, and roving herbivore herds that graze, breed and can be hunted. The branch diverged from the 5c code in `land.ts`, `life.ts`, `people.ts` and `world.ts`, so it is re-applied on top of 5c in pieces: trees become the brush source (replacing the free woodland rule), berries/fish/water go in as land arrays, and herds are the first half of Phase 6a. Each piece keeps its switch, its test and its on/off comparison.
+- 5-pre Finite wild resources (ported; herds are in Phase 6a; prototyped on `exp-finite-resources`, not merged as is): finite trees (wood), seasonal berries, fish, fresh water with thirst, and roving herbivore herds that graze, breed and can be hunted. The branch diverged from the 5c code in `land.ts`, `life.ts`, `people.ts` and `world.ts`, so it is re-applied on top of 5c in pieces: trees become the brush source (replacing the free woodland rule), berries/fish/water go in as land arrays, and herds are the first half of Phase 6a. Each piece keeps its switch, its test and its on/off comparison.
 - 5d Cold, caves and campfires: a seasonal cold that raises upkeep for anyone unsheltered; natural caves as shelter cells; campfire hearths as fuelled, glowing, communal places that warm a radius and draw people in.
 - 5e Crop clearings you can read: worked cells turn golden as they ripen; hearths anchor settlements.
-- 5f Stone and dry-stone huts: a stone resource from rocky ground, carried one at a time, dumped and tamped into wall cells; closed rooms emerge as cells with walls around them; stone granaries.
+- 5f Stone and dry-stone huts: a stone resource from rocky ground, carried one at a time, dumped and tamped into wall cells; closed rooms emerge as cells with walls around them; stone granaries. One-tile huts are built; walls, closed rooms and stone granaries are not.
+- 5g Bodies (built, not watched): life stages, strength-scaled carry and work, childcare, fatigue and disease. Grave marks show deaths of the wounded and the sick.
+- Also built, not watched: mutable land fertility (worked soil improves, overused soil wears out) and childbirth hazards (pregnancy upkeep, miscarriage, delivery trauma, shelter helps).
 - Readable visuals throughout: top-down pixel art, campfire glow, food mounds, golden crops, stone walls closing into rooms.
 
 * [ ] Year 0 has zero structures, zero farmland and zero stockpiles (a test checks the arrays are empty at tick 0).
@@ -339,7 +341,7 @@ These calls were yours to make; each is needed by the phase in brackets. The age
 - [x] Naming style for people and places: an invented language, or English compounds like Ashford? (Phase 4) — *Invented names plus English descriptive words; see `decisions.md`.*
 - [x] Which abilities start locked and must be discovered: farming, walls, ritual, crafting? (Phase 5) — *None. No unlock flags; farming and building are physics.*
 
-- [ ] Starting population: today 1,000 founders; the identity says small bands. Default proposal: 150 to 300 founders in a few bands, retuned in Phase 1 terms. Needs your call. (Phase 5)
+- [ ] Starting population: today 700 founders (`decisions.md`, 2026-11-04, set for the new map); the identity says small bands. Default proposal: 150 to 300 founders in a few bands, retuned in Phase 1 terms. Needs your call. (Phase 5)
 - [ ] How closed rooms work: default proposal is physical (shelter rises with the number of wall neighbours around a cell), not an observer that detects rooms. (Phase 5f)
 
 ## Parking lot

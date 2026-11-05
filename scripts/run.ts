@@ -13,7 +13,7 @@ function parseArgs(): { seed: number; years: number; overrides: Record<string, n
     } else if (args[i] === '--years' && i + 1 < args.length) {
       years = parseInt(args[++i], 10);
     } else if (args[i].startsWith('--') && i + 1 < args.length) {
-      // Any other config key: --seasonsEnabled 0, --seasonAmplitude 0.5
+      // Any other config key: --seasonsEnabled false (not 0: switches test !== false), --seasonAmplitude 0.5
       const v = args[++i];
       overrides[args[i - 1].slice(2)] = v === 'true' || v === 'false' ? v === 'true' : parseFloat(v);
     }

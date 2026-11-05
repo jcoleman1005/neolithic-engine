@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { Land } from '../src/sim/land';
 import { DEFAULT_CONFIG } from '../src/sim/config';
+import { GENE_COUNT, GENE_STRENGTH } from '../src/sim/people';
 
 const cfg = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false };
 const cell = (x: number, y: number) => (y << 8) | x;
@@ -37,7 +38,9 @@ describe('Phase 5b farming physics (part 2)', () => {
     }
     for (let s = 0; s < w.people.capacity; s++) {
       const kind = w.people.carryKind[s];
-      const limit = kind === 2 ? cfg.foodCarryMax : kind === 3 ? cfg.brushCarryMax : cfg.seedCarryMax;
+      // Food and brush limits scale with the person's strength gene; stage only ever lowers them.
+      const body = 1 + (cfg.strengthCarry ?? 0.6) * (w.people.genes[s * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5);
+      const limit = kind === 2 ? cfg.foodCarryMax * body : kind === 3 ? cfg.brushCarryMax * body : cfg.seedCarryMax;
       expect(w.people.carry[s]).toBeLessThanOrEqual(limit + 1e-4);
     }
     expect(w.ledger.violations).toBe(0);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { Land, FORM_GRANARY, FORM_HEAP, FORM_NEST, FORM_NONE } from '../src/sim/land';
 import { DEFAULT_CONFIG } from '../src/sim/config';
+import { GENE_COUNT, GENE_STRENGTH } from '../src/sim/people';
 
 const cfg = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false };
 const cell = (x: number, y: number) => (y << 8) | x;
@@ -66,9 +67,11 @@ describe('Phase 5c stockpiles and building', () => {
       if (w.people.alive[s] === 0) continue;
       const kind = w.people.carryKind[s];
       if (w.people.carry[s] > 0) expect(kind).not.toBe(0);
-      if (kind === 2) { food++; expect(w.people.carry[s]).toBeLessThanOrEqual(cfg.foodCarryMax + 1e-4); }
+      // Food and brush limits scale with the person's strength gene; stage only ever lowers them.
+      const body = 1 + (cfg.strengthCarry ?? 0.6) * (w.people.genes[s * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5);
+      if (kind === 2) { food++; expect(w.people.carry[s]).toBeLessThanOrEqual(cfg.foodCarryMax * body + 1e-4); }
       if (kind === 1) expect(w.people.carry[s]).toBeLessThanOrEqual(cfg.seedCarryMax + 1e-4);
-      if (kind === 3) expect(w.people.carry[s]).toBeLessThanOrEqual(cfg.brushCarryMax + 1e-4);
+      if (kind === 3) expect(w.people.carry[s]).toBeLessThanOrEqual(cfg.brushCarryMax * body + 1e-4);
     }
     expect(food).toBeGreaterThanOrEqual(0);
     for (let i = 0; i < 65536; i++) {

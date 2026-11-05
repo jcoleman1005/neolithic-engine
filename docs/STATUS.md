@@ -1,3 +1,21 @@
+## Where things stand (2026-11-05)
+`main` has everything below through Phase 5g bodies and childbirth hazards, and is pushed to `origin`. Built but not watched (rule 13): cold, caves and fires; wolves; huts; injury and grave marks; oblique art; fertility; childbirth hazards; bodies. Not built: 5e golden crops; walls and closed rooms.
+
+- **Verify**: type check and build pass; tests 200 of 200 when run alone. One full run alongside other heavy jobs failed one test (not identified, its name was cut from the output) with 3 vitest worker timeouts, so the suite can fail under load: run it on a quiet machine. It takes 8 to 12 minutes.
+- **Perf**: **4.63 µs / person / tick** at 11,596 people (budget 15). Fingerprint `881ea265aa76e667`.
+- **Merge note**: `phase-5g-bodies` failed verify by itself: two carry-limit tests still asserted the fixed limit. They now check each person's strength-scaled limit.
+- **Bodies and childbirth hazards together** (seeds 1 to 3, against both off, same seeds):
+
+| Year | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| 10 | 2332 vs 2876 (-19%) | 2544 vs 3192 (-20%) | 2348 vs 3037 (-23%) |
+| 20 | 2633 vs 3631 (-27%) | 2863 vs 4315 (-34%) | 2515 vs 3615 (-30%) |
+
+**For the tuning pass, not yet acted on:**
+- Wounds look too common: seed 1 at year 4 has 1126 of 1658 people at injury 60 or more, mean 145 of 255.
+- Population is about 2,500 to 2,900 at year 20, far from the 10,000 to 20,000 aim (3,600 to 4,300 with bodies and hazards off). `npm run perf` reaches about 12,000 only because it starts with 12,500 people and `landFoodMax` 45, so it measures speed at that size, not a world that grew there.
+- Childcare's mate share looks ineffective: `mateId` is cleared at delivery, so after a birth the mother usually has no mate on record, and any later mate is from the next pregnancy, who may not be the father. Read from the code, not measured.
+
 ## Deterministic Childbirth Hazards (branch `feat-birth-hazards`)
 - **Done**: Introduced physical and metabolic childbirth hazards without RNG:
   - Pregnancy upkeep surcharge (+25%, `pregnancyUpkeepMul` 1.25). Severe starvation (`energy <= 15.0`, `pregnancyMiscarriageEnergy`) triggers early miscarriage to preserve maternal life.
@@ -12,7 +30,7 @@
 - **Tests**: `tests/fertility.test.ts` (overuse degradation, explicit seed enrichment, tamping, passive tending, off switch parity, save/restore exact stateHash round-trip).
 - **Verify**: all 27 test suites pass; **perf** 9.14 µs / person / tick at 14,163 population (budget 15).
 
-## Current State
+## Phase 5c mounds and nests
 Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and watched: nests, food heaps and brush heaps read well. `main` (local, not pushed) now includes 5c; fast-forwarded 2026-11-02. Project identity updated: an autonomous colony sim from primitive hunter-gatherers (see `docs/ROADMAP.md` and `docs/decisions.md`).
 
 - **Stockpiles**: well-fed people gather surplus food and unload it where people congregate; hungry people eat from heaps; idle fed people tamp a heap; a big compacted heap becomes a granary floor. Switch `stockpilesEnabled`.
@@ -46,12 +64,14 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 - **Combat injury (same branch)**: clashes and wolf bites now wound (`people.injury`, saved and hashed): wounded people pay extra upkeep, lose some steps, and heal only when fed, so a hungry wounded person bleeds out. A wolf bites a lone person (takes energy, wounds) instead of killing outright. Violent and wound deaths leave a grave mark (feature kind 5). About 50 violent deaths a year at year 10; people 5% to 16% under an injury-off run; wolves persist on three seeds. Switch `injuryEnabled`. Tests `tests/injury.test.ts`. Grave marks are drawn as a small earth mound with a stick cross.
 
 ## 3/4 oblique art (on `phase-5f-structures`)
-- An art agent redrew the objects (trees, stumps, caves, fires, nests, granaries, heaps, people, herds, wolves, carcasses) as 3/4 oblique sprites with back-to-front draw order; terrain stays flat. I added the oblique hut and grave sprites. Viewer only, no sim change. Verified with a software-canvas preview, not yet in a real browser: check tap-select feel (people feet moved half a tile), sprite scaling at cell sizes 10, 12 and 20, and frame time with big forests (per-frame sort). The same patch is still uncommitted in the main checkout's `art-oblique` working tree; discard it there once this branch merges.
+- An art agent redrew the objects (trees, stumps, caves, fires, nests, granaries, heaps, people, herds, wolves, carcasses) as 3/4 oblique sprites with back-to-front draw order; terrain stays flat. I added the oblique hut and grave sprites. Viewer only, no sim change. Verified with a software-canvas preview, not yet in a real browser: check tap-select feel (people feet moved half a tile), sprite scaling at cell sizes 10, 12 and 20, and frame time with big forests (per-frame sort).
 
 ## Phase 5g bodies (branch `phase-5g-bodies`, off `main`)
 - Primitives 24, 25, 28, 19, 23. Life stages (children 0.6, elders 0.8 of adult work: forage bite, carry caps, clash strength); strength gene scales carry and work; childcare (a child under adult age costs its mother, split with a mate beside them); fatigue (steps raise it, standing still clears it; costs upkeep and lost steps); disease (touch spread, hashed spontaneous onset, upkeep drain, fed people recover faster). New per-person `fatigue` and `sick` Uint8 arrays through grow/spawn/kill/export/hash. Deaths with sickness leave grave marks. No viewer tint for the sick (the look byte has no free bit); outbreaks show as grave marks and population dips. Not yet watched in a browser (rule 13). Perf 5.6 µs/person/tick at 11.9k people. Old saves load with zeroed arrays.
 
 ## Next Steps
-1. Continue the port: draw thinned woodland, then fish and thirst, then herds (start of 6a); see the roadmap's 5-pre entry.
-2. 5d: cold, natural caves and campfire hearths (Stage 1), then 5e golden crops and 5f stone huts. Plan posted, waiting for your go on the defaults.
-3. A combined tuning pass over 5b to 5f once the features are in; decide the starting population (open question in the roadmap).
+1. Watch the overdue features in a browser with a fresh world (rule 13), including the oblique art checks above.
+2. Decide how closed rooms work (roadmap open question): huts are one tile today, but Phase 5's check asks for walls forming closed rooms.
+3. Build 5e golden crops.
+4. Combined tuning pass: wounds, population, childcare share, nests with no limit; decide the starting population.
+5. Graphics work: use the `graphics` agent (`.claude/agents/graphics.md`), starting with an audit.
