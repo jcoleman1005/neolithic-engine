@@ -183,6 +183,14 @@ const renderer = new CanvasRenderer(canvas, sim);
 const camera = new AutoCamera();
 renderer.onUserInput = () => camera.notifyUserInput(performance.now());
 
+// scripts/capture.ts aims the camera through this; only present with ?capture in the URL.
+if (new URLSearchParams(location.search).has('capture')) {
+  (window as unknown as { __capture: unknown }).__capture = {
+    goTo: (x: number, y: number) => renderer.goTo(x, y),
+    cellSize: () => renderer.cellSize,
+  };
+}
+
 const metricsView = new MetricsView($('#metrics-container'));
 const inspectorView = new InspectorView($('#inspector-container'), {
   onSelectPerson: (id) => {

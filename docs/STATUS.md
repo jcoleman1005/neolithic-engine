@@ -1,3 +1,10 @@
+## Settlements plan: T0 tools (branch `phase-5h-settlements`)
+- **Plan**: `docs/SETTLEMENTS.md` is the plan for settlements, villages and cities. Sim work follows it (see `docs/decisions.md`, 2026-11-05).
+- **Done (T0)**: `npm run map` (headless PNGs and a stats line per snapshot; saves a world at any year), `npm run capture` (real-renderer screenshots at chosen zooms on desktop and phone widths, with Playwright installed outside the repo), `npm run fingerprint -- --ticks N` with switches, and `verify.sh` now names failing tests and keeps the log. Tool arguments now reject unknown keys and merged flags, and `--xEnabled 0` really turns a switch off. Tests `tests/tools.test.ts`. Sim unchanged.
+- **Verify** passes. **Perf** 5.02 µs / person / tick at 11,313 people. **Fingerprint** `c85ce4bc93336df5` (1000 ticks), same as `main`; `9bf18bbc46385a58` at 1800 ticks is the baseline for off-parity checks.
+- **Seen in the first images (seed 1, year 8), not yet acted on**: nearly all activity hugs rivers and shores; about 146 bands among 2,380 people; 18 clusters of 3 or more built cells, the largest 10.
+- **Next**: you review T0 and do the overdue watch, then S0 (settlement observer and labels). The agent stops here until then.
+
 ## Primitives 18, 24, 28: Body Drives, Life Stages & Strength Work (branch `feat-drives-life-stages`)
 - **Done**: Implemented internal dominant drives, life stage cost/yield differences, and strength work scaling:
   - **18 (Hunger Drive)**: In `Rules.climb`, internal body state dictates the dominant gradient. When `energy < hungerDriveThreshold` (35% of max energy), the food scent gradient is amplified (2.5x) while leader pull is dampened (0.25x), ensuring hungry foragers prioritize food over blindly following. Critically starving people (`< 20%`) suppress roaming jitter and halve danger aversion to feed. Well-fed people follow leaders and roam normally. Switch: `bodyDrivesEnabled`.

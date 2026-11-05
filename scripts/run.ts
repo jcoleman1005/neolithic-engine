@@ -1,29 +1,12 @@
 import { World } from '../src/sim/world';
 import type { SimulationConfig } from '../src/sim/types';
-
-function parseArgs(): { seed: number; years: number; overrides: Record<string, number | boolean> } {
-  const args = process.argv.slice(2);
-  let seed = 3;
-  let years = 50;
-  const overrides: Record<string, number | boolean> = {};
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--seed' && i + 1 < args.length) {
-      seed = parseInt(args[++i], 10);
-    } else if (args[i] === '--years' && i + 1 < args.length) {
-      years = parseInt(args[++i], 10);
-    } else if (args[i].startsWith('--') && i + 1 < args.length) {
-      // Any other config key: --seasonsEnabled false (not 0: switches test !== false), --seasonAmplitude 0.5
-      const v = args[++i];
-      overrides[args[i - 1].slice(2)] = v === 'true' || v === 'false' ? v === 'true' : parseFloat(v);
-    }
-  }
-
-  return { seed, years, overrides };
-}
+import { parseArgs } from './args';
 
 function main(): void {
-  const { seed, years, overrides } = parseArgs();
+  // Any config key may follow: --seasonsEnabled false, --seasonAmplitude 0.5
+  const { named, overrides } = parseArgs(process.argv.slice(2), ['seed', 'years']);
+  const seed = parseInt(named.seed ?? '3', 10);
+  const years = parseInt(named.years ?? '50', 10);
   console.log(`Neolithic Engine — Headless run: seed ${seed}, ${years} years (256x256 wrapped)`);
 
   const world = new World(overrides as Partial<SimulationConfig>, seed);

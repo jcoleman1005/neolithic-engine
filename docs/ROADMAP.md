@@ -259,6 +259,7 @@ Steps:
 - 5f Stone and dry-stone huts: a stone resource from rocky ground, carried one at a time, dumped and tamped into wall cells; closed rooms emerge as cells with walls around them; stone granaries. One-tile huts are built; walls, closed rooms and stone granaries are not.
 - 5g Bodies (built, not watched): life stages, strength-scaled carry and work, childcare, fatigue and disease. Grave marks show deaths of the wounded and the sick.
 - Also built, not watched: mutable land fertility (worked soil improves, overused soil wears out) and childbirth hazards (pregnancy upkeep, miscarriage, delivery trauma, shelter helps).
+- Settlements, villages and cities: staged in `docs/SETTLEMENTS.md` (T0 tools, S0 labels, S1 staying pays, S2 paths, S3 exposure and walls, S4 onward direction only). 5e, spoilage and tending are part of its S4.
 - Readable visuals throughout: top-down pixel art, campfire glow, food mounds, golden crops, stone walls closing into rooms.
 
 * [ ] Year 0 has zero structures, zero farmland and zero stockpiles (a test checks the arrays are empty at tick 0).
@@ -342,7 +343,7 @@ These calls were yours to make; each is needed by the phase in brackets. The age
 - [x] Which abilities start locked and must be discovered: farming, walls, ritual, crafting? (Phase 5) — *None. No unlock flags; farming and building are physics.*
 
 - [ ] Starting population: today 700 founders (`decisions.md`, 2026-11-04, set for the new map); the identity says small bands. Default proposal: 150 to 300 founders in a few bands, retuned in Phase 1 terms. Needs your call. (Phase 5)
-- [ ] How closed rooms work: default proposal is physical (shelter rises with the number of wall neighbours around a cell), not an observer that detects rooms. (Phase 5f)
+- [x] How closed rooms work. (Phase 5f) — *Physical: a continuous exposure field, so rooms are simply places where exposure is low; see `docs/SETTLEMENTS.md` stage S3 and `decisions.md`.*
 
 ## Parking lot
 

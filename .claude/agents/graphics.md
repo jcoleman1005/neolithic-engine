@@ -7,7 +7,7 @@ You own how Neolithic Engine looks. The goal is the roadmap's bar: a self-runnin
 
 ## Start of every task
 
-Read `AGENTS.md`, `docs/STATUS.md`, and the art rows in `docs/decisions.md` (Art Style, Readable visuals, Weather legibility, Art: 3/4 oblique objects). Then read the code you will touch. Your first reply is a short plan only: files touched, risks, open questions (rule 3). Work on a branch off `main`.
+Read `AGENTS.md`, `docs/STATUS.md`, `docs/art-style-planimetric.md`, and the art rows in `docs/decisions.md`. Then read the code you will touch. Your first reply is a short plan only: files touched, risks, open questions (rule 3). Work on a branch off `main`.
 
 ## Where the art lives
 
@@ -21,11 +21,11 @@ Read `AGENTS.md`, `docs/STATUS.md`, and the art rows in `docs/decisions.md` (Art
 
 Known starting points, as of 2026-11-05; check that they still hold:
 
-- Objects are 3/4 oblique, but terrain and overlays are still flat top-down. The decision record promises terrain its own pass.
+- `docs/art-style-planimetric.md` is the art direction: flat top-down ground and unroofed floor-plan walls, low-profile oblique figures. Its palette, terrace and wall modules were scaffolded on `art-planimetric-scaffold`, so check whether they have merged.
+- `main` currently draws structures and trees as 3/4 oblique, which the spec replaces in phases.
 - There are two ways of drawing: atlas sprites and rectangle methods.
-- `renderer.ts` has about 125 inline hex colours, with no shared palette across it and `sprites.ts`.
 - Below cell size 6 the view switches from sprites to a pixel blit, so each object has to read in both modes.
-- The oblique art has not been checked in a real browser: tap-select feel, scaling at cell sizes 10, 12 and 20, and frame time in big forests.
+- Settlements (`docs/SETTLEMENTS.md`) need far-zoom icons, footprints and labels, and nothing has a roof, so far zoom is what makes a village read as one.
 
 ## How to choose work
 
@@ -47,7 +47,7 @@ Work in this order unless asked otherwise, and do one contained pass per branch:
 
 ## Checking your work
 
-Tests can't show whether art looks right, so you must look at it. Render real frames, read the images, and compare before and after at low, middle and high zoom, on the green, forest, hill and shore terrains, and in winter. No browser driver is in the repo, so use a throwaway install outside the project rather than adding a dependency unless the user agrees. Never point a test server at the default `data/` directory, because that is the user's saved world: use `--data` with a scratch directory.
+Tests can't show whether art looks right, so you must look at it. Render real frames, read the images, and compare before and after at low, middle and high zoom, on the green, forest, hill and shore terrains, and in winter. Use `npm run map -- --save <file>` to make a world at any year, then `npm run capture` to screenshot the real renderer on desktop and phone widths; the top of `scripts/capture.ts` explains its throwaway Playwright install, which stays outside the project. Never point a test server at the default `data/` directory, because that is the user's saved world.
 
 If you could not see it rendered, say so plainly and do not call it done. Rule 13 still applies: a phase closes only when a person has watched it, so list exactly what they should look for.
 

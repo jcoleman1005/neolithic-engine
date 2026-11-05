@@ -1,5 +1,7 @@
 # Neolithic Engine: 100 primitives
 
+**Order:** sim work from this list follows `docs/SETTLEMENTS.md` (decision 2026-11-05). Don't start an item here unless that plan's current stage calls for it.
+
 Numbers match the original list. Sections: **A** already in the sim (17), **B** partly there (11), **C** new (72).
 
 ## Rules that apply to every primitive (from AGENTS.md)
@@ -130,7 +132,7 @@ Numbers match the original list. Sections: **A** already in the sim (17), **B** 
 49. **Teaching** — Higher transfer chance between kin or leader-follower pairs during `touch`.
 50. **Loss** — No code of its own: bits live only in people, so when the last holder dies the bit is gone. Never keep a global "discovered" set that the sim reads; observers may count holders read-only.
 51. **Skill decay** — Skills (27) drop slowly when unused.
-54. **Home anchor** — `homeX` and `homeY` per person, set where they last sheltered or stored goods; used as a pull in `Rules.climb`.
+54. **Home anchor** — *Not to be built (decision 2026-11-05): people stay because of the real benefits of a place; see `docs/SETTLEMENTS.md`.* Original idea: `homeX` and `homeY` per person, set where they last sheltered or stored goods; used as a pull in `Rules.climb`.
 55. **Danger memory** — A small per-person memory of where harm happened, used as extra aversion. Optional; the danger scent (80) already covers most of this.
 57. **Conformity** — In `Rules.copy`, weight the local majority's habit above an individual candidate's.
 
