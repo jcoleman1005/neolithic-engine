@@ -34,6 +34,7 @@ const COLOR_FARM_RGB = 0x3068a8; // rgb(168, 104, 48), warm terracotta
 const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
 const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
 const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food heap never reads as brown
+const COLOR_BRUSH_RGB = 0x305a7d; // rgb(125, 90, 48), wood stick flecks for brush heaps
 const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
 const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
 const COLOR_GRANARY = 0xff284e7a; // rgb(122, 78, 40), plank floor, opaque
@@ -569,13 +570,13 @@ export class CanvasRenderer {
       const cx = this.currX[slot];
       const cy = this.currY[slot];
 
-      let dx = cx - targetX;
+      let dx = (cx + 0.5) - targetX;
       if (this.world.config.wrapping) {
         if (dx > w / 2) dx -= w;
         else if (dx < -w / 2) dx += w;
       }
 
-      let dy = cy - targetY;
+      let dy = (cy + 0.5) - targetY;
       if (this.world.config.wrapping) {
         if (dy > h / 2) dy -= h;
         else if (dy < -h / 2) dy += h;
@@ -771,6 +772,10 @@ export class CanvasRenderer {
           if (form === 2) c = COLOR_GRANARY;
           else if (form === 3) c = COLOR_NEST;
           else if ((st & 7) > 0) c = ((170 + (st & 7) * 12) << 24) | COLOR_HEAP_RGB;
+          else if (form === 1 && this.isForest[i] === 0 && (st >> 5) > 0) {
+            const bLevel = st >> 5;
+            c = ((130 + bLevel * 16) << 24) | COLOR_BRUSH_RGB;
+          }
         }
         out[i] = c >>> 0;
       }
@@ -1533,7 +1538,13 @@ export class CanvasRenderer {
             continue;
           }
           if (kind === 5) {
-            ctx.fillStyle = '#8a2e22'; ctx.fillRect(x0, y0, Math.max(2, cs * 0.8), Math.max(2, cs * 0.8));
+            const gw = Math.max(2, Math.round(cs * 0.85));
+            ctx.fillStyle = '#6b5238'; ctx.fillRect(x0, y0, gw, gw);
+            if (gw >= 3) {
+              ctx.fillStyle = '#e6dbbc';
+              ctx.fillRect(x0 + Math.floor(gw / 2), y0, 1, Math.max(1, gw - 1));
+              ctx.fillRect(x0 + 1, y0 + 1, Math.max(1, gw - 2), 1);
+            }
             continue;
           }
           if (kind >= 16) {
@@ -1560,7 +1571,7 @@ export class CanvasRenderer {
     const d = Math.max(2, Math.round(cs * 0.9));
     const lists: [Uint8Array | undefined, string][] = [
       [this.world.carcassPositions, '#8a2e22'],
-      [this.world.wolfPositions, '#3c3c46'],
+      [this.world.wolfPositions, '#5c5c68'],
       [this.world.herdPositions, '#d9a441'],
     ];
     for (let l = 0; l < 3; l++) {

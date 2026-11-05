@@ -1,3 +1,15 @@
+## Unified Graphics & Zoom Consistency (branch `graphics-unification`)
+- **Done**: Completed visual audit and established shared style rules (NW lighting, SE soft ground shadows `rgba(26, 18, 8, 0.30)`, 8-px art unit `ap`).
+  - **Graves**: Retinted flat/zoomed-out marker from crimson `#8a2e22` (which conflicted with animal carcasses) to earth mound `#6b5238` with stick/bone cross `#e6dbbc`.
+  - **Brush Heaps**: Added wood fleck markers to the land overlay (`COLOR_BRUSH_RGB = 0x305a7d`, alpha scaled with heap level) so ground brush accumulation on open land is visible before consolidating into a nest.
+  - **Wolves**: Brightened zoomed-out dot from `#3c3c46` to `#5c5c68` for direct color linking to the wolf sprite's coat.
+  - **Tap Selection**: Centered hit detection on the visual figure centroid `(cx + 0.5, cy + 0.5)`.
+  - **Simulation Fingerprint**: Untouched (`881ea265aa76e667`).
+  - **Verify**: `npm run verify` passes (type check, all 31 test suites, production build).
+  - **Perf**: **5.30 µs / person / tick** at 11,596 people (budget 15.0 µs).
+  - **Screenshots**: Could not be captured in headless environment (no Chrome/display server available). Requires a real browser watch on desktop / S21 per Rule 13.
+- **Next**: Watch in Chrome to evaluate tap selection and zoom consistency; proceed to Phase 5e golden crops.
+
 ## Where things stand (2026-11-05)
 `main` has everything below through Phase 5g bodies and childbirth hazards, and is pushed to `origin`. Built but not watched (rule 13): cold, caves and fires; wolves; huts; injury and grave marks; oblique art; fertility; childbirth hazards; bodies. Not built: 5e golden crops; walls and closed rooms.
 
