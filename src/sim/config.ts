@@ -57,6 +57,13 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   calmMovementEnabled: true,
   stayFoodFraction: 0.5, // stay while the tile holds this fraction of its capacity
   // S1 (docs/SETTLEMENTS.md): staying pays. Each piece has its own switch so it can be compared.
+  // S2 (docs/SETTLEMENTS.md): paths. Steps wear the ground; worn ground is cheaper to walk and
+  // lightly preferred, so routes reinforce themselves. Wear fades a little at a time when unused.
+  pathsEnabled: true,
+  wearStep: 4, // wear added to a tile each time someone steps onto it, 0 to 255 (S2 tuning: was 16)
+  wearDecaySlices: 2, // every tile loses 1 wear once per this many ticks (S2 tuning: was 8)
+  pathCostCut: 0.5, // a fully worn tile costs this much less to step onto
+  pathPull: 0.3, // how strongly people lean toward the more worn neighbour
   stayValueEnabled: true, // the stay check counts the heap underfoot and the real upkeep of the tile
   stayRefFood: 10.0, // food a tile with no plant capacity (rock, a hut on a hill) is measured against
   roamStayWeight: 0.2, // roaming and curious people need this much more (at the top of the range) to stay (S1 tuning: was 0.5)

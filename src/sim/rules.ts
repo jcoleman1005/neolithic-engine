@@ -200,6 +200,15 @@ export class Rules {
     let vx = scratchGradFood[0] * foodWeight - scratchGradDanger[0] * dangerAversion;
     let vy = scratchGradFood[1] * foodWeight - scratchGradDanger[1] * dangerAversion;
 
+    // S2: lean toward the more worn neighbour, so used routes reinforce themselves.
+    if (config.pathsEnabled !== false) {
+      const pull = (config.pathPull ?? 0.3) / 255;
+      const wear = land.wear;
+      const row = py << 8;
+      vx += (wear[row | ((px + 1) & 0xff)] - wear[row | ((px - 1) & 0xff)]) * pull;
+      vy += (wear[(((py + 1) & 0xff) << 8) | px] - wear[(((py - 1) & 0xff) << 8) | px]) * pull;
+    }
+
     // Leader pull
     let leaderPulling = false;
     const lId = people.leaderId[slot];

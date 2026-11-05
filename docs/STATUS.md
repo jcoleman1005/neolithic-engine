@@ -1,3 +1,10 @@
+## Settlements plan: S2 paths (branch `settlements-s2`)
+- **Built**: each step wears the tile (`Land.wear`, saved; hashed only while `pathsEnabled` is on); worn ground costs up to half as much to step onto, and people lean toward the more worn neighbour. Wear fades one point every 2 ticks. Paths reach the viewer as a new per-tile channel with the land overlay and draw as trodden earth; `npm run map` shows them and reports worn land. Tests `tests/paths.test.ts`.
+- **Result** (seeds 1 to 3, year 30): 7 to 11% of land worn, population 91 to 100% of paths-off at year 20. Hamlets or larger at 62% of off on seed 3 (target 80%, missed; tuning deferred to the combined pass). Worn ground mostly bands shores and settlements; few trails cross open land between camps. Tuned `wearStep` 16 to 4 and `wearDecaySlices` 8 to 2 (see `docs/findings.md`).
+- **Verify** passes. **Perf** 5.03 µs / person / tick; about 4.7 µs at 2,900 people and 4.9 µs at 2,300. **Fingerprint** with paths off is S1's `09169101e488ff9f`; with paths on `d0a8e5aec4ab7c18`.
+- **Checked in a browser**: trodden ground around the largest settlement at cell sizes 4 and 10, no page errors. Needs a person's watch.
+- **Next**: S3 starts with packed earth (S3-pre) and the layout spike (S3a), which is a stop point for your review.
+
 ## Planimetric Hybrid Aesthetic (branch `art-planimetric-scaffold`)
 - **Done**: Fully completed Planimetric Hybrid Aesthetic subsystem (Phases 1 through 5):
   - **Modules**: Created `src/render/palette.ts` (4-tone material ramps, atmospheric haze formula), `src/render/autotile.ts` (47-tile 8-neighbor lookup table, 8x8 quadrant decomposition procedural atlas builder, toroidal bitmask math), `src/render/terrace.ts` (6-tier quantization, bluff drop-shadow masking), and `src/render/walls.ts` (16-tile wall connection bitmasking, cutaway blueprint rendering).

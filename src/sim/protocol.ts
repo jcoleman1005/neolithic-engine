@@ -122,6 +122,8 @@ export interface WorldView {
   /** Heap size (3 bits) and form (2 bits) per cell (see Land.packStructures). */
   readonly landStructures?: Uint8Array | null;
   readonly landStructuresVersion?: number;
+  readonly landPaths?: Uint8Array | null;
+  readonly landPathsVersion?: number;
   readonly settlements?: readonly SettlementView[];
   readonly selectedPerson?: PersonDetail | null;
   readonly organisms?: ReadonlyMap<string, OrganismView>;
@@ -141,6 +143,7 @@ export interface WorldStatic {
   readonly foodRegions: readonly FoodRegion[];
   readonly landOverlay?: string;
   readonly landStructures?: string;
+  readonly landPaths?: string;
   readonly settlements?: readonly SettlementView[];
   readonly events: readonly WorldEvent[];
 }
@@ -176,6 +179,7 @@ export type FromWorker =
       readonly terrain?: TerrainState;
       readonly landOverlay?: string;
       readonly landStructures?: string;
+      readonly landPaths?: string;
       /** Sent with the land overlay, not every frame. */
       readonly settlements?: readonly SettlementView[];
       readonly ticksPerSecond: number;

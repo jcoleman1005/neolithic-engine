@@ -50,6 +50,8 @@ export interface LandState {
   readonly fire?: readonly number[];
   readonly stone?: readonly number[];
   readonly durability?: readonly number[];
+  /** Path wear (S2); absent in older saves. */
+  readonly wear?: readonly number[];
   readonly structure?: readonly number[];
 }
 
@@ -108,6 +110,8 @@ export class Land {
   public readonly stone: Float32Array;
   /** Build progress per cell, 0..durabilityCap; erodes slowly. Saved. */
   public readonly durability: Uint8Array;
+  /** S2: how worn the ground is by feet, 0 to 255. Saved; hashed only while paths are on. */
+  public readonly wear: Uint8Array;
   /** 0 none, 1 hut. Set when durability reaches hutDurability, cleared when erosion takes it under hutKeep. Saved. */
   public readonly structure: Uint8Array;
   public hutCount = 0;
@@ -156,6 +160,7 @@ export class Land {
     this.cave = new Uint8Array(TOTAL_CELLS);
     this.stone = new Float32Array(TOTAL_CELLS);
     this.durability = new Uint8Array(TOTAL_CELLS);
+    this.wear = new Uint8Array(TOTAL_CELLS);
     this.structure = new Uint8Array(TOTAL_CELLS);
     this.fire = new Uint8Array(TOTAL_CELLS);
     this.fireNear = new Uint8Array(TOTAL_CELLS);
@@ -524,6 +529,26 @@ export class Land {
       this.hutCount++;
       if (config.shelterSeekEnabled !== false) this.warmDirty = true;
     }
+  }
+
+  /** S2: a step onto this tile wears it. */
+  public trample(i: number, config: Readonly<SimulationConfig>): void {
+    const w = this.wear[i] + (config.wearStep ?? 16);
+    this.wear[i] = w > 255 ? 255 : w;
+  }
+
+  /** S2: unused ground recovers, one slice of the map a tick, so each tile loses 1 per wearDecaySlices ticks. */
+  public wearDown(tick: number, config: Readonly<SimulationConfig>): void {
+    const slices = Math.max(1, config.wearDecaySlices ?? 8);
+    const wear = this.wear;
+    for (let i = tick % slices; i < TOTAL_CELLS; i += slices) {
+      if (wear[i] > 0) wear[i]--;
+    }
+  }
+
+  /** S2: path wear for the viewer, 0 to 7 per tile. */
+  public packPaths(out: Uint8Array): void {
+    for (let i = 0; i < TOTAL_CELLS; i++) out[i] = this.wear[i] >> 5;
   }
 
   /** Wears every built tile down by 1, one slice of the map a tick, so each loses 1 per erosionSlices ticks. */
@@ -905,6 +930,7 @@ export class Land {
       fire: Array.from(this.fire),
       stone: Array.from(this.stone),
       durability: Array.from(this.durability),
+      wear: Array.from(this.wear),
       structure: Array.from(this.structure),
     };
   }
@@ -949,6 +975,8 @@ export class Land {
     if (state.stone) for (let i = 0; i < len; i++) this.stone[i] = state.stone[i] ?? 0;
     this.hutCount = 0;
     if (state.durability) for (let i = 0; i < len; i++) this.durability[i] = state.durability[i] ?? 0;
+    this.wear.fill(0);
+    if (state.wear) for (let i = 0; i < len; i++) this.wear[i] = state.wear[i] ?? 0;
     if (state.structure) for (let i = 0; i < len; i++) { this.structure[i] = state.structure[i] ?? 0; this.hutCount += this.structure[i]; }
   }
 }

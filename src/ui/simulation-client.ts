@@ -90,6 +90,8 @@ export class SimulationClient implements WorldView {
   public landOverlayVersion = 0;
   public landStructures: Uint8Array | null = null;
   public landStructuresVersion = 0;
+  public landPaths: Uint8Array | null = null;
+  public landPathsVersion = 0;
   public terrain: TerrainField | null = null;
   public elevation: ElevationField | null = null;
 
@@ -198,6 +200,8 @@ export class SimulationClient implements WorldView {
         this.foodRegions = message.foodRegions;
         if (message.landOverlay) this.setOverlay(message.landOverlay);
         if (message.landStructures) this.setStructures(message.landStructures);
+        this.landPaths = message.landPaths ? fastBase64Decode(message.landPaths) : null;
+        this.landPathsVersion++;
         this.settlements = message.settlements ?? [];
         this.worldEvents = [...message.events];
         this.events.reset();
@@ -209,6 +213,10 @@ export class SimulationClient implements WorldView {
         if (message.landOverlay) this.setOverlay(message.landOverlay);
         if (message.landStructures) this.setStructures(message.landStructures);
         if (message.settlements) this.settlements = message.settlements;
+        if (message.landPaths) {
+          this.landPaths = fastBase64Decode(message.landPaths);
+          this.landPathsVersion++;
+        }
         this.peopleCount = message.peopleCount;
         if (message.packedCarcasses !== undefined) this.carcassPositions = fastBase64Decode(message.packedCarcasses);
         if (message.packedFeatures !== undefined) this.featurePositions = fastBase64Decode(message.packedFeatures);

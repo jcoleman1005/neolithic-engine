@@ -6,7 +6,7 @@
  * Writes <out>-yNN.png at each snapshot and prints one stats line. Only reads the world.
  *
  * Colours: water blue; land green, brighter with plant food; woodland dark green; rock grey-brown;
- * tilled soil tan; heap orange; granary gold; nest brown; hut white; fire red; cave black;
+ * tilled soil tan; worn paths pale sand, paler with use; heap orange; granary gold; nest brown; hut white; fire red; cave black;
  * set-down stone not yet a hut pale grey; people magenta, brighter when more share a tile.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -40,6 +40,7 @@ function cellColor(w: World, c: number, out: Uint8Array, o: number): void {
     else if (l.wooded[c] === 1 && l.treeMax[c] > 0) { r = 22; g = 62 + v * 25; b = 30; }
     else { r = 44 + v * 20; g = 70 + v * 70; b = 40; }
     if (l.tilled[c] > 0.3) { r = 130; g = 104; b = 62; }
+    if (l.wear[c] >= 64) { const k = l.wear[c] / 255; r = Math.round(r + (200 - r) * k); g = Math.round(g + (170 - g) * k); b = Math.round(b + (120 - b) * k); }
     if (l.durability[c] > 0) { r = 170; g = 170; b = 165; }
     if (l.form[c] === FORM_HEAP || l.pile[c] > 1) { r = 230; g = 130; b = 30; }
     if (l.form[c] === FORM_GRANARY) { r = 245; g = 205; b = 60; }
@@ -97,7 +98,7 @@ function lifetimes(chronicle: Chronicle, tick: number, ticksPerYear: number): nu
 
 function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const l = w.land;
-  let heaps = 0, granaries = 0, nests = 0, huts = 0, fires = 0;
+  let heaps = 0, granaries = 0, nests = 0, huts = 0, fires = 0, landCells = 0, worn = 0;
   const near = new Uint8Array(CELLS);
   for (let c = 0; c < CELLS; c++) {
     if (l.form[c] === FORM_HEAP) heaps++;
@@ -105,6 +106,7 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
     if (l.form[c] === FORM_NEST) nests++;
     if (l.structure[c] === 1) huts++;
     if (l.fire[c] === 1) fires++;
+    if (l.isWater[c] === 0) { landCells++; if (l.wear[c] >= 64) worn++; }
     if (isBuilt(w, c)) {
       const x = c & 255, y = c >> 8;
       for (let dy = -NEAR_RADIUS; dy <= NEAR_RADIUS; dy++) {
@@ -134,7 +136,7 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const lasted = lives.filter((l) => l >= 10).length;
   return `Year ${String(year).padStart(3)}: people ${w.population}, adults outside camps ${100 - nearPct}%, ` +
     `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}; ` +
-    `bands ${chronicle.tracker.bands.size} (largest ${largestBand}); ${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
+    `worn land ${((100 * worn) / Math.max(1, landCells)).toFixed(1)}%, bands ${chronicle.tracker.bands.size} (largest ${largestBand}); ${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
 }
 
 function main(): void {
