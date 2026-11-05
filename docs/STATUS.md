@@ -1,3 +1,14 @@
+## Primitives 18, 24, 28: Body Drives, Life Stages & Strength Work (branch `feat-drives-life-stages`)
+- **Done**: Implemented internal dominant drives, life stage cost/yield differences, and strength work scaling:
+  - **18 (Hunger Drive)**: In `Rules.climb`, internal body state dictates the dominant gradient. When `energy < hungerDriveThreshold` (35% of max energy), the food scent gradient is amplified (2.5x) while leader pull is dampened (0.25x), ensuring hungry foragers prioritize food over blindly following. Critically starving people (`< 20%`) suppress roaming jitter and halve danger aversion to feed. Well-fed people follow leaders and roam normally. Switch: `bodyDrivesEnabled`.
+  - **24 (Life Stages)**: Children (`age < adultAge`) pay lower base upkeep (`childUpkeepMul: 0.7`) proportional to lower body mass, while wild harvests (berries, fish, brush) scale with life stage work capacity (`childWork: 0.6`, `elderWork: 0.8`). Switches: `stagesEnabled`, `stageHarvestScale`.
+  - **28 (Strength Scaling)**: `GENE_STRENGTH` scales carrying capacity and work output, including tamping heap compaction (`land.tamp`) via worker `bodyMul`. Switches: `strengthScalingEnabled`, `workStrengthScale`.
+  - **Memory & Allocation**: Zero new typed arrays; reused existing `people.age`, `people.energy`, `people.injury`, `people.genes`, `people.carry`, `people.carryKind`. Zero allocations per person per tick.
+  - **Determinism**: Exact bit-for-bit baseline fingerprint parity (`881ea265aa76e667`) verified with switches disabled.
+  - **Perf**: **5.25 µs / person / tick** at 11,313 people (budget 15.0 µs).
+  - **Verify**: `npm run verify` passed (check, 33/33 test suites, 207 tests, production build).
+- **Next**: Merge branch to `main`; proceed to Spoilage & Farming Tending (Primitives 5, 9, 41) or Phase 5e golden crops.
+
 ## Wolf & Herd Animation Polish (branch `fix-wolf-animation`)
 - **Done**: Fixed the wolf (and deer) flip-every-tick bug and added smooth inter-frame interpolation:
   - **Heading Tracking**: Replaced coordinate-parity flip `((cx * 29 + cy * 13) & 1) === 0` with persistent heading tracking based on delta movement. Animals face East when moving right, West when moving left, and preserve their facing when moving vertically or idling.

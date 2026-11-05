@@ -615,3 +615,20 @@ Targets set before running: at year 9 population within 10 to 25% below the all-
 | sickSpread / sickBase / sickTicks / sickUpkeep / sickFedHeal | n/a | 0.03 / 0.00002 / 120 / 0.8 / 1 | endemic 1 to 3% sick, peaks 3 to 5% |
 
 Result (all on vs all off, seeds 1 to 3, year 9): people -13%, -12%, -18%; peak sick 3.2%, 3.9%, 4.6%. Perf 5.6 µs. Disease is endemic rather than epidemic at these values; sharper outbreaks would need a higher `sickSpread` or a crowding term, left to the tuning pass.
+
+## Primitives 18, 24, 28: Body Drives, Life Stages & Strength Work Scaling
+
+| Value | Old | New | Why |
+|:--|:--|:--|:--|
+| bodyDrivesEnabled | n/a | true | Enables dominant drive selection (Hunger vs Cold vs Social/Roam) in Rules.climb |
+| hungerDriveThreshold | n/a | 0.35 | Fraction of maxEnergy below which hunger drive dominates movement |
+| criticalHungerThreshold | n/a | 0.20 | Fraction of maxEnergy below which curiosity/roam jitter drops and danger aversion halves |
+| hungerFoodWeightMul | n/a | 2.5 | Food scent gradient amplification when hungry |
+| hungerLeaderPullMul | n/a | 0.25 | Dampening of leader pull when hungry (foraging takes priority over following) |
+| childUpkeepMul | n/a | 0.7 | Child upkeep proportional to smaller body mass |
+| elderUpkeepMul | n/a | 1.0 | Elder baseline upkeep multiplier |
+| stageHarvestScale | n/a | true | Wild foraging (berries, fish, brush) scales with life stage and strength bodyMul |
+| strengthScalingEnabled | n/a | true | Switch for strength gene scaling carrying and work |
+| workStrengthScale | n/a | true | Tamping compaction scales with worker bodyMul (stageWork * strength) |
+
+Ledger balances with zero violations (`ledger.violations === 0`). Desktop perf: 5.25 µs / person / tick at 11,313 population (budget <= 15.0 µs). Bit-for-bit baseline fingerprint parity confirmed (`881ea265aa76e667`) when new switches are disabled.

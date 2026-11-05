@@ -242,7 +242,17 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   stagesEnabled: true,
   childWork: 0.6,
   elderWork: 0.8,
+  childUpkeepMul: 0.7, // children have lower body mass, lower baseline upkeep
+  elderUpkeepMul: 1.0, // elders baseline upkeep
+  strengthScalingEnabled: true, // switch for strength gene scaling work/carrying
   strengthCarry: 0.6, // carry/work multiplier is 1 + this x (strength/255 - 0.5)
+  stageHarvestScale: true, // whether wild foraging (berries, fish, brush) scales with bodyMul
+  workStrengthScale: true, // whether tamping compaction scales with bodyMul (stageWork * strength)
+  bodyDrivesEnabled: true,
+  hungerDriveThreshold: 0.35, // fraction of maxEnergy below which hunger drive dominates
+  criticalHungerThreshold: 0.20, // fraction of maxEnergy below which curiosity/danger aversion drops
+  hungerFoodWeightMul: 2.5, // multiplier on food scent gradient when hungry
+  hungerLeaderPullMul: 0.25, // dampening on leader pull when hungry
   childcareEnabled: true,
   childCare: 0.05,
   careRadius: 4,

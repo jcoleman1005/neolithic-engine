@@ -728,10 +728,10 @@ export class Land {
   }
 
   /** One person tamps the heap underfoot. */
-  public tamp(x: number, y: number, config: Readonly<SimulationConfig>): void {
+  public tamp(x: number, y: number, config: Readonly<SimulationConfig>, workMultiplier = 1.0): void {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     const cap = config.compactionCap ?? 2;
-    this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03));
+    this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03) * workMultiplier);
     if (config.fertilityChangeEnabled !== false && this.isWater[i] === 0) {
       const fMax = config.fertilityMax ?? 1.5;
       const curF = this.fertility[i];

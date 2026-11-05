@@ -279,7 +279,17 @@ export interface SimulationConfig {
   stagesEnabled: boolean;
   childWork: number;
   elderWork: number;
+  childUpkeepMul: number;
+  elderUpkeepMul: number;
+  strengthScalingEnabled: boolean;
   strengthCarry: number;
+  stageHarvestScale: boolean;
+  workStrengthScale: boolean;
+  bodyDrivesEnabled: boolean;
+  hungerDriveThreshold: number;
+  criticalHungerThreshold: number;
+  hungerFoodWeightMul: number;
+  hungerLeaderPullMul: number;
   childcareEnabled: boolean;
   childCare: number;
   careRadius: number;

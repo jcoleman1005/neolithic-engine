@@ -168,9 +168,33 @@ export class Rules {
     const forageTenacity = people.habits[hOff + HABIT_FORAGE] / 255;
 
     // Danger aversion factor: caution increases aversion, bravery reduces it
-    const dangerAversion = Math.max(0, caution * 1.5 - bravery * 0.5);
+    let dangerAversion = Math.max(0, caution * 1.5 - bravery * 0.5);
 
-    const foodWeight = 1.0 + 0.5 * forageTenacity;
+    let foodWeight = 1.0 + 0.5 * forageTenacity;
+    let leaderPullMul = 1.0;
+    let suppressRoam = false;
+
+    // Primitive 18: Hunger drive - chosen from body state
+    const drivesOn = config.bodyDrivesEnabled !== false;
+    if (drivesOn) {
+      const maxE = config.maxEnergy ?? 100;
+      const curE = people.energy[slot];
+      const hungerThreshold = (config.hungerDriveThreshold ?? 0.35) * maxE;
+      if (curE < hungerThreshold) {
+        // HUNGER DRIVE dominates: food gradient is amplified
+        const hungerWeightMul = config.hungerFoodWeightMul ?? 2.5;
+        foodWeight *= hungerWeightMul;
+        leaderPullMul = config.hungerLeaderPullMul ?? 0.25;
+
+        // When critically hungry, suppress curiosity/roaming jitter and reduce danger aversion
+        const critHungerThreshold = (config.criticalHungerThreshold ?? 0.20) * maxE;
+        if (curE < critHungerThreshold) {
+          suppressRoam = true;
+          dangerAversion *= 0.5; // starving people risk danger for food
+        }
+      }
+    }
+
     let vx = scratchGradFood[0] * foodWeight - scratchGradDanger[0] * dangerAversion;
     let vy = scratchGradFood[1] * foodWeight - scratchGradDanger[1] * dangerAversion;
 
@@ -192,7 +216,7 @@ export class Rules {
         if (distSq > 1) {
           leaderPulling = true;
           const loyalty = people.genes[gOff + GENE_CHARISMA] / 255; // personal devotion
-          const pull = 0.8 + 0.8 * loyalty;
+          const pull = (0.8 + 0.8 * loyalty) * leaderPullMul;
           vx += (dx > 0 ? 1 : dx < 0 ? -1 : 0) * pull;
           vy += (dy > 0 ? 1 : dy < 0 ? -1 : 0) * pull;
         }
@@ -253,7 +277,7 @@ export class Rules {
     }
 
     // Roaming / curiosity jitter
-    const exploreChance = (curiosity + roaming) * 0.2;
+    const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
     if (prng.next() < exploreChance) {
       const jDir = prng.nextInt(0, 4);
       if (jDir === 0) vx += 0.8;

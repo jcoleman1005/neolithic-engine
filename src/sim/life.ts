@@ -94,6 +94,9 @@ export class LifeSystem {
     const stagesOn = config.stagesEnabled !== false;
     const childWork = config.childWork ?? 0.6;
     const elderWork = config.elderWork ?? 0.8;
+    const childUpkeepMul = config.childUpkeepMul ?? 0.7;
+    const elderUpkeepMul = config.elderUpkeepMul ?? 1.0;
+    const strengthOn = config.strengthScalingEnabled !== false;
     const strengthCarry = config.strengthCarry ?? 0.6;
     const careOn = config.childcareEnabled !== false;
     const childCare = config.childCare ?? 0.05;
@@ -150,10 +153,11 @@ export class LifeSystem {
       people.clearStaleLeader(slot);
 
       age[slot]++;
-      // Standing in a nest is warmer and drier: upkeep is lower.
+      // Standing in a nest is warmer and drier: upkeep is lower. Children have lower body mass.
       const upCell = (py[slot] << 8) | px[slot];
-      const upkeep = land.structure[upCell] === 1 ? metabolism * hutUpkeepMul
-        : nestsOn && land.form[upCell] === FORM_NEST ? metabolism * nestUpkeep : metabolism;
+      const stageMul = stagesOn ? (age[slot] < adultAge ? childUpkeepMul : age[slot] >= elderAge ? elderUpkeepMul : 1.0) : 1.0;
+      const upkeep = (land.structure[upCell] === 1 ? metabolism * hutUpkeepMul
+        : nestsOn && land.form[upCell] === FORM_NEST ? metabolism * nestUpkeep : metabolism) * stageMul;
       energy[slot] -= upkeep;
       ledger.upkeep += upkeep;
       if (birthHazardsOn && sex[slot] === 0 && pregnant[slot] >= 0) {
@@ -290,6 +294,7 @@ export class LifeSystem {
     const huntCost = config.huntCost ?? 0.3;
     const meatFactor = config.huntMeatFactor ?? 1.0;
     const finiteOn = config.finiteResourcesEnabled !== false;
+    const stageHarvestOn = config.stageHarvestScale !== false;
     const berryBite = config.berryBite ?? 1.5;
     const fishBite = config.fishBite ?? 0.3;
     const fishBelow = (config.fishBelow ?? 0.5) * maxEnergy;
@@ -299,7 +304,7 @@ export class LifeSystem {
     const carryDrag = config.carryDrag ?? 0.5;
     const bodyMul = (slot: number): number =>
       (stagesOn ? stageWork(age[slot], adultAge, elderAge, childWork, elderWork) : 1) *
-      (1 + strengthCarry * (genes[slot * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5));
+      (strengthOn ? (1 + strengthCarry * (genes[slot * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5)) : 1);
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
 
@@ -336,11 +341,11 @@ export class LifeSystem {
         }
         if (finiteOn && eaten < Math.min(fb, maxEnergy - curE) && curE < berryBelow) {
           // Grazing fell short: top the meal up with wild berries.
-          eaten += land.pickBerries(px[slot], py[slot], Math.min(berryBite, maxEnergy - curE - eaten));
+          eaten += land.pickBerries(px[slot], py[slot], Math.min(stageHarvestOn ? berryBite * cm : berryBite, maxEnergy - curE - eaten));
         }
         if (finiteOn && eaten < Math.min(fb, maxEnergy - curE) && curE < fishBelow) {
           // Still hungry beside water: take a little fish from the shore.
-          eaten += land.catchFish(px[slot], py[slot], Math.min(fishBite, maxEnergy - curE - eaten));
+          eaten += land.catchFish(px[slot], py[slot], Math.min(stageHarvestOn ? fishBite * cm : fishBite, maxEnergy - curE - eaten));
         }
         if (huntOn && herds!.count > 0 && curE < huntBelow) {
           // Hungry with an animal on or beside the tile: a chance to strike. A kill leaves the meat
@@ -396,7 +401,7 @@ export class LifeSystem {
           land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
         }
-        const cut = land.cutBrush(px[slot], py[slot], brushBite, config);
+        const cut = land.cutBrush(px[slot], py[slot], stageHarvestOn ? brushBite * cm : brushBite, config);
         if (cut > 0) {
           const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
           people.carry[slot] = Math.min(brushCap, have + cut);
@@ -641,11 +646,13 @@ export class LifeSystem {
       const workMin = config.workMinPile ?? 4.0;
       const workCost = config.workCost ?? 0.05;
       const brushWorkMin = nestsOn ? config.brushWorkMin ?? 3.0 : Infinity;
+      const workStrengthOn = config.workStrengthScale !== false;
       for (let slot = 0; slot < cap; slot++) {
         if (alive[slot] === 0 || people.prevDir[slot] !== 4 || energy[slot] < workAbove) continue;
         const wc = (py[slot] << 8) | px[slot];
         if (land.pile[wc] < workMin && land.brush[wc] < brushWorkMin) continue;
-        land.tamp(px[slot], py[slot], config);
+        const wMul = workStrengthOn ? bodyMul(slot) : 1.0;
+        land.tamp(px[slot], py[slot], config, wMul);
         energy[slot] -= workCost;
         ledger.move += workCost; // labour is booked with the other actions
       }
