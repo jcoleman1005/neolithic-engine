@@ -181,6 +181,7 @@ const sim: SimulationClient = new SimulationClient({
 const renderer = new CanvasRenderer(canvas, sim);
 
 const camera = new AutoCamera();
+camera.enabled = false;
 renderer.onUserInput = () => camera.notifyUserInput(performance.now());
 
 const metricsView = new MetricsView($('#metrics-container'));
@@ -223,6 +224,12 @@ const pill = new PlaybackPill($('#playback'), {
   },
   onColorModeChange: (mode) => {
     renderer.colorMode = mode;
+  },
+  onElevationSliceChange: (slice) => {
+    renderer.setActiveElevationSlice(slice);
+  },
+  onTerrainThemeChange: (theme) => {
+    renderer.setTerrainTheme(theme);
   },
   onAutoCameraChange: (on) => {
     camera.enabled = on;

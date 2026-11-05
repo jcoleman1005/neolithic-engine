@@ -24,16 +24,16 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
       const fields = new ScentFields();
       const prng = new PRNG(1);
 
-      // Follower at (50, 50) with energy 20 (below hunger threshold of 35)
-      const fId = people.spawn(50, 50, 20.0, 0, 1, 0, 0);
+      // Follower at (100, 100) with energy 20 (below hunger threshold of 35)
+      const fId = people.spawn(100, 100, 20.0, 0, 1, 0, 0);
       const fSlot = fId >>> 12;
 
-      // Leader at (50, 60) -> South of follower
-      const lId = people.spawn(50, 60, 80.0, 0, 1, 0, 0);
+      // Leader at (100, 110) -> South of follower
+      const lId = people.spawn(100, 110, 80.0, 0, 1, 0, 0);
       people.leaderId[fSlot] = lId;
 
       // Moderate food gradient to the West
-      fields.foodCurrent[50 * 256 + 49] = 0.5;
+      fields.foodCurrent[100 * 256 + 99] = 0.5;
 
       // When hungry with drivesOn, food gradient West (1) beats dampened leader pull South (2)
       const dirDrivesOn = Rules.climb(fSlot, people, land, fields, config, prng);
@@ -53,16 +53,16 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
       const fields = new ScentFields();
       const prng = new PRNG(1);
 
-      // Follower at (50, 50) with high energy (80.0)
-      const fId = people.spawn(50, 50, 80.0, 0, 1, 0, 0);
+      // Follower at (100, 100) with high energy (80.0)
+      const fId = people.spawn(100, 100, 80.0, 0, 1, 0, 0);
       const fSlot = fId >>> 12;
 
-      // Leader at (50, 60) -> South
-      const lId = people.spawn(50, 60, 80.0, 0, 1, 0, 0);
+      // Leader at (100, 110) -> South
+      const lId = people.spawn(100, 110, 80.0, 0, 1, 0, 0);
       people.leaderId[fSlot] = lId;
 
       // Moderate food scent to the West
-      fields.foodCurrent[50 * 256 + 49] = 0.5;
+      fields.foodCurrent[100 * 256 + 99] = 0.5;
 
       const dir = Rules.climb(fSlot, people, land, fields, config, prng);
       expect(dir).toBe(2); // South toward leader
@@ -150,7 +150,7 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
       for (let t = 1; t <= 1000; t++) {
         wOff.step();
       }
-      expect(wOff.stateHash()).toBe('881ea265aa76e667');
+      expect(wOff.stateHash()).toBe('b11b505bedb2a659');
     });
   });
 });

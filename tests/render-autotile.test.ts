@@ -6,6 +6,23 @@ import { BITMASK_47_LOOKUP, BIT_N, BIT_S, BIT_E, BIT_W, generateAutotileAtlas } 
 import { quantizeElevation01, buildTerraces, createTerraceData } from '../src/render/terrace';
 import { hexToABGR, applyAtmosphericHaze, PALETTE } from '../src/render/palette';
 import { getWallBitmask, populateWallSpatialMask, WALL_N, WALL_E } from '../src/render/walls';
+import {
+  createTerrainAtlas,
+  T_GRASS,
+  T_DIRT,
+  T_SAND,
+  T_SHALLOWS,
+  T_OCEAN,
+  T_ROCK,
+  T_SNOW,
+  CLIFF_S,
+  CLIFF_E,
+  CLIFF_W,
+  CLIFF_SE,
+  CLIFF_SW,
+  FOAM_N,
+  FOAM_S,
+} from '../src/render/terrain-tiles';
 
 describe('Planimetric Render Subsystem', () => {
   it('maps all 256 8-neighbor bitmasks to valid canonical 0..46 indices', () => {
@@ -100,5 +117,50 @@ describe('Planimetric Render Subsystem', () => {
     const connections = getWallBitmask(mask, 5, 5);
     expect(connections & WALL_N).toBe(WALL_N);
     expect(connections & WALL_E).toBe(WALL_E);
+  });
+
+  it('generates Dwarf Fortress Steam terrain atlases across all 3 themes', () => {
+    const themes = ['classic', 'mountainhome', 'wilds'] as const;
+    for (const theme of themes) {
+      const atlas = createTerrainAtlas(theme);
+      expect(atlas).toBeDefined();
+      expect(atlas.theme).toBe(theme);
+      expect(atlas.canvas.width).toBe(64);
+      expect(atlas.canvas.height).toBe(64);
+
+      // Verify all 7 biome kinds and 4 variations have valid coordinates within the 64x64 atlas
+      const kinds = [T_GRASS, T_DIRT, T_SAND, T_SHALLOWS, T_OCEAN, T_ROCK, T_SNOW];
+      for (const kind of kinds) {
+        for (let v = 0; v < 4; v++) {
+          const tx = atlas.getTileX(kind, v);
+          const ty = atlas.getTileY(kind);
+          expect(tx).toBeGreaterThanOrEqual(0);
+          expect(tx + 8).toBeLessThanOrEqual(64);
+          expect(ty).toBeGreaterThanOrEqual(0);
+          expect(ty + 8).toBeLessThanOrEqual(64);
+        }
+      }
+
+      // Verify cliff faces and shore foam coordinates
+      const cliffs = [CLIFF_S, CLIFF_E, CLIFF_W, CLIFF_SE, CLIFF_SW];
+      for (const cliff of cliffs) {
+        const cx = atlas.getCliffX(cliff);
+        const cy = atlas.getCliffY();
+        expect(cx).toBeGreaterThanOrEqual(0);
+        expect(cx + 8).toBeLessThanOrEqual(64);
+        expect(cy).toBeGreaterThanOrEqual(0);
+        expect(cy + 8).toBeLessThanOrEqual(64);
+      }
+
+      const foams = [FOAM_N, FOAM_S];
+      for (const foam of foams) {
+        const fx = atlas.getFoamX(foam);
+        const fy = atlas.getFoamY();
+        expect(fx).toBeGreaterThanOrEqual(0);
+        expect(fx + 8).toBeLessThanOrEqual(64);
+        expect(fy).toBeGreaterThanOrEqual(0);
+        expect(fy + 8).toBeLessThanOrEqual(64);
+      }
+    }
   });
 });
