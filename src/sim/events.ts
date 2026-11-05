@@ -20,7 +20,7 @@ export type WorldEventBody =
       readonly band: number;
     };
 
-export type ChronicleType = 'battle' | 'split' | 'founded' | 'leaderDeath' | 'migration' | 'famine' | 'boom';
+export type ChronicleType = 'battle' | 'split' | 'founded' | 'leaderDeath' | 'migration' | 'settled' | 'abandoned' | 'famine' | 'boom';
 
 export type WorldEvent = WorldEventBody & { readonly seq: number; readonly tick: number };
 

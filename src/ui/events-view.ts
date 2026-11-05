@@ -11,6 +11,8 @@ const CHRONICLE_COLOURS: Record<ChronicleType, string> = {
   founded: '#fbbf24',
   leaderDeath: '#c4b5fd',
   migration: '#67e8f9',
+  settled: '#fcd34d',
+  abandoned: '#a8a29e',
   famine: '#fb923c',
   boom: '#86efac',
 };

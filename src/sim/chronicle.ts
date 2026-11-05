@@ -1,6 +1,7 @@
 import type { World } from './world';
 import type { WorldEventBody, ChronicleType } from './events';
 import { BandTracker, type BandChange, type BandRecord } from './bands';
+import { SettlementTracker, TIER_NAMES, type SettlementChange, type SettlementState, type SettlementView } from './settlements';
 import { CLASH_RING, Rules } from './rules';
 import { slotFromId, GENE_STRENGTH, GENE_CRUELTY, GENE_CHARISMA, GENE_WISDOM, GENE_BRAVERY, GENE_COUNT } from './people';
 import {
@@ -14,7 +15,7 @@ import {
  */
 
 const PRIORITY: Record<ChronicleType, number> = {
-  battle: 4, split: 3, founded: 3, leaderDeath: 2, migration: 1, famine: 0, boom: 0,
+  battle: 4, split: 3, founded: 3, leaderDeath: 2, settled: 2, migration: 1, abandoned: 1, famine: 0, boom: 0,
 };
 
 /** What is remembered about a person who has led a band. */
@@ -73,12 +74,15 @@ export interface ChronicleState {
   readonly populationWindow: ReadonlyArray<readonly [number, number]>;
   readonly lastFamine: number;
   readonly lastBoom: number;
+  /** Absent in older saves. */
+  readonly settlements?: SettlementState;
 }
 
 const NOTABLE_CAP = 512;
 
 export class Chronicle {
   public readonly tracker = new BandTracker();
+  public readonly settlements = new SettlementTracker();
   private readonly notables = new Map<number, Notable>();
   private readonly pairs = new Map<number, PairState>();
   /** When each pair last had a battle reported, for the cooldown. */
@@ -93,7 +97,7 @@ export class Chronicle {
 
   /** Entries per type since this chronicle began, for tuning. */
   public readonly counts: Record<ChronicleType, number> = {
-    battle: 0, split: 0, founded: 0, leaderDeath: 0, migration: 0, famine: 0, boom: 0,
+    battle: 0, split: 0, founded: 0, leaderDeath: 0, migration: 0, settled: 0, abandoned: 0, famine: 0, boom: 0,
   };
 
   public record(world: World): WorldEventBody[] {
@@ -105,6 +109,11 @@ export class Chronicle {
     this.drainClashes(world);
 
     const changes = this.tracker.update(world);
+    this.announceSettlements(
+      world,
+      this.settlements.update(world, this.tracker, (w, x, y, tongue, salt) => this.placeAt(w, x, y, tongue, salt)),
+      out
+    );
     if (world.tick % (config.bandTrackInterval ?? 60) !== 0) return out;
 
     this.noteLeaders(world);
@@ -382,6 +391,30 @@ export class Chronicle {
   // ---- views -------------------------------------------------------------
 
   /** Bands of at least `minSize` people, biggest first, capped for the wire. */
+  /** Hamlets and larger get entries; camps come and go too often to report. */
+  private announceSettlements(world: World, changes: SettlementChange[], out: WorldEventBody[]): void {
+    const minTier = world.config.settlementAnnounceTier ?? 1;
+    for (const c of changes) {
+      const r = c.record;
+      if (r.peakTier < minTier) continue;
+      if (c.kind === 'rose') {
+        const text = r.tier === 1
+          ? `A hamlet takes root at ${r.name}`
+          : `${r.name} grows into a ${TIER_NAMES[r.tier]} of ${Math.round(r.residents)} people`;
+        out.push(this.entry('settled', text, r.x, r.y, 0));
+      } else if (c.kind === 'abandoned') {
+        const years = Math.round((r.lastQualified - r.foundedTick) / (world.config.ticksPerYear || 360));
+        out.push(this.entry('abandoned', `${r.name}, once a ${TIER_NAMES[r.peakTier]}, stands empty after ${years} years`, r.x, r.y, 0));
+      } else {
+        out.push(this.entry('abandoned', `${r.name} is swallowed by ${c.into.name}`, r.x, r.y, 0));
+      }
+    }
+  }
+
+  public settlementViews(): SettlementView[] {
+    return this.settlements.views();
+  }
+
   public bandViews(minSize: number, cap = 64): BandView[] {
     const out: BandView[] = [];
     for (const b of this.tracker.bands.values()) {
@@ -439,7 +472,7 @@ export class Chronicle {
     return `${personName(n.id, rec.tongue)}${ep ? ` ${ep}` : ''} of the ${bandName(rec.id, rec.tongue)}`;
   }
 
-  private placeAt(world: World, x: number, y: number, tongue: Tongue): string {
+  private placeAt(world: World, x: number, y: number, tongue: Tongue, salt = 0): string {
     const cx = Math.max(0, Math.min(world.land.width - 1, Math.round(x)));
     const cy = Math.max(0, Math.min(world.land.height - 1, Math.round(y)));
     const elev = world.land.elevation;
@@ -461,7 +494,7 @@ export class Chronicle {
       nearWater,
     });
     // The place takes a root word from the band's tongue and the 16-cell block it lies in.
-    return placeName(placeRoot((cx >> 4) * 64 + (cy >> 4), tongue), land);
+    return placeName(placeRoot((cx >> 4) * 64 + (cy >> 4) + salt * 4099, tongue), land);
   }
 
   private entry(type: ChronicleType, text: string, x: number, y: number, band: number): WorldEventBody {
@@ -480,6 +513,7 @@ export class Chronicle {
       populationWindow: this.populationWindow.map(([t, p]) => [t, p] as const),
       lastFamine: Number.isFinite(this.lastFamine) ? this.lastFamine : -1e12,
       lastBoom: Number.isFinite(this.lastBoom) ? this.lastBoom : -1e12,
+      settlements: this.settlements.exportState(),
     };
   }
 
@@ -498,6 +532,7 @@ export class Chronicle {
     this.populationWindow = state.populationWindow.map(([t, p]) => [t, p]);
     this.lastFamine = state.lastFamine;
     this.lastBoom = state.lastBoom;
+    if (state.settlements) this.settlements.importState(state.settlements);
     this.read = Rules.clashLog.head;
   }
 }

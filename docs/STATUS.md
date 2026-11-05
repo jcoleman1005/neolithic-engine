@@ -1,3 +1,12 @@
+## Settlements plan: S0 labels (branch `settlements-s0`)
+- **Built**: observer `src/sim/settlements.ts` finds clusters of built cells, keeps stable ids and names, and ranks them camp to city. Far zoom shows a faint footprint, a placeholder tier icon and a name (camps named from cell size 4); middle zoom marks only towns and cities. Tap a mark or a row in the new Settlements list for a card. Hamlets and larger get chronicle entries. Switch `settlementTrackEnabled`. Tests `tests/settlements.test.ts`. `npm run map` now prints tier counts and lifetimes.
+- **Verify** passes. **Perf** 5.30 µs / person / tick (the perf script does not run observers). **Fingerprint** `c85ce4bc93336df5`, unchanged, and a test shows the same state hash with the observer running.
+- **Checked in a browser**: labels at cell sizes 3, 4 and 8 on desktop and phone, tap on a label, click on a list row, no page errors. Needs a person's watch (rule 13).
+- **Baseline at year 30, seeds 1 / 2 / 3**: see `docs/findings.md`. No lasting settlements yet: 0 / 1 / 0 hamlets, median life 0.3 years.
+- **Changed from the plan**: at far zoom a tap on a label beats a person, since people are single pixels packed around camps and labels could not be tapped otherwise. Elsewhere a person still wins.
+- **Open**: the S1 gates need replacing before S1 starts (see `docs/SETTLEMENTS.md`). Seed 1 logs 40 chronicle entries in 30 years against a target of 10 to 30 an hour; 33 of them are not settlements.
+- **Next**: you watch S0 and decide the S1 gates, then S1.
+
 ## Settlements plan: T0 tools (branch `phase-5h-settlements`)
 - **Plan**: `docs/SETTLEMENTS.md` is the plan for settlements, villages and cities. Sim work follows it (see `docs/decisions.md`, 2026-11-05).
 - **Done (T0)**: `npm run map` (headless PNGs and a stats line per snapshot; saves a world at any year), `npm run capture` (real-renderer screenshots at chosen zooms on desktop and phone widths, with Playwright installed outside the repo), `npm run fingerprint -- --ticks N` with switches, and `verify.sh` now names failing tests and keeps the log. Tool arguments now reject unknown keys and merged flags, and `--xEnabled 0` really turns a switch off. Tests `tests/tools.test.ts`. Sim unchanged.

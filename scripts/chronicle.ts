@@ -11,7 +11,7 @@ import * as fs from 'fs';
  * Any config key can be overridden with --key value (for tuning thresholds).
  */
 const TICKS_PER_HOUR = 3 * 3600;
-const TYPES: ChronicleType[] = ['battle', 'split', 'founded', 'leaderDeath', 'migration', 'famine', 'boom'];
+const TYPES: ChronicleType[] = ['battle', 'split', 'founded', 'leaderDeath', 'migration', 'settled', 'abandoned', 'famine', 'boom'];
 
 function arg(name: string, fallback: number): number {
   const i = process.argv.indexOf(name);

@@ -15,20 +15,17 @@ import { World } from '../src/sim/world';
 import { FORM_GRANARY, FORM_HEAP, FORM_NEST } from '../src/sim/land';
 import type { SimulationConfig } from '../src/sim/types';
 import type { SavedWorld } from '../src/sim/protocol';
+import { Chronicle } from '../src/sim/chronicle';
+import { isBuiltCell, TIER_NAMES } from '../src/sim/settlements';
 import { parseArgs } from './args';
 import { encodePng } from './png';
 
 const SIZE = 256;
 const CELLS = SIZE * SIZE;
-/** Built cells this close (in tiles) count as one cluster. */
-const CLUSTER_GAP = 2;
 /** An adult this close to a built cell counts as in a camp. */
 const NEAR_RADIUS = 3;
 
-function isBuilt(w: World, c: number): boolean {
-  const f = w.land.form[c];
-  return f === FORM_NEST || f === FORM_GRANARY || w.land.structure[c] === 1 || w.land.fire[c] === 1;
-}
+const isBuilt = (w: World, c: number): boolean => isBuiltCell(w.land, c);
 
 /** Colours one map cell from the land under it. */
 function cellColor(w: World, c: number, out: Uint8Array, o: number): void {
@@ -90,43 +87,15 @@ function render(w: World, scale: number, path: string): void {
   writeFileSync(path, encodePng(px, px, rgb));
 }
 
-interface Cluster { readonly size: number; readonly x: number; readonly y: number }
-
-/** Groups built cells within CLUSTER_GAP tiles, across the wrap. Biggest first. */
-function clusters(w: World): Cluster[] {
-  const seen = new Uint8Array(CELLS);
-  const queue = new Int32Array(CELLS);
-  const found: Cluster[] = [];
-  for (let start = 0; start < CELLS; start++) {
-    if (seen[start] === 1 || !isBuilt(w, start)) continue;
-    let head = 0, tail = 0;
-    queue[tail++] = start;
-    seen[start] = 1;
-    const x0 = start & 255, y0 = start >> 8;
-    let sumX = 0, sumY = 0;
-    while (head < tail) {
-      const c = queue[head++];
-      const x = c & 255, y = c >> 8;
-      // Offsets from the first cell, unwrapped, so a cluster across the edge has a true centre.
-      sumX += ((x - x0 + 384) % 256) - 128;
-      sumY += ((y - y0 + 384) % 256) - 128;
-      for (let dy = -CLUSTER_GAP; dy <= CLUSTER_GAP; dy++) {
-        for (let dx = -CLUSTER_GAP; dx <= CLUSTER_GAP; dx++) {
-          const n = (((y + dy) & 255) << 8) | ((x + dx) & 255);
-          if (seen[n] === 0 && isBuilt(w, n)) { seen[n] = 1; queue[tail++] = n; }
-        }
-      }
-    }
-    found.push({
-      size: tail,
-      x: (x0 + Math.round(sumX / tail) + 256) % 256,
-      y: (y0 + Math.round(sumY / tail) + 256) % 256,
-    });
-  }
-  return found.sort((a, b) => b.size - a.size);
+/** Lifetimes in years of settlements that have ended plus those still standing. */
+function lifetimes(chronicle: Chronicle, tick: number, ticksPerYear: number): number[] {
+  const t = chronicle.settlements;
+  const out = t.endedLifetimes.map((l) => l / ticksPerYear);
+  for (const r of t.records.values()) out.push((tick - r.foundedTick) / ticksPerYear);
+  return out.sort((a, b) => a - b);
 }
 
-function statsLine(w: World, year: number): string {
+function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const l = w.land;
   let heaps = 0, granaries = 0, nests = 0, huts = 0, fires = 0;
   const near = new Uint8Array(CELLS);
@@ -152,13 +121,18 @@ function statsLine(w: World, year: number): string {
       if (near[(p.y[s] << 8) | p.x[s]] === 1) adultsNear++;
     }
   }
-  const cs = clusters(w);
-  const camps = cs.filter((c) => c.size >= 3);
-  const top = cs[0] ? `${cs[0].size} at ${cs[0].x},${cs[0].y}` : 'none';
   const nearPct = adults > 0 ? Math.round((100 * adultsNear) / adults) : 0;
-  return `Year ${String(year).padStart(3)}: people ${w.population}, adults near built ${nearPct}%, ` +
-    `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}, ` +
-    `clusters of 3+ ${camps.length}, largest ${top}`;
+  const tiers = TIER_NAMES.map(() => 0);
+  for (const r of chronicle.settlements.records.values()) tiers[r.tier]++;
+  const tierText = TIER_NAMES.map((n, i) => `${n}s ${tiers[i]}`).join(', ');
+  const views = chronicle.settlementViews();
+  const top = views[0] ? `${views[0].name} (${views[0].built} built, ${views[0].residents} people) at ${views[0].x},${views[0].y}` : 'none';
+  const lives = lifetimes(chronicle, w.tick, w.config.ticksPerYear || 360);
+  const median = lives.length > 0 ? lives[Math.floor(lives.length / 2)].toFixed(1) : '0';
+  const lasted = lives.filter((l) => l >= 10).length;
+  return `Year ${String(year).padStart(3)}: people ${w.population}, adults outside camps ${100 - nearPct}%, ` +
+    `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}; ` +
+    `${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
 }
 
 function main(): void {
@@ -170,12 +144,16 @@ function main(): void {
   const out = named.out ?? `scratch/map-seed${seed}`;
   const world = new World(overrides as Partial<SimulationConfig>, seed);
   const ticksPerYear = world.config.ticksPerYear || 360;
+  const chronicle = new Chronicle();
   for (let y = 1; y <= years; y++) {
-    for (let t = 0; t < ticksPerYear; t++) world.step();
+    for (let t = 0; t < ticksPerYear; t++) {
+      world.step();
+      chronicle.record(world);
+    }
     if (y % every === 0 || y === years) {
       const path = `${out}-y${String(y).padStart(2, '0')}.png`;
       render(world, scale, path);
-      console.log(`${statsLine(world, y)} -> ${path}`);
+      console.log(`${statsLine(world, chronicle, y)} -> ${path}`);
     }
     if (world.population === 0) { console.log(`Died out in year ${y}`); break; }
   }
@@ -186,6 +164,7 @@ function main(): void {
       savedAt: new Date().toISOString(),
       world: world.exportState(),
       events: [],
+      chronicle: chronicle.exportState(),
     };
     mkdirSync(dirname(named.save), { recursive: true });
     writeFileSync(named.save, JSON.stringify(saved));

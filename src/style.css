@@ -2973,3 +2973,38 @@ button {
 .event-row[data-go]:hover, .peek-event [data-go]:hover { text-decoration: underline; }
 
 .pill-menu-item[aria-pressed="true"] { outline: 2px solid #facc15; }
+
+/* Settlements: list in the Stats tab, card in the Inspector tab */
+.settlement-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.settlement-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 2px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settlement-name {
+  font-weight: 600;
+}
+
+.settlement-meta {
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.settlement-history {
+  margin: 0;
+  padding-left: 18px;
+}

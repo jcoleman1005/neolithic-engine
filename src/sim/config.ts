@@ -366,6 +366,18 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   habitFedEnergy: 0.75, // well fed above this fraction
 
   // Phase 4: Chronicle band tracking (observer)
+  settlementTrackEnabled: true, // observer only: names and ranks clusters of built cells
+  settlementScanInterval: 30, // ticks between scans
+  settlementGap: 2, // built cells this close are one settlement
+  settlementResidentRadius: 3, // people this close to a built cell count as residents
+  settlementResidentSmoothing: 0.2, // share of each scan's count blended in, so passers-by barely count
+  settlementGraceTicks: 360, // a settlement below the camp minimum lasts this long before it is abandoned
+  settlementAnnounceTier: 1, // chronicle entries from this tier up (camps flicker, so they stay silent)
+  settlementCampBuilt: 3, settlementCampResidents: 5,
+  settlementHamletBuilt: 10, settlementHamletResidents: 20, settlementHamletYears: 5,
+  settlementVillageBuilt: 30, settlementVillageResidents: 80, settlementVillageYears: 10,
+  settlementTownBuilt: 120, settlementTownResidents: 400, settlementTownYears: 20,
+  settlementCityBuilt: 300, settlementCityResidents: 1000, settlementCityYears: 30,
   bandTrackInterval: 60, // ticks between passes (1/6 year)
   bandTrackMinSize: 10, // a band is tracked from this size, dropped below half of it
 

@@ -42,6 +42,18 @@ const COLOR_CUT_RGB = 0x6eb4d2; // rgb(210, 180, 110), pale straw: felled woodla
 const COLOR_FIELD = 0xff64be78; // rgb(120, 190, 100), open meadow where a stand was cleared
 const COLOR_FISH_RGB = 0xf0f0d8; // pale silver, a faint glint on fished water
 const COLOR_NEST = 0xff2846a0; // rgb(160, 70, 40), thatched roof, opaque
+// Settlement marks on the map.
+const LABEL_HIT_CAP = 256;
+const SETTLEMENT_MID_MAX_CELL = 10; // no marks above this cell size
+const SETTLEMENT_MID_MIN_TIER = 3; // between sprite zoom and that, only towns and cities are marked
+const SETTLEMENT_CAMP_NAME_CELL = 4; // camps are named from this cell size up
+const SETTLEMENT_FONT = '600 11px system-ui, sans-serif';
+const SETTLEMENT_TINT = 'rgba(255, 214, 140, 0.16)';
+const SETTLEMENT_LABEL = '#efe7d6';
+const SETTLEMENT_LABEL_MAJOR = '#ffd98a';
+const SETTLEMENT_LABEL_OUTLINE = '#1a1208';
+const SETTLEMENT_ICON = '#e8dcc4';
+const SETTLEMENT_ICON_CAMP = '#c9a26b';
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
 // Oblique object pass: light from the north-west, soft shadow to the south-east.
@@ -223,9 +235,109 @@ export class CanvasRenderer {
   private readonly animalMatched = new Uint8Array(512);
 
   // Selection & Follow
+  /**
+   * World-map marks for settlements: a faint footprint, a tier icon and a name. Far zoom shows every
+   * settlement that fits, middle zoom only towns and cities, and close zoom none, since the buildings
+   * themselves are readable by then.
+   */
+  private renderSettlements(width: number, height: number, worldPxW: number, worldPxH: number): void {
+    this.labelHitCount = 0;
+    const list = this.world.settlements;
+    const cs = this.cellSize;
+    if (!list || list.length === 0 || cs > SETTLEMENT_MID_MAX_CELL) return;
+    const far = cs < ZOOM_SPRITE_THRESHOLD;
+    const ctx = this.ctx;
+    ctx.font = SETTLEMENT_FONT;
+    ctx.textBaseline = 'middle';
+    // The list comes biggest first, so bigger places win when labels would overlap.
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      if (!far && s.tier < SETTLEMENT_MID_MIN_TIER) continue;
+      const showName = !far || s.tier >= 1 || cs >= SETTLEMENT_CAMP_NAME_CELL;
+      for (let ty = this.panY; ty < (this.wrapY ? height : this.panY + 1); ty += worldPxH) {
+        for (let tx = this.panX; tx < (this.wrapX ? width : this.panX + 1); tx += worldPxW) {
+          const sx = Math.round(tx + (s.x + 0.5) * cs);
+          const sy = Math.round(ty + (s.y + 0.5) * cs);
+          if (sx < -80 || sx > width + 80 || sy < -20 || sy > height + 20) continue;
+          if (far) {
+            ctx.fillStyle = SETTLEMENT_TINT;
+            ctx.beginPath();
+            ctx.arc(sx, sy, Math.max(4, (s.radius + 2) * cs), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          const half = this.drawSettlementIcon(sx, sy, s.tier);
+          let x1 = sx + half;
+          if (showName) {
+            const textW = ctx.measureText(s.name).width;
+            const lx = sx + half + 3;
+            if (!this.labelOverlaps(lx, sy - 7, lx + textW, sy + 7)) {
+              ctx.lineWidth = 3;
+              ctx.strokeStyle = SETTLEMENT_LABEL_OUTLINE;
+              ctx.strokeText(s.name, lx, sy);
+              ctx.fillStyle = s.tier >= 2 ? SETTLEMENT_LABEL_MAJOR : SETTLEMENT_LABEL;
+              ctx.fillText(s.name, lx, sy);
+              x1 = lx + textW;
+            }
+          }
+          this.addLabelHit(s.id, sx - half - 2, sy - Math.max(half, 7) - 2, x1 + 2, sy + Math.max(half, 7) + 2);
+        }
+      }
+    }
+  }
+
+  /** Where each settlement mark was drawn last frame, in canvas pixels, for scripts/capture.ts. */
+  public settlementHitBoxes(): Array<{ id: number; x0: number; y0: number; x1: number; y1: number }> {
+    const out = [];
+    for (let i = 0; i < this.labelHitCount; i++) {
+      const o = i * 4;
+      out.push({ id: this.labelHitIds[i], x0: this.labelHits[o], y0: this.labelHits[o + 1], x1: this.labelHits[o + 2], y1: this.labelHits[o + 3] });
+    }
+    return out;
+  }
+
+  private labelOverlaps(x0: number, y0: number, x1: number, y1: number): boolean {
+    for (let i = 0; i < this.labelHitCount; i++) {
+      const o = i * 4;
+      if (x0 < this.labelHits[o + 2] && x1 > this.labelHits[o] && y0 < this.labelHits[o + 3] && y1 > this.labelHits[o + 1]) return true;
+    }
+    return false;
+  }
+
+  private addLabelHit(id: number, x0: number, y0: number, x1: number, y1: number): void {
+    if (this.labelHitCount >= LABEL_HIT_CAP) return;
+    const o = this.labelHitCount * 4;
+    this.labelHits[o] = x0;
+    this.labelHits[o + 1] = y0;
+    this.labelHits[o + 2] = x1;
+    this.labelHits[o + 3] = y1;
+    this.labelHitIds[this.labelHitCount++] = id;
+  }
+
+  /** A placeholder site mark that grows with the tier: one block for a camp, up to five for a city. Returns its half width. */
+  private drawSettlementIcon(sx: number, sy: number, tier: number): number {
+    const ctx = this.ctx;
+    const half = 3 + tier;
+    ctx.fillStyle = SETTLEMENT_LABEL_OUTLINE;
+    ctx.fillRect(sx - half - 1, sy - half - 1, half * 2 + 2, half * 2 + 2);
+    ctx.fillStyle = tier === 0 ? SETTLEMENT_ICON_CAMP : SETTLEMENT_ICON;
+    ctx.fillRect(sx - half, sy - half, half * 2, half * 2);
+    ctx.fillStyle = SETTLEMENT_LABEL_OUTLINE;
+    for (let k = 1; k <= tier; k++) {
+      const bx = sx - half + ((k * 5) % (half * 2 - 1));
+      const by = sy - half + ((k * 3) % (half * 2 - 1));
+      ctx.fillRect(bx, by, 2, 2);
+    }
+    return half;
+  }
+
   public selectedSlot: number | null = null;
   public followSelected = false;
   public onSelect?: (slot: number | null) => void;
+  /** Called when a settlement's icon or name is tapped. */
+  public onSelectSettlement?: (id: number) => void;
+  private readonly labelHits = new Float32Array(LABEL_HIT_CAP * 4);
+  private readonly labelHitIds = new Int32Array(LABEL_HIT_CAP);
+  private labelHitCount = 0;
   /** Called when the viewer pans, zooms or taps, so the auto-camera can back off. */
   public onUserInput?: () => void;
   private cameraTarget: { x: number; y: number } | null = null;
@@ -545,8 +657,32 @@ export class CanvasRenderer {
     );
   }
 
+  /** The settlement whose icon or name is under this point, or null. */
+  private settlementAtClient(clientX: number, clientY: number): number | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    for (let i = this.labelHitCount - 1; i >= 0; i--) {
+      const o = i * 4;
+      if (x >= this.labelHits[o] && x <= this.labelHits[o + 2] && y >= this.labelHits[o + 1] && y <= this.labelHits[o + 3]) {
+        return this.labelHitIds[i];
+      }
+    }
+    return null;
+  }
+
   private handleTap(clientX: number, clientY: number): void {
+    // Zoomed out, people are single pixels packed around camps, so a tap on a label means the label.
+    const settlement = this.settlementAtClient(clientX, clientY);
+    if (settlement !== null && this.cellSize < ZOOM_SPRITE_THRESHOLD) {
+      this.onSelectSettlement?.(settlement);
+      return;
+    }
     const person = this.findPersonNearClient(clientX, clientY, 2.5);
+    if (person === null && settlement !== null) {
+      this.onSelectSettlement?.(settlement);
+      return;
+    }
     if (person !== null) {
       this.selectedSlot = person.slot;
       this.onSelect?.(person.slot);
@@ -877,6 +1013,8 @@ export class CanvasRenderer {
       this.renderFeaturesFlat(width, height, w, h);
       this.renderHerdsFlat(width, height, w, h);
     }
+
+    this.renderSettlements(width, height, worldPxW, worldPxH);
 
     this.ctx.restore();
   }

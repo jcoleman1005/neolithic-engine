@@ -7,6 +7,7 @@ import { InspectorView } from './ui/inspector';
 import { HistoryView } from './ui/history-view';
 import { BottomSheet } from './ui/sheet';
 import { LEGEND_HTML } from './ui/legend';
+import { settlementCardHTML, settlementGoneHTML, settlementListHTML } from './ui/settlements-view';
 import { eventListHTML, latestEventHTML } from './ui/events-view';
 import { AutoCamera } from './ui/auto-camera';
 import { seasonName } from './sim/seasons';
@@ -60,6 +61,8 @@ app.innerHTML = `
             <div class="stats-col">
               <h3 class="panel-heading">Recent events</h3>
               <div id="events-container"></div>
+              <h3 class="panel-heading">Settlements</h3>
+              <div id="settlements-container"></div>
             </div>
             <div class="stats-col stats-col-legend">
               ${LEGEND_HTML}
@@ -188,12 +191,14 @@ if (new URLSearchParams(location.search).has('capture')) {
   (window as unknown as { __capture: unknown }).__capture = {
     goTo: (x: number, y: number) => renderer.goTo(x, y),
     cellSize: () => renderer.cellSize,
+    settlementHitBoxes: () => renderer.settlementHitBoxes(),
   };
 }
 
 const metricsView = new MetricsView($('#metrics-container'));
 const inspectorView = new InspectorView($('#inspector-container'), {
   onSelectPerson: (id) => {
+    selectedSettlement = null;
     renderer.selectedSlot = id !== null ? (id > 65535 ? id >> 12 : id) : null;
     sim.select(id);
     refreshPanels();
@@ -206,7 +211,30 @@ const inspectorView = new InspectorView($('#inspector-container'), {
 });
 const historyView = new HistoryView($('#history-container'));
 
+let selectedSettlement: number | null = null;
+const inspectorContainer = $('#inspector-container');
+
+function selectSettlement(id: number): void {
+  selectedSettlement = id;
+  renderer.selectedSlot = null;
+  sim.select(null);
+  sheet.show('inspector');
+  refreshPanels();
+}
+
+renderer.onSelectSettlement = selectSettlement;
+const settlementsContainer = $('#settlements-container');
+settlementsContainer.addEventListener('click', (ev) => {
+  const hit = (ev.target as HTMLElement).closest<HTMLElement>('[data-settlement]');
+  if (!hit) return;
+  const id = Number(hit.dataset.settlement);
+  const s = sim.settlements.find((v) => v.id === id);
+  if (s) renderer.goTo(s.x, s.y);
+  selectSettlement(id);
+});
+
 renderer.onSelect = (slot) => {
+  selectedSettlement = null;
   if (slot !== null) {
     sim.select(slot);
     sheet.show('inspector');
@@ -326,7 +354,13 @@ function refreshPanels(): void {
   const m = sim.getMetrics();
   if (m) metricsView.render(m);
   eventsContainer.innerHTML = `<ul class="event-list">${eventListHTML(sim.worldEvents, sim.config.ticksPerYear || 360)}</ul>`;
-  inspectorView.render(sim.config, sim.selectedPerson, renderer.selectedSlot, sim.selectedStory);
+  settlementsContainer.innerHTML = settlementListHTML(sim.settlements);
+  if (selectedSettlement !== null) {
+    const s = sim.settlements.find((v) => v.id === selectedSettlement);
+    inspectorContainer.innerHTML = s ? settlementCardHTML(s, sim.tick, sim.config.ticksPerYear || 360) : settlementGoneHTML();
+  } else {
+    inspectorView.render(sim.config, sim.selectedPerson, renderer.selectedSlot, sim.selectedStory);
+  }
   historyView.render(sim.getHistorySamples());
 }
 

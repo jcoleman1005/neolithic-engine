@@ -4,6 +4,7 @@ import { TerrainField } from '../sim/terrain';
 import { ElevationField } from '../sim/elevation';
 import { EVENT_LOG_SIZE, type WorldEvent } from '../sim/events';
 import type { BandView, PersonStory } from '../sim/chronicle';
+import type { SettlementView } from '../sim/settlements';
 import { fastBase64Decode } from '../sim/base64';
 import type {
   EggView,
@@ -78,6 +79,7 @@ export class SimulationClient implements WorldView {
   public selectedStory: PersonStory | null = null;
   /** Large bands from the latest panels, for the auto-camera. */
   public bands: readonly BandView[] = [];
+  public settlements: readonly SettlementView[] = [];
   public organisms = new Map<string, OrganismView>();
   public foodPatches = new Map<string, FoodPatch>();
   public carrion = new Map<string, CarrionPatch>();
@@ -196,6 +198,7 @@ export class SimulationClient implements WorldView {
         this.foodRegions = message.foodRegions;
         if (message.landOverlay) this.setOverlay(message.landOverlay);
         if (message.landStructures) this.setStructures(message.landStructures);
+        this.settlements = message.settlements ?? [];
         this.worldEvents = [...message.events];
         this.events.reset();
         break;
@@ -205,6 +208,7 @@ export class SimulationClient implements WorldView {
         if (message.terrain) this.terrain = TerrainField.forView(message.terrain, this.terrain?.originalFields());
         if (message.landOverlay) this.setOverlay(message.landOverlay);
         if (message.landStructures) this.setStructures(message.landStructures);
+        if (message.settlements) this.settlements = message.settlements;
         this.peopleCount = message.peopleCount;
         if (message.packedCarcasses !== undefined) this.carcassPositions = fastBase64Decode(message.packedCarcasses);
         if (message.packedFeatures !== undefined) this.featurePositions = fastBase64Decode(message.packedFeatures);

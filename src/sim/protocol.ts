@@ -3,6 +3,7 @@ import type { HistorySample } from './history';
 import type { TerrainField, TerrainState } from './terrain';
 import type { WorldEvent } from './events';
 import type { BandView, ChronicleState, PersonStory } from './chronicle';
+import type { SettlementView } from './settlements';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
@@ -121,6 +122,7 @@ export interface WorldView {
   /** Heap size (3 bits) and form (2 bits) per cell (see Land.packStructures). */
   readonly landStructures?: Uint8Array | null;
   readonly landStructuresVersion?: number;
+  readonly settlements?: readonly SettlementView[];
   readonly selectedPerson?: PersonDetail | null;
   readonly organisms?: ReadonlyMap<string, OrganismView>;
   readonly foodPatches?: ReadonlyMap<string, any>;
@@ -139,6 +141,7 @@ export interface WorldStatic {
   readonly foodRegions: readonly FoodRegion[];
   readonly landOverlay?: string;
   readonly landStructures?: string;
+  readonly settlements?: readonly SettlementView[];
   readonly events: readonly WorldEvent[];
 }
 
@@ -173,6 +176,8 @@ export type FromWorker =
       readonly terrain?: TerrainState;
       readonly landOverlay?: string;
       readonly landStructures?: string;
+      /** Sent with the land overlay, not every frame. */
+      readonly settlements?: readonly SettlementView[];
       readonly ticksPerSecond: number;
       readonly running: boolean;
       readonly targetTicksPerSecond: number;

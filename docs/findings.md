@@ -632,3 +632,17 @@ Result (all on vs all off, seeds 1 to 3, year 9): people -13%, -12%, -18%; peak 
 | workStrengthScale | n/a | true | Tamping compaction scales with worker bodyMul (stageWork * strength) |
 
 Ledger balances with zero violations (`ledger.violations === 0`). Desktop perf: 5.25 µs / person / tick at 11,313 population (budget <= 15.0 µs). Bit-for-bit baseline fingerprint parity confirmed (`881ea265aa76e667`) when new switches are disabled.
+
+## Settlement observer: starting values and baseline (S0)
+Observer-only values, new, chosen as starting points; they change no outcome. `settlementScanInterval` 30, `settlementGap` 2, `settlementResidentRadius` 3, `settlementResidentSmoothing` 0.2, `settlementGraceTicks` 360, `settlementAnnounceTier` 1. Built / residents / years: camp 3 / 5 / 0, hamlet 10 / 20 / 5, village 30 / 80 / 10, town 120 / 400 / 20, city 300 / 1000 / 30. Thresholds get retuned after S3, when walls change what counts as built.
+
+Baseline with today's rules, year 30:
+
+| Seed | People | Camps | Hamlets | Larger | Ever tracked | Lasted 10y+ | Median life | Adults outside camps |
+|:--|:--|:--|:--|:--|:--|:--|:--|:--|
+| 1 | 3503 | 37 | 0 | 0 | 199 | 13 | 0.3y | 48% |
+| 2 | 3875 | 42 | 1 | 0 | 229 | 22 | 0.3y | 51% |
+| 3 | 3494 | 23 | 0 | 0 | 176 | 14 | 0.3y | 56% |
+
+The largest settlements are short-lived crowds: seed 1's largest at year 30 has 5 built cells and 75 people and was founded the year before. Fires count as built and burn out, which adds to the churn, so some of the short lifetimes may come from how the tracker counts rather than people moving; not measured.
+
