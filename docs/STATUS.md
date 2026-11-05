@@ -1,3 +1,12 @@
+## Planimetric Hybrid Aesthetic Scaffolding (branch `art-planimetric-scaffold`)
+- **Done**: Established architectural foundation and invariant unit tests for Odd Realm hybrid skin:
+  - **Modules**: Created `src/render/palette.ts` (4-tone material ramps, atmospheric haze formula), `src/render/autotile.ts` (47-tile 8-neighbor lookup table, 8x8 quadrant decomposition procedural atlas builder, toroidal bitmask math), `src/render/terrace.ts` (6-tier quantization, bluff drop-shadow masking), and `src/render/walls.ts` (16-tile wall connection bitmasking, cutaway blueprint rendering).
+  - **Tests**: Created `tests/render-autotile.test.ts` (6 tests passing: 256-bitmask canonical mapping, headless canvas safety, tier quantization, bluff drop shadows, monotonic slate-blue depth tint, wall connection bitmasking).
+  - **Spec**: Comprehensive plan and AI handover guide committed in `docs/art-style-planimetric.md`.
+  - **Type Check**: `npx tsc -b` passes cleanly with 0 errors.
+  - **Fingerprint**: Strictly untouched (`c85ce4bc93336df5`).
+- **Next**: Hand over to coding agent to wire `updateTerrainCache()` with autotile atlas and terrace drop shadows in `src/render/renderer.ts`.
+
 ## Primitives 18, 24, 28: Body Drives, Life Stages & Strength Work (branch `feat-drives-life-stages`)
 - **Done**: Implemented internal dominant drives, life stage cost/yield differences, and strength work scaling:
   - **18 (Hunger Drive)**: In `Rules.climb`, internal body state dictates the dominant gradient. When `energy < hungerDriveThreshold` (35% of max energy), the food scent gradient is amplified (2.5x) while leader pull is dampened (0.25x), ensuring hungry foragers prioritize food over blindly following. Critically starving people (`< 20%`) suppress roaming jitter and halve danger aversion to feed. Well-fed people follow leaders and roam normally. Switch: `bodyDrivesEnabled`.
