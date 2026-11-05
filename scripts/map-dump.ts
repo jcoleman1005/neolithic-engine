@@ -128,11 +128,13 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const views = chronicle.settlementViews();
   const top = views[0] ? `${views[0].name} (${views[0].built} built, ${views[0].residents} people) at ${views[0].x},${views[0].y}` : 'none';
   const lives = lifetimes(chronicle, w.tick, w.config.ticksPerYear || 360);
+  let largestBand = 0;
+  for (const b of chronicle.tracker.bands.values()) if (b.size > largestBand) largestBand = b.size;
   const median = lives.length > 0 ? lives[Math.floor(lives.length / 2)].toFixed(1) : '0';
   const lasted = lives.filter((l) => l >= 10).length;
   return `Year ${String(year).padStart(3)}: people ${w.population}, adults outside camps ${100 - nearPct}%, ` +
     `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}; ` +
-    `${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
+    `bands ${chronicle.tracker.bands.size} (largest ${largestBand}); ${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
 }
 
 function main(): void {

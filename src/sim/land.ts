@@ -330,6 +330,9 @@ export class Land {
           else if (hov) f = FORM_NEST;
           else f = pl >= heapMin || br >= heapMin ? FORM_HEAP : FORM_NONE;
         }
+        if (f !== this.form[i] && (f === FORM_NEST || this.form[i] === FORM_NEST) && config.shelterSeekEnabled !== false) {
+          this.warmDirty = true;
+        }
         this.form[i] = f;
       }
       if (this.isWater[i] === 1) {
@@ -519,6 +522,7 @@ export class Land {
     if (this.structure[i] === 0 && this.durability[i] >= (config.hutDurability ?? 60)) {
       this.structure[i] = 1;
       this.hutCount++;
+      if (config.shelterSeekEnabled !== false) this.warmDirty = true;
     }
   }
 
@@ -533,6 +537,7 @@ export class Land {
       if (this.structure[i] === 1 && d - 1 < keep) {
         this.structure[i] = 0;
         this.hutCount--;
+        if (config.shelterSeekEnabled !== false) this.warmDirty = true;
       }
     }
   }
@@ -608,6 +613,16 @@ export class Land {
       const c = this.caveCells[k];
       this.warmDist[c] = 0;
       queue.push(c);
+    }
+    // S1: huts and nests lead cold people to them too.
+    if (config.shelterSeekEnabled !== false) {
+      const nests = config.nestsEnabled !== false;
+      for (let i = 0; i < TOTAL_CELLS; i++) {
+        if (this.warmDist[i] !== 0 && (this.structure[i] === 1 || (nests && this.form[i] === FORM_NEST))) {
+          this.warmDist[i] = 0;
+          queue.push(i);
+        }
+      }
     }
     for (let head = 0; head < queue.length; head++) {
       const c = queue[head];

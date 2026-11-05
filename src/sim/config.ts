@@ -56,6 +56,19 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // straight back unless the pull is strong (see docs/findings.md).
   calmMovementEnabled: true,
   stayFoodFraction: 0.5, // stay while the tile holds this fraction of its capacity
+  // S1 (docs/SETTLEMENTS.md): staying pays. Each piece has its own switch so it can be compared.
+  stayValueEnabled: true, // the stay check counts the heap underfoot and the real upkeep of the tile
+  stayRefFood: 10.0, // food a tile with no plant capacity (rock, a hut on a hill) is measured against
+  roamStayWeight: 0.2, // roaming and curious people need this much more (at the top of the range) to stay (S1 tuning: was 0.5)
+  comfortableStayEnabled: true, // someone whose tile passes the stay check resists a leader's pull
+  tileCrowdingEnabled: true, // a hut or nest's upkeep discount is shared among those on the tile
+  hutCapacity: 4, // people a hut shelters in full
+  nestCapacity: 3, // people a nest shelters in full
+  storeScentEnabled: true, // food heaps add to the food scent, so stores can be found
+  storeScentEmitRate: 0.02, // scent per unit of heaped food, each diffusion step
+  storeUnloadEnabled: true, // carriers also unload food where a heap already lies
+  shelterSeekEnabled: true, // huts and nests lead cold people to them, like caves and fires
+  fireDetersWolvesEnabled: true, // wolves do not enter tiles warmed by a fire
   hungerStayPenalty: 0.5, // a hungry person wants this much more (x1.5) before staying
   reversalOverride: 1.5, // a 180 degree step back needs a pull at least this strong
   copyEnabled: true,
@@ -147,7 +160,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wolfLeaveMeat: 0.3, // share of the prey's energy left as a food heap
   wolfAttackChance: 0.04, // per tick with a lone person beside it
   wolfPersonMeal: 20.0, // energy a wolf gains from a person
-  wolfLoneRadius: 0, // a person is only a target with no one else within this many tiles (0: just alone on the tile)
+  wolfLoneRadius: 2, // a person is only a target with no one else within this many tiles (S1: was 0)
   wolfDanger: 2.0, // danger scent left per tick
   wolfBreedEnergy: 50.0,
   wolfBirthEnergy: 20.0,

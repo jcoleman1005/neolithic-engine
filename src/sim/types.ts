@@ -97,6 +97,18 @@ export interface SimulationConfig {
   climbEnabled: boolean;
   calmMovementEnabled: boolean;
   stayFoodFraction: number;
+  stayValueEnabled: boolean;
+  stayRefFood: number;
+  roamStayWeight: number;
+  comfortableStayEnabled: boolean;
+  tileCrowdingEnabled: boolean;
+  hutCapacity: number;
+  nestCapacity: number;
+  storeScentEnabled: boolean;
+  storeScentEmitRate: number;
+  storeUnloadEnabled: boolean;
+  shelterSeekEnabled: boolean;
+  fireDetersWolvesEnabled: boolean;
   hungerStayPenalty: number;
   reversalOverride: number;
   copyEnabled: boolean;

@@ -646,3 +646,52 @@ Baseline with today's rules, year 30:
 
 The largest settlements are short-lived crowds: seed 1's largest at year 30 has 5 built cells and 75 people and was founded the year before. Fires count as built and burn out, which adds to the churn, so some of the short lifetimes may come from how the tracker counts rather than people moving; not measured.
 
+
+## S1 staying pays: probe and targets
+**S1a probe, years 2 to 20, seeds 1 / 2 / 3, today's rules** (`npm run probe`; camp means within 3 tiles of a built cell or a heap):
+
+| | Share of people | Energy | Deaths per 30 ticks | Still near a camp 30 ticks later | Wounded | Mean injury |
+|:--|:--|:--|:--|:--|:--|:--|
+| Away | 40 / 39 / 42% | 65.9 / 66.4 / 64.9 | 0.3% | n/a | 91% | 190 |
+| Camp | 60 / 61 / 58% | 73.2 / 73.3 / 73.5 | 0.2% | 81 / 81 / 80% | 86 to 88% | 166 to 171 |
+
+People already stay near heaps and shelters, and do a little better there. What churns is the built cells themselves (S0: median settlement life 0.3 years). Occupied huts and nests hold 3.3 people on average, over 4 on about 21% of them. Wounds are extreme everywhere: about 90% of people carry an injury averaging around 180 of 255. With injury off (seed 1) the camp share rises from 60% to 68%. Wounds do not stop camps, so clashes are left alone for now and flagged for the tuning pass.
+
+**Targets, set before running** (seeds 1 to 3, year 30, all S1 switches on against all off, `wolfLoneRadius` 2 against 0):
+- No seed dies out, and population at year 20 is at least 85% of off.
+- Settlements that lasted 10 years or more: at least double off.
+- At least 3 hamlets or larger standing on each seed.
+- At least 10% of adults outside any camp at year 20.
+- Perf within budget.
+Stop at the first set that passes; at most 8 rounds.
+
+Starting values (new, not yet tuned): `hutCapacity` 4, `nestCapacity` 3, `storeScentEmitRate` 0.02, `roamStayWeight` 0.5, `stayRefFood` 10, `wolfLoneRadius` 0 to 2.
+
+**S1 tuning results, year 30** (lasted means settlements that have lasted 10 years or more; off is all S1 switches off with `wolfLoneRadius` 0):
+
+| Seed | Off | Round 1 | Round 2: `storeScentEmitRate` 0.05 | Round 3: `roamStayWeight` 0.2 |
+|:--|:--|:--|:--|:--|
+| 1 lasted | 13 | 25 | 27 | 28 (2.2x) |
+| 2 lasted | 22 | 29 | 26 | 31 (1.4x) |
+| 3 lasted | 14 | 26 | 25 | 29 (2.1x) |
+| Hamlets or larger, seeds 1 / 2 / 3 | 0 / 1 / 0 | 16 / 25 / 12 | 16 / 22 / 13 | 16 / 21 / 16 |
+| Villages, seeds 1 / 2 / 3 | 0 / 0 / 0 | 2 / 5 / 3 | 3 / 3 / 3 | 3 / 4 / 2 |
+| People at year 30, seeds 1 / 2 / 3 | 3503 / 3875 / 3494 | 6226 / 7738 / 6684 | 6189 / 7657 / 6613 | 6620 / 7582 / 6634 |
+
+Every round passes the population (year 20 at 125 to 142% of off), hamlet and wanderer gates (25 to 34% of adults outside camps at year 20). The "lasted at least double" gate is **missed** on seed 2 in every round: its off run already has 22. Stopped after 3 of the allowed 8 rounds, because chasing 44 on one seed risks fitting that seed. Kept round 3: `roamStayWeight` 0.5 to 0.2 (best on all three seeds); `storeScentEmitRate` stays 0.02 (0.05 did no better).
+
+**Each switch off on its own, seed 1, year 30** (all on: 6620 people, 13 hamlets, 3 villages, lasted 28):
+
+| Off | People | Hamlets | Villages | Lasted |
+|:--|:--|:--|:--|:--|
+| Stay value | 3475 | 2 | 0 | 14 |
+| Comfortable stay | 3769 | 6 | 0 | 16 |
+| Crowding | 6490 | 12 | 3 | 24 |
+| Store scent | 6413 | 11 | 3 | 22 |
+| Store unload | 6373 | 9 | 2 | 22 |
+| Shelter seek | 6659 | 12 | 2 | 24 |
+| Wolf changes | 6368 | 13 | 3 | 28 |
+
+The stay check and comfortable stay do nearly all of it; the rest add a little each; the wolf changes do almost nothing. The population rise comes from staying itself (less walking, more eating from heaps), not from safety.
+
+**Band cohesion, seed 1, year 30**: off 88 bands among 3503 people (largest 281); all on 128 among 6620 (largest 550). About the same bands per person, so comfortable stay does not break bands up.

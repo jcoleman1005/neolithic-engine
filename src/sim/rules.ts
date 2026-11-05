@@ -23,6 +23,7 @@ import {
   stageWork,
 } from './people';
 import type { Land } from './land';
+import { FORM_NEST } from './land';
 import { wrapDiff } from './land';
 import type { ScentFields } from './fields';
 import type { SpatialIndex } from './spatial';
@@ -150,7 +151,8 @@ export class Rules {
     land: Land,
     fields: ScentFields,
     config: Readonly<SimulationConfig>,
-    prng: PRNG
+    prng: PRNG,
+    crowdHere = 1
   ): number {
     const px = people.x[slot];
     const py = people.y[slot];
@@ -266,7 +268,14 @@ export class Rules {
     // Calm movement: a person on a rich enough tile stays and grazes, unless a leader is
     // pulling them along. Hungry people want a richer tile before they settle for it.
     const calm = config.calmMovementEnabled ?? true;
-    if (calm && !leaderPulling) {
+    if (calm && config.stayValueEnabled !== false) {
+      // S1: the place counts, not just its plants. A heap underfoot is food too, and the food
+      // a person needs scales with what it costs to live on this tile. A comfortable person
+      // also resists a leader's pull.
+      if (!leaderPulling || config.comfortableStayEnabled !== false) {
+        if (Rules.worthStaying(slot, people, land, config, crowdHere, roaming, curiosity)) return 4;
+      }
+    } else if (calm && !leaderPulling) {
       const cell = (py << 8) | px;
       const max = land.capacityAt(cell, config);
       if (max > 0) {
@@ -325,6 +334,44 @@ export class Rules {
 
     // Both blocked or water: stay
     return 4;
+  }
+
+  /**
+   * S1 stay check. Food here (plants plus any heap) against what living here costs: the usual
+   * fraction of the tile's capacity, scaled by the upkeep of the tile (a hut or nest, shared when
+   * crowded), raised when hungry and for roaming, curious people. A hungry person stays only
+   * where there is actually something to eat.
+   */
+  public static worthStaying(
+    slot: number,
+    people: People,
+    land: Land,
+    config: Readonly<SimulationConfig>,
+    crowdHere: number,
+    roaming: number,
+    curiosity: number
+  ): boolean {
+    const cell = (people.y[slot] << 8) | people.x[slot];
+    const plants = land.food[cell];
+    const heap = config.stockpilesEnabled !== false ? land.pile[cell] : 0;
+    const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
+    if (hungry && heap <= 1.0 && plants <= (config.landGrazingFloor ?? 1.0) + 0.5) return false;
+    let upkeepShare = 1;
+    const n = crowdHere > 1 ? crowdHere : 1;
+    if (land.structure[cell] === 1) {
+      const room = config.hutCapacity ?? 4;
+      const disc = 1 - (config.hutUpkeep ?? 0.5);
+      upkeepShare = 1 - disc * (config.tileCrowdingEnabled !== false && n > room ? room / n : 1);
+    } else if (config.nestsEnabled !== false && land.form[cell] === FORM_NEST) {
+      const room = config.nestCapacity ?? 3;
+      const disc = 1 - (config.nestUpkeep ?? 0.7);
+      upkeepShare = 1 - disc * (config.tileCrowdingEnabled !== false && n > room ? room / n : 1);
+    }
+    const max = land.capacityAt(cell, config);
+    const ref = max > 0 ? max : config.stayRefFood ?? 10;
+    const wander = 1 + (config.roamStayWeight ?? 0.5) * ((roaming + curiosity) / 2 - 0.5) * 2;
+    const need = (config.stayFoodFraction ?? 0.5) * upkeepShare * wander * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);
+    return plants + heap >= need * ref;
   }
 
   private static canStep(x: number, y: number, dir: number, land: Land): boolean {

@@ -96,6 +96,8 @@ export class Wolves {
   }
 
   /** True when the one person on this tile has no one else within `r` tiles (people in a group are safe). */
+  private fireDeters = false;
+
   private isAlone(x: number, y: number, r: number): boolean {
     let n = 0;
     for (let dy = -r; dy <= r; dy++) {
@@ -108,6 +110,8 @@ export class Wolves {
   }
 
   private canEnter(land: Land, c: number): boolean {
+    // S1: a wolf will not step onto ground warmed by a fire.
+    if (this.fireDeters && land.fireNear[c] === 1) return false;
     return land.isWater[c] === 0 && this.cellSlot[c] === -1;
   }
 
@@ -131,6 +135,7 @@ export class Wolves {
     const loneR = config.wolfLoneRadius ?? 2;
     const dangerDeath = config.scentDangerDeath ?? 10;
     const stock = config.stockpilesEnabled !== false;
+    this.fireDeters = config.fireDetersWolvesEnabled !== false && config.coldEnabled !== false;
     const prng = this.prng;
 
     // Where people stand this tick (an index of its own, so a loaded save steps identically).

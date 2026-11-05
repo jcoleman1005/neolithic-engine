@@ -64,6 +64,14 @@ export class LifeSystem {
           foodCurr[i] = Math.min(255, foodCurr[i] + foodArr[i] * emitRate);
         }
       }
+      // S1: stored food can be smelled too, at its own (smaller) rate per unit.
+      if (config.storeScentEnabled !== false && config.stockpilesEnabled !== false) {
+        const storeRate = config.storeScentEmitRate ?? 0.02;
+        const pile = land.pile;
+        for (let i = 0; i < 65536; i++) {
+          if (pile[i] > 1.0) foodCurr[i] = Math.min(255, foodCurr[i] + pile[i] * storeRate);
+        }
+      }
       fields.step(config);
     }
 
@@ -265,7 +273,31 @@ export class LifeSystem {
 
     // The drop-at-crowd rule counts people per tile, so it needs an index of where everyone stands
     // now. Building it here (not reusing last tick's) keeps a loaded save identical to the original.
-    if (config.stockpilesEnabled !== false) spatial.build(people);
+    const crowdOn = config.tileCrowdingEnabled !== false;
+    const stayValueOn = config.calmMovementEnabled !== false && config.stayValueEnabled !== false;
+    if (config.stockpilesEnabled !== false || crowdOn || stayValueOn) spatial.build(people);
+
+    // S1: a hut or nest shelters only so many. Above that, the discount is shared: everyone on the
+    // tile pays back the part of it that the extra people would have used. Runs here, after the
+    // index is built, so the headcount is current (and a loaded save steps the same).
+    if (crowdOn) {
+      const hutCap = config.hutCapacity ?? 4;
+      const nestCap = config.nestCapacity ?? 3;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 0) continue;
+        const c = (py[slot] << 8) | px[slot];
+        const isHut = land.structure[c] === 1;
+        const isNest = !isHut && nestsOn && land.form[c] === FORM_NEST;
+        if (!isHut && !isNest) continue;
+        const n = spatial.cellStarts[c + 1] - spatial.cellStarts[c];
+        const room = isHut ? hutCap : nestCap;
+        if (n <= room) continue;
+        const stageMul = stagesOn ? (age[slot] < adultAge ? childUpkeepMul : age[slot] >= elderAge ? elderUpkeepMul : 1.0) : 1.0;
+        const extra = metabolism * stageMul * (1 - (isHut ? hutUpkeepMul : nestUpkeep)) * (1 - room / n);
+        energy[slot] -= extra;
+        ledger.upkeep += extra;
+      }
+    }
 
     // 4. Foraging (a little seed comes away with each bite)
     const farmOn = config.farmingPhysicsEnabled !== false;
@@ -300,6 +332,7 @@ export class LifeSystem {
     const fishBelow = (config.fishBelow ?? 0.5) * maxEnergy;
     const berryBelow = (config.berryBelow ?? 0.8) * maxEnergy;
     const dropCrowd = config.dropCrowd ?? 3;
+    const storeUnloadOn = config.storeUnloadEnabled !== false;
     const dropWhenFull = config.dropWhenFull ?? false;
     const carryDrag = config.carryDrag ?? 0.5;
     const bodyMul = (slot: number): number =>
@@ -428,7 +461,8 @@ export class LifeSystem {
 
       let dir = 4; // Stay
       if (climbOn) {
-        dir = Rules.climb(slot, people, land, fields, config, prng);
+        const hc = (py[slot] << 8) | px[slot];
+        dir = Rules.climb(slot, people, land, fields, config, prng, stayValueOn ? spatial.cellStarts[hc + 1] - spatial.cellStarts[hc] : 1);
       } else {
         dir = prng.nextInt(0, 5);
       }
@@ -471,7 +505,8 @@ export class LifeSystem {
       if (stockOn && dir === 4 && carryKind[slot] === CARRY_FOOD && people.carry[slot] > 0) {
         const c = (py[slot] << 8) | px[slot];
         const here = spatial.cellStarts[c + 1] - spatial.cellStarts[c];
-        if (here >= dropCrowd || (dropWhenFull && people.carry[slot] >= foodCarryMax - 0.01)) {
+        const atStore = storeUnloadOn && land.pile[c] > 1.0;
+        if (here >= dropCrowd || atStore || (dropWhenFull && people.carry[slot] >= foodCarryMax - 0.01)) {
           land.dropFood(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;

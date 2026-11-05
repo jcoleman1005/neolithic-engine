@@ -145,6 +145,15 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         elderUpkeepMul: 1.0,
         stageHarvestScale: false,
         workStrengthScale: false,
+        // Later mechanics (S1, docs/SETTLEMENTS.md) are off too, so this still pins the pre-drives baseline.
+        stayValueEnabled: false,
+        comfortableStayEnabled: false,
+        tileCrowdingEnabled: false,
+        storeScentEnabled: false,
+        storeUnloadEnabled: false,
+        shelterSeekEnabled: false,
+        fireDetersWolvesEnabled: false,
+        wolfLoneRadius: 0,
       }, 42);
 
       for (let t = 1; t <= 1000; t++) {

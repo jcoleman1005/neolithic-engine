@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0 merged. S0 built on `settlements-s0`, awaiting a watch. Next is S1. See `docs/STATUS.md`.
+**Current stage:** T0 and S0 merged. S1 built on `settlements-s1`: 4 of 5 targets met, one missed on seed 2 (see `docs/findings.md`). Awaiting a watch. Next is S2. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
@@ -135,7 +135,7 @@ No new scent and no stored home. People stay when the place is physically better
 - At least 10% of adults are outside any camp at year 20, so wanderers still exist.
 - Perf within budget, also at 2,000 to 3,000 people.
 
-**Proposed replacement for the gates above, pending your decision.** S0's baseline shows two of them are too easy: with everything as it is today, 13, 22 and 14 settlements on seeds 1 to 3 have already reached 10 years, and doubling a 0.3-year median means only 0.6 years. Proposed instead, at year 30 against off: settlements that have lasted 10 years at least double; at least 3 hamlets or larger standing on each seed (off has 0, 1 and 0). The population, wanderers and perf gates stay.
+**Replaced gates, agreed 2026-11-05; these win over the first two gates above.** S0's baseline shows two of them are too easy: with everything as it is today, 13, 22 and 14 settlements on seeds 1 to 3 have already reached 10 years, and doubling a 0.3-year median means only 0.6 years. Instead, at year 30 against off: settlements that have lasted 10 years at least double; at least 3 hamlets or larger standing on each seed (off has 0, 1 and 0). The population, wanderers and perf gates stay.
 
 **If camps still don't last:** look next at walking cost, which is cheap today (`moveCost` 0.05 against `metabolismCost` 0.25), and at farming yield, S4's job. Changing `moveCost` affects everything, so it's a last resort and gets its own comparison.
 
