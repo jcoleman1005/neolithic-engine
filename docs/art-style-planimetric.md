@@ -244,21 +244,28 @@ export const PALETTE = {
 /**
  * Shifts an ABGR color toward cool slate-blue atmospheric haze for lower Z-tiers.
  * tierDrop = 0 (active plane), 1, 2, ... (lower planes).
+ * Decreases overall exposure while increasing relative blue/slate saturation.
  */
 export function applyAtmosphericHaze(abgr: number, tierDrop: number): number {
-  if (tierDrop <= 0) return abgr;
+  if (tierDrop <= 0) return abgr >>> 0;
   const a = (abgr >>> 24) & 0xff;
   let b = (abgr >>> 16) & 0xff;
   let g = (abgr >>> 8) & 0xff;
   let r = abgr & 0xff;
 
-  // Multiplicative cool-slate shift per tier drop
-  const mul = Math.pow(0.85, tierDrop);
-  r = Math.floor(r * mul * 0.90);
-  g = Math.floor(g * mul * 0.95);
-  b = Math.floor(Math.min(255, b * mul * 1.15 + tierDrop * 8));
+  // Dim exposure
+  const mul = Math.pow(0.84, tierDrop);
+  r = Math.floor(r * mul * 0.88);
+  g = Math.floor(g * mul * 0.92);
+  b = Math.floor(b * mul);
 
-  return ((a << 24) | (b << 16) | (g << 8) | r) >>> 0;
+  // Blend with cool slate-blue (#384a66: r=56, g=74, b=102)
+  const hazeT = Math.min(0.65, tierDrop * 0.15);
+  r = Math.floor(r * (1 - hazeT) + 56 * hazeT);
+  g = Math.floor(g * (1 - hazeT) + 74 * hazeT);
+  b = Math.floor(b * (1 - hazeT) + 102 * hazeT);
+
+  return (((a << 24) | (b << 16) | (g << 8) | r)) >>> 0;
 }
 ```
 
