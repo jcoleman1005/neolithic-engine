@@ -15,6 +15,43 @@ import {
   type SpriteRect,
   type SpriteKey,
 } from './sprites';
+import {
+  PALETTE,
+  applyAtmosphericHaze,
+  type MaterialRamp,
+  type TerrainTheme,
+  getPaletteForTheme,
+} from './palette';
+import {
+  createTerrainAtlas,
+  type TerrainAtlas,
+  T_GRASS,
+  T_DIRT,
+  T_SAND,
+  T_SHALLOWS,
+  T_OCEAN,
+  T_ROCK,
+  T_SNOW,
+  CLIFF_S,
+  CLIFF_E,
+  CLIFF_W,
+  CLIFF_SE,
+  CLIFF_SW,
+  FOAM_N,
+  FOAM_S,
+  FOAM_W,
+  FOAM_E,
+} from './terrain-tiles';
+import {
+  createTerraceData,
+  buildTerraces,
+  type TerraceData,
+} from './terrace';
+import {
+  getWallBitmask,
+  populateWallSpatialMask,
+  drawCutawayWall,
+} from './walls';
 
 export type MotionStyle = 'smooth' | 'fluid';
 export type ColorMode = 'status' | 'bands';
@@ -64,23 +101,29 @@ const THATCH_SHADE = ['#a07c38', '#8a6a2c'];
 const STUMP_SPOTS: readonly (readonly [number, number])[] = [[1, 1.5], [4.5, 0.8], [2.5, 4.6], [5.6, 4.2], [0.8, 5.8]];
 // Drawable kinds
 const D_TREE = 1, D_STUMPS = 2, D_STRUCT = 3, D_FISH = 4, D_CAVE = 5, D_GLOW = 6, D_FIRE = 7;
-const D_CARCASS = 8, D_WOLF = 9, D_DEER = 10, D_PERSON = 11, D_HUT = 12, D_GRAVE = 13;
+const D_CARCASS = 8, D_WOLF = 9, D_DEER = 10, D_PERSON = 11, D_HUT = 12, D_GRAVE = 13, D_DETAIL = 14;
 // Sort keys: screen y of an object's base, biased positive and packed with its index so ties keep the order collected
 const GROUND_KEY = -50000; // flat ground marks sort before everything standing
 const KEY_BIAS = 65536;
 const KEY_STRIDE = 1048576; // 2^20 drawables at most
 const MAX_DRAWABLES = KEY_STRIDE - 1;
 
-// WorldBox Terrain 32-bit ABGR Palette
-const COLOR_DEEP_WATER = hexToABGR('#154273');
-const COLOR_SHALLOWS   = hexToABGR('#277da1');
-const COLOR_SAND       = hexToABGR('#e9c46a');
-const COLOR_GRASS_LUSH = hexToABGR('#489a5b');
-const COLOR_GRASS_MID  = hexToABGR('#57cc99');
-const COLOR_FOREST     = hexToABGR('#2d6a4f');
-const COLOR_HILLS      = hexToABGR('#8a817c');
-const COLOR_MOUNTAIN   = hexToABGR('#bcb8b1');
-const COLOR_SNOW       = hexToABGR('#f8f9fa');
+// Planimetric Bluff Drop Shadow Helper (blends with rgba(20, 24, 36, 0.45) or 0.60 corner)
+const SHADOW_R = 20;
+const SHADOW_G = 24;
+const SHADOW_B = 36;
+
+function applyBluffDropShadow(abgr: number, isCorner: boolean): number {
+  const inv = isCorner ? 40 : 55;
+  const a = isCorner ? 60 : 45;
+  const r = abgr & 0xff;
+  const g = (abgr >>> 8) & 0xff;
+  const b = (abgr >>> 16) & 0xff;
+  const nr = ((r * inv + SHADOW_R * a + 50) / 100) | 0;
+  const ng = ((g * inv + SHADOW_G * a + 50) / 100) | 0;
+  const nb = ((b * inv + SHADOW_B * a + 50) / 100) | 0;
+  return ((0xff << 24) | (nb << 16) | (ng << 8) | nr) >>> 0;
+}
 
 // People Look ABGR Colors for direct pixel writes
 const COLOR_PEOPLE_STARVING = hexToABGR('#ef4444');
@@ -144,9 +187,9 @@ export class CanvasRenderer {
   private zoomIndex = 2; // Default scale: ZOOM_STEPS[2] = 3
   public cellSize: number = ZOOM_STEPS[2];
   private gotoTarget: { x: number; y: number } | null = null;
-  /** False on an axis where the whole world fits on screen: one copy, no tiling. */
-  private wrapX = true;
-  private wrapY = true;
+  /** False: single bounded world view, no viewport tiling. */
+  private wrapX = false;
+  private wrapY = false;
   private panX = 0;
   private panY = 0;
 
@@ -164,6 +207,13 @@ export class CanvasRenderer {
   /** The terrain and elevation the cache was drawn from: a new seed brings new objects, even at the same version number. */
   private lastTerrainRef: unknown = null;
   private lastElevationRef: unknown = null;
+
+  // Planimetric Terrace & Cutaway State
+  private activeElevationSlice = 0; // 0 = all tiers visible; 1..5 = isolate tier
+  private readonly terraceData: TerraceData = createTerraceData();
+  private readonly wallOccupancyMask = new Uint8Array(65536);
+  private terrainTheme: TerrainTheme = 'classic';
+  private terrainAtlas: TerrainAtlas = createTerrainAtlas('classic');
 
   // Zoomed-out people blit overlay canvas (fixed 256x256, 1 px/cell)
   private readonly overlayCanvas: HTMLCanvasElement;
@@ -188,6 +238,7 @@ export class CanvasRenderer {
   private readonly lookBytes = new Uint8Array(65536);
   private readonly slotGenerations = new Uint8Array(65536);
   private readonly rootLeaderIds = new Uint32Array(65536);
+  private readonly personFacing = new Uint8Array(65536);
   private readonly bandSizes = new Map<number, number>();
   public colorMode: ColorMode = 'status';
 
@@ -411,6 +462,7 @@ export class CanvasRenderer {
     this.peopleCtx.imageSmoothingEnabled = false;
     this.peopleImgData = this.peopleCtx.createImageData(256, 256);
     this.peopleData32 = new Uint32Array(this.peopleImgData.data.buffer);
+    this.personFacing.fill(1);
 
     this.setupEvents();
     this.resize();
@@ -503,11 +555,22 @@ export class CanvasRenderer {
     const availH = Math.max(100, rect.height - this.insets.top - this.insets.bottom);
     let wantX = this.insets.left + availW / 2 - t.x * this.cellSize;
     let wantY = this.insets.top + availH / 2 - t.y * this.cellSize;
-    // The world wraps, so glide the short way round (and across an edge) to the target.
     const wpx = (this.world.config.worldWidth || 256) * this.cellSize;
     const hpx = (this.world.config.worldHeight || 256) * this.cellSize;
-    wantX -= Math.round((wantX - this.camX) / wpx) * wpx;
-    wantY -= Math.round((wantY - this.camY) / hpx) * hpx;
+    if (this.wrapX) {
+      wantX -= Math.round((wantX - this.camX) / wpx) * wpx;
+    } else {
+      wantX = wpx <= availW
+        ? Math.round(this.insets.left + (availW - wpx) / 2)
+        : Math.min(this.insets.left, Math.max(this.insets.left + availW - wpx, wantX));
+    }
+    if (this.wrapY) {
+      wantY -= Math.round((wantY - this.camY) / hpx) * hpx;
+    } else {
+      wantY = hpx <= availH
+        ? Math.round(this.insets.top + (availH - hpx) / 2)
+        : Math.min(this.insets.top, Math.max(this.insets.top + availH - hpx, wantY));
+    }
     // Someone else moved the view (a drag or zoom): start again from where it is.
     if (Math.abs(Math.round(this.camX) - this.panX) > 1 || Math.abs(Math.round(this.camY) - this.panY) > 1) {
       this.camX = this.panX;
@@ -701,6 +764,8 @@ export class CanvasRenderer {
     const h = this.world.config.worldHeight || 256;
     let cx = Math.floor(px / this.cellSize);
     let cy = Math.floor(py / this.cellSize);
+    if (!this.wrapX && (cx < 0 || cx >= w)) return null;
+    if (!this.wrapY && (cy < 0 || cy >= h)) return null;
     if (this.world.config.wrapping) {
       cx = ((cx % w) + w) % w;
       cy = ((cy % h) + h) % h;
@@ -723,6 +788,9 @@ export class CanvasRenderer {
 
     const w = this.world.config.worldWidth || 256;
     const h = this.world.config.worldHeight || 256;
+    if (!this.wrapX && (targetX < -0.5 || targetX > w + 0.5)) return null;
+    if (!this.wrapY && (targetY < -0.5 || targetY > h + 0.5)) return null;
+
     let bestSlot = -1;
     let bestDistSq = maxCellDist * maxCellDist;
 
@@ -732,13 +800,13 @@ export class CanvasRenderer {
       const cy = this.currY[slot];
 
       let dx = (cx + 0.5) - targetX;
-      if (this.world.config.wrapping) {
+      if (this.wrapX && this.world.config.wrapping) {
         if (dx > w / 2) dx -= w;
         else if (dx < -w / 2) dx += w;
       }
 
       let dy = (cy + 0.5) - targetY;
-      if (this.world.config.wrapping) {
+      if (this.wrapY && this.world.config.wrapping) {
         if (dy > h / 2) dy -= h;
         else if (dy < -h / 2) dy += h;
       }
@@ -967,18 +1035,17 @@ export class CanvasRenderer {
       this.panY = Math.round(height / 2 - sy);
     }
 
-    // When zoomed out far enough that the world fits on an axis, show it once with the void
-    // around it. Otherwise it wraps: keep the pan in [-world, 0) so tiled copies cover the screen.
-    // (camX/camY follow along so the glide sees no jump.)
-    const sprites = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
-    this.wrapX = sprites || worldPxW > width;
-    this.wrapY = sprites || worldPxH > height;
-    const nx = this.wrapX
-      ? ((this.panX % worldPxW) + worldPxW) % worldPxW - worldPxW
-      : Math.min(Math.max(this.panX, 0), width - worldPxW);
-    const ny = this.wrapY
-      ? ((this.panY % worldPxH) + worldPxH) % worldPxH - worldPxH
-      : Math.min(Math.max(this.panY, 0), height - worldPxH);
+    // When zoomed out far enough that the world fits on an axis, center it with the void
+    // around it. When zoomed in, clamp panning so the camera stays within world bounds.
+    // The view does not wrap; entities teleport across edges like a continuous world.
+    this.wrapX = false;
+    this.wrapY = false;
+    const nx = worldPxW <= width
+      ? Math.round((width - worldPxW) / 2)
+      : Math.min(0, Math.max(width - worldPxW, this.panX));
+    const ny = worldPxH <= height
+      ? Math.round((height - worldPxH) / 2)
+      : Math.min(0, Math.max(height - worldPxH, this.panY));
     this.camX += nx - this.panX;
     this.camY += ny - this.panY;
     this.panX = nx;
@@ -987,25 +1054,21 @@ export class CanvasRenderer {
     // 1. Ensure terrain cache is up to date
     this.updateTerrainCache();
 
-    // 2. Draw the terrain tiled, copy after copy, from the 256x256 offscreen canvas
-    for (let ty = this.panY; ty < (this.wrapY ? height : this.panY + 1); ty += worldPxH) {
-      for (let tx = this.panX; tx < (this.wrapX ? width : this.panX + 1); tx += worldPxW) {
-        this.ctx.drawImage(this.terrainCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
-      }
+    // 2. Draw the terrain: zoomed-in uses 8x8 DF pixel-art tiles and cliff strata; zoomed-out uses 256x256 cache
+    const isZoomedIn = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
+    if (isZoomedIn) {
+      this.renderTerrainTiles(width, height, w, h);
+    } else {
+      this.ctx.drawImage(this.terrainCanvas, 0, 0, 256, 256, this.panX, this.panY, worldPxW, worldPxH);
     }
 
-    // 3. Farmland, desert and seeds, drawn on the ground in the same tiled copies
+    // 3. Farmland, desert and seeds, drawn on the ground in the single world rect
     if (this.updateOverlayCache()) {
-      for (let ty = this.panY; ty < (this.wrapY ? height : this.panY + 1); ty += worldPxH) {
-        for (let tx = this.panX; tx < (this.wrapX ? width : this.panX + 1); tx += worldPxW) {
-          this.ctx.drawImage(this.overlayCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
-        }
-      }
+      this.ctx.drawImage(this.overlayCanvas, 0, 0, 256, 256, this.panX, this.panY, worldPxW, worldPxH);
     }
 
     // 4. Objects. Zoomed in: oblique sprites, collected, sorted by row and painted back to front.
     //    Zoomed out: flat dots and pixels, as before.
-    const isZoomedIn = this.cellSize >= ZOOM_SPRITE_THRESHOLD;
     if (isZoomedIn) {
       this.renderObjects(width, height, w, h);
     } else {
@@ -1078,18 +1141,15 @@ export class CanvasRenderer {
 
   /**
    * Generates or updates the 256x256 1 px/cell terrain canvas.
-   * Renders elevation hillshading and terrain colors once; redraws only changing cells.
+   * Renders 4-tone autotiled materials and hard terrace drop shadows.
    */
   private updateTerrainCache(): void {
     const elevation = this.world.elevation;
     const terrain = this.world.terrain;
-    const hillLevel = this.world.config.elevationHillLevel ?? 0.68;
-    const mountainLevel = this.world.config.elevationMountainLevel ?? 0.8;
-    const snowLevel = this.world.config.elevationSnowLevel ?? 0.9;
 
     if (!elevation && !terrain) {
       if (!this.terrainGenerated) {
-        this.terrainCtx.fillStyle = '#489a5b';
+        this.terrainCtx.fillStyle = PALETTE.grass.baseHex;
         this.terrainCtx.fillRect(0, 0, 256, 256);
         this.terrainGenerated = true;
       }
@@ -1107,17 +1167,27 @@ export class CanvasRenderer {
       return;
     }
 
+    if (elevation?.elevation) {
+      buildTerraces(elevation.elevation, this.terraceData);
+    } else {
+      this.terraceData.tiers.fill(2);
+      this.terraceData.shadowMask.fill(0);
+    }
+
     const elevArr = elevation?.elevation;
     const waterArr = elevation?.water;
     const coverArr = terrain?.cover;
     const deepThreshold = Math.floor((this.world.config.elevationDeepThreshold ?? 0.2) * 255);
+    const tiers = this.terraceData.tiers;
+    const shadowMask = this.terraceData.shadowMask;
+    const pal = getPaletteForTheme(this.terrainTheme);
 
     for (let y = 0; y < 256; y++) {
       const yPrev = (y - 1) & 255;
       const yNext = (y + 1) & 255;
-      const rowOffset = y * 256;
-      const rowPrev = yPrev * 256;
-      const rowNext = yNext * 256;
+      const rowOffset = y << 8;
+      const rowPrev = yPrev << 8;
+      const rowNext = yNext << 8;
 
       for (let x = 0; x < 256; x++) {
         const idx = rowOffset + x;
@@ -1125,14 +1195,15 @@ export class CanvasRenderer {
         const xNext = (x + 1) & 255;
 
         const isWater = waterArr ? waterArr[idx] > 0 : false;
-        let baseColor = COLOR_GRASS_LUSH;
+        let ramp: MaterialRamp;
         let forestCell = false;
 
         if (isWater) {
           const depth = waterArr![idx];
-          baseColor = depth >= deepThreshold ? COLOR_DEEP_WATER : COLOR_SHALLOWS;
-        } else if (elevArr) {
-          const h = elevArr[idx] / 65535;
+          ramp = depth >= deepThreshold ? pal.deepWater : pal.shallowWater;
+        } else {
+          const tier = tiers[idx];
+          const h = elevArr ? elevArr[idx] / 65535 : 0.5;
 
           // Shore check: near water
           const nearWater =
@@ -1143,47 +1214,56 @@ export class CanvasRenderer {
                 waterArr[rowNext + x] > 0)) ||
             (elevation && h < elevation.seaLevel + 0.015);
 
-          if (nearWater) {
-            baseColor = COLOR_SAND;
-          } else if (h >= snowLevel) {
-            baseColor = COLOR_SNOW;
-          } else if (h >= mountainLevel) {
-            baseColor = COLOR_MOUNTAIN;
-          } else if (h >= hillLevel) {
-            baseColor = COLOR_HILLS;
+          if (nearWater || tier <= 1) {
+            ramp = pal.sand;
+          } else if (tier === 5) {
+            ramp = pal.snow;
+          } else if (tier === 4) {
+            ramp = pal.rock;
+          } else if (tier === 3) {
+            ramp = pal.shrub;
           } else {
-            // Plains & Lowlands: check cover
+            // Lowlands: meadow vs forest
             const cover = coverArr ? coverArr[idx] / 65535 : 0.4;
             if (cover >= 0.50) {
-              baseColor = COLOR_FOREST;
               forestCell = true;
-            } else if (cover >= 0.30) {
-              baseColor = COLOR_GRASS_LUSH;
-            } else {
-              baseColor = COLOR_GRASS_MID;
             }
+            ramp = pal.grass;
           }
         }
 
         this.isForest[idx] = forestCell ? 1 : 0;
 
-        // Light elevation hillshading (north-west light: -1, -1)
-        if (elevArr && !isWater) {
-          const elevL = elevArr[rowOffset + xPrev];
-          const elevR = elevArr[rowOffset + xNext];
-          const elevU = elevArr[rowPrev + x];
-          const elevD = elevArr[rowNext + x];
+        // Clean low-noise plane: dominant material base tone
+        let pixelColor = ramp.base;
 
-          const slope = ((elevL - elevR) + (elevU - elevD)) / 65535;
-          const shade = Math.max(0.82, Math.min(1.18, 1.0 + slope * 1.5));
-
-          const r = Math.min(255, Math.max(0, Math.round((baseColor & 0xff) * shade)));
-          const g = Math.min(255, Math.max(0, Math.round(((baseColor >> 8) & 0xff) * shade)));
-          const b = Math.min(255, Math.max(0, Math.round(((baseColor >> 16) & 0xff) * shade)));
-          this.terrainData32[idx] = ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
-        } else {
-          this.terrainData32[idx] = baseColor;
+        // Bluff drop shadows and crest highlights
+        const shadowFlags = shadowMask[idx];
+        if ((shadowFlags & 3) !== 0) {
+          // Hard 1-2px bluff drop shadow on lower tile
+          const isCorner = (shadowFlags & 3) === 3;
+          pixelColor = applyBluffDropShadow(pixelColor, isCorner);
+        } else if ((shadowFlags & 4) !== 0) {
+          // Sharp crest highlight on top edge of bluff
+          pixelColor = ramp.highlight;
         }
+
+        // Elevation Slicing & Atmospheric Depth Tinting (Phase 3)
+        if (this.activeElevationSlice > 0) {
+          const myTier = isWater ? 0 : tiers[idx];
+          if (myTier > this.activeElevationSlice) {
+            // Sliced away higher tier: subtle dark blueprint contour
+            const isBorder = (shadowFlags & 4) !== 0;
+            pixelColor = isBorder ? 0xff4d352a : 0xff241814;
+          } else {
+            const tierDrop = this.activeElevationSlice - myTier;
+            if (tierDrop > 0) {
+              pixelColor = applyAtmosphericHaze(pixelColor, tierDrop);
+            }
+          }
+        }
+
+        this.terrainData32[idx] = pixelColor;
       }
     }
 
@@ -1192,6 +1272,183 @@ export class CanvasRenderer {
     this.lastTerrainVersion = curTerrainVer;
     this.lastTerrainRef = terrain;
     this.lastElevationRef = elevation;
+  }
+
+  public getTerraceData(): TerraceData {
+    return this.terraceData;
+  }
+
+  public getWallOccupancyMask(): Uint8Array {
+    return this.wallOccupancyMask;
+  }
+
+  public getActiveElevationSlice(): number {
+    return this.activeElevationSlice;
+  }
+
+  public setActiveElevationSlice(tier: number): void {
+    const next = Math.max(0, Math.min(5, tier | 0));
+    if (this.activeElevationSlice !== next) {
+      this.activeElevationSlice = next;
+      this.terrainGenerated = false;
+    }
+  }
+
+  public getTerrainTheme(): TerrainTheme {
+    return this.terrainTheme;
+  }
+
+  public setTerrainTheme(theme: TerrainTheme): void {
+    if (this.terrainTheme === theme) return;
+    this.terrainTheme = theme;
+    this.terrainAtlas = createTerrainAtlas(theme);
+    this.terrainGenerated = false; // Forces regeneration of the 256x256 cache
+  }
+
+  /**
+   * Dwarf Fortress Steam-Style 8x8 Pixel-Art Terrain Renderer.
+   * At close zoom (cellSize >= ZOOM_SPRITE_THRESHOLD), draws procedural 8x8 tiles with
+   * 4 organic variations per biome, stepped z-level cliff strata, and shoreline foam fringes.
+   */
+  private renderTerrainTiles(screenW: number, screenH: number, worldW: number, worldH: number): void {
+    const cs = this.cellSize;
+    const minCellX = this.wrapX ? Math.floor(-this.panX / cs) - 1 : Math.max(0, Math.floor(-this.panX / cs) - 1);
+    const maxCellX = this.wrapX ? Math.ceil((screenW - this.panX) / cs) + 1 : Math.min(worldW - 1, Math.ceil((screenW - this.panX) / cs) + 1);
+    const minCellY = this.wrapY ? Math.floor(-this.panY / cs) - 1 : Math.max(0, Math.floor(-this.panY / cs) - 1);
+    const maxCellY = this.wrapY ? Math.ceil((screenH - this.panY) / cs) + 1 : Math.min(worldH - 1, Math.ceil((screenH - this.panY) / cs) + 1);
+
+    const waterArr = this.world.elevation?.water;
+    const coverArr = this.world.terrain?.cover;
+    const deepThreshold = Math.floor((this.world.config.elevationDeepThreshold ?? 0.2) * 255);
+    const tiers = this.terraceData.tiers;
+    const atlas = this.terrainAtlas;
+    const canvas = atlas.canvas;
+    const activeSlice = this.activeElevationSlice;
+
+    for (let cy = minCellY; cy <= maxCellY; cy++) {
+      if (!this.wrapY && (cy < 0 || cy >= worldH)) continue;
+      const wy = ((cy % worldH) + worldH) % worldH;
+      const rowOffset = wy * worldW;
+      const y0 = cy * cs + this.panY;
+
+      for (let cx = minCellX; cx <= maxCellX; cx++) {
+        if (!this.wrapX && (cx < 0 || cx >= worldW)) continue;
+        const wx = ((cx % worldW) + worldW) % worldW;
+        const idx = rowOffset + wx;
+        const x0 = cx * cs + this.panX;
+
+        const isWater = waterArr ? waterArr[idx] > 0 : false;
+        const tier = isWater ? 0 : tiers[idx];
+
+        // Elevation Slicing: if higher than sliced tier, draw subtle blueprint contour and skip full tile
+        if (activeSlice > 0 && tier > activeSlice) {
+          this.ctx.fillStyle = '#141824';
+          this.ctx.fillRect(x0, y0, cs, cs);
+          this.ctx.strokeStyle = '#2a354d';
+          this.ctx.strokeRect(x0 + 0.5, y0 + 0.5, cs - 1, cs - 1);
+          continue;
+        }
+
+        // Deterministic pseudo-random variation hash by cell coordinate
+        const h = (((wx * 374761393) ^ (wy * 668265263)) >>> 0);
+        // Variant 0 (clean solid base sod) is 94% dominant for restful visual field and figure pop; variants 1..3 are rare accents (2% each)
+        const roll = h % 100;
+        const variant = roll < 94 ? 0 : roll < 96 ? 1 : roll < 98 ? 2 : 3;
+
+        let kind = T_GRASS;
+
+        if (isWater) {
+          const depth = waterArr ? waterArr[idx] : 128;
+          kind = depth >= deepThreshold ? T_OCEAN : T_SHALLOWS;
+        } else {
+          const xPrev = (wx - 1 + worldW) % worldW;
+          const xNext = (wx + 1) % worldW;
+          const yPrev = (wy - 1 + worldH) % worldH;
+          const yNext = (wy + 1) % worldH;
+          const nearWater =
+            waterArr &&
+            (waterArr[rowOffset + xPrev] > 0 ||
+              waterArr[rowOffset + xNext] > 0 ||
+              waterArr[yPrev * worldW + wx] > 0 ||
+              waterArr[yNext * worldW + wx] > 0);
+
+          if (nearWater || tier <= 1) {
+            kind = T_SAND;
+          } else if (tier === 5) {
+            kind = T_SNOW;
+          } else if (tier === 4) {
+            kind = T_ROCK;
+          } else if (tier === 3) {
+            const cover = coverArr ? coverArr[idx] / 65535 : 0.4;
+            kind = cover >= 0.55 ? T_DIRT : T_GRASS;
+          } else {
+            kind = T_GRASS;
+          }
+        }
+
+        const sx = atlas.getTileX(kind, variant);
+        const sy = atlas.getTileY(kind);
+
+        this.ctx.drawImage(canvas, sx, sy, 8, 8, x0, y0, cs, cs);
+
+        // Stepped Z-Level Cliff Strata (South / East / West drops)
+        if (!isWater && tier > 1) {
+          const sWy = (wy + 1) % worldH;
+          const sTier = tiers[sWy * worldW + wx];
+          const sWater = waterArr ? waterArr[sWy * worldW + wx] > 0 : false;
+          const dropSouth = tier > sTier || sWater;
+
+          const eWx = (wx + 1) % worldW;
+          const eTier = tiers[wy * worldW + eWx];
+          const eWater = waterArr ? waterArr[wy * worldW + eWx] > 0 : false;
+          const dropEast = tier > eTier || eWater;
+
+          const wWx = (wx + worldW - 1) % worldW;
+          const wTier = tiers[wy * worldW + wWx];
+          const wWater = waterArr ? waterArr[wy * worldW + wWx] > 0 : false;
+          const dropWest = tier > wTier || wWater;
+
+          if (dropSouth && dropEast) {
+            this.ctx.drawImage(canvas, atlas.getCliffX(CLIFF_SE), atlas.getCliffY(), 8, 8, x0, y0, cs, cs);
+          } else if (dropSouth && dropWest) {
+            this.ctx.drawImage(canvas, atlas.getCliffX(CLIFF_SW), atlas.getCliffY(), 8, 8, x0, y0, cs, cs);
+          } else if (dropSouth) {
+            this.ctx.drawImage(canvas, atlas.getCliffX(CLIFF_S), atlas.getCliffY(), 8, 8, x0, y0, cs, cs);
+          } else if (dropEast) {
+            this.ctx.drawImage(canvas, atlas.getCliffX(CLIFF_E), atlas.getCliffY(), 8, 8, x0, y0, cs, cs);
+          } else if (dropWest) {
+            this.ctx.drawImage(canvas, atlas.getCliffX(CLIFF_W), atlas.getCliffY(), 8, 8, x0, y0, cs, cs);
+          }
+        }
+
+        // Shoreline wave foam fringe on water adjacent to land
+        if (isWater && waterArr) {
+          const nWy = (wy + worldH - 1) % worldH;
+          const sWy = (wy + 1) % worldH;
+          const wWx = (wx + worldW - 1) % worldW;
+          const eWx = (wx + 1) % worldW;
+          if (waterArr[nWy * worldW + wx] === 0) {
+            this.ctx.drawImage(canvas, atlas.getFoamX(FOAM_N), atlas.getFoamY(), 8, 8, x0, y0, cs, cs);
+          }
+          if (waterArr[sWy * worldW + wx] === 0) {
+            this.ctx.drawImage(canvas, atlas.getFoamX(FOAM_S), atlas.getFoamY(), 8, 8, x0, y0, cs, cs);
+          }
+          if (waterArr[wy * worldW + wWx] === 0) {
+            this.ctx.drawImage(canvas, atlas.getFoamX(FOAM_W), atlas.getFoamY(), 8, 8, x0, y0, cs, cs);
+          }
+          if (waterArr[wy * worldW + eWx] === 0) {
+            this.ctx.drawImage(canvas, atlas.getFoamX(FOAM_E), atlas.getFoamY(), 8, 8, x0, y0, cs, cs);
+          }
+        }
+
+        // Atmospheric haze overlay if lower than active slice
+        if (activeSlice > 0 && tier < activeSlice) {
+          const hazeAlpha = Math.min(0.65, (activeSlice - tier) * 0.15);
+          this.ctx.fillStyle = `rgba(56, 74, 102, ${hazeAlpha.toFixed(2)})`;
+          this.ctx.fillRect(x0, y0, cs, cs);
+        }
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1235,21 +1492,27 @@ export class CanvasRenderer {
     this.dCount = n + 1;
   }
 
-  /** Pushes every on-screen copy of a world-space spot given in screen pixels (wrapped world). */
+  /** Pushes every on-screen copy of a world-space spot given in screen pixels. Single bounded world view. */
   private emitAt(
     kind: number, px: number, py: number, a: number, b: number, keyDy: number,
     screenW: number, screenH: number, worldPxW: number, worldPxH: number
   ): void {
     const cs = this.cellSize;
-    let sx = px;
-    while (sx > -cs) sx -= worldPxW;
-    while (sx < -cs) sx += worldPxW;
-    let sy = py;
-    while (sy > -2 * cs) sy -= worldPxH;
-    while (sy < -2 * cs) sy += worldPxH;
-    for (let x0 = sx; x0 < screenW + cs; x0 += worldPxW) {
-      for (let y0 = sy; y0 < screenH + cs; y0 += worldPxH) {
-        this.push(kind, x0, y0, a, b, keyDy);
+    if (this.wrapX || this.wrapY) {
+      let sx = px;
+      while (sx > -cs) sx -= worldPxW;
+      while (sx < -cs) sx += worldPxW;
+      let sy = py;
+      while (sy > -2 * cs) sy -= worldPxH;
+      while (sy < -2 * cs) sy += worldPxH;
+      for (let x0 = sx; x0 < screenW + cs; x0 += worldPxW) {
+        for (let y0 = sy; y0 < screenH + cs; y0 += worldPxH) {
+          this.push(kind, x0, y0, a, b, keyDy);
+        }
+      }
+    } else {
+      if (px >= -cs * 2 && px <= screenW + cs * 2 && py >= -cs * 2 && py <= screenH + cs * 2) {
+        this.push(kind, px, py, a, b, keyDy);
       }
     }
   }
@@ -1287,10 +1550,10 @@ export class CanvasRenderer {
   private collectCells(screenW: number, screenH: number, worldW: number, worldH: number): void {
     const cs = this.cellSize;
     const q = (v: number): number => Math.round(v * this.ap);
-    const minCellX = Math.floor(-this.panX / cs) - 1;
-    const maxCellX = Math.ceil((screenW - this.panX) / cs) + 1;
-    const minCellY = Math.floor(-this.panY / cs) - 1;
-    const maxCellY = Math.ceil((screenH - this.panY) / cs) + 1;
+    const minCellX = this.wrapX ? Math.floor(-this.panX / cs) - 1 : Math.max(0, Math.floor(-this.panX / cs) - 1);
+    const maxCellX = this.wrapX ? Math.ceil((screenW - this.panX) / cs) + 1 : Math.min(worldW - 1, Math.ceil((screenW - this.panX) / cs) + 1);
+    const minCellY = this.wrapY ? Math.floor(-this.panY / cs) - 1 : Math.max(0, Math.floor(-this.panY / cs) - 1);
+    const maxCellY = this.wrapY ? Math.ceil((screenH - this.panY) / cs) + 1 : Math.min(worldH - 1, Math.ceil((screenH - this.panY) / cs) + 1);
     const structures = this.world.landStructures;
     const water = this.world.elevation?.water;
     const treeKey = cs;
@@ -1346,6 +1609,7 @@ export class CanvasRenderer {
     const feats = this.world.featurePositions;
     if (!feats || feats.length < 3) return;
     const cs = this.cellSize;
+    populateWallSpatialMask(feats, this.wallOccupancyMask);
     for (let i = 0; i + 2 < feats.length; i += 3) {
       const kind = feats[i + 2];
       const px = Math.round(feats[i] * cs + this.panX);
@@ -1354,7 +1618,8 @@ export class CanvasRenderer {
       if (kind >= 16) {
         this.emitAt(D_CAVE, px, py, kind - 16, 0, q(5.5), screenW, screenH, worldPxW, worldPxH);
       } else if (kind >= 8 && kind < 12) {
-        this.emitAt(D_HUT, px, py, kind - 8, 0, q(7.4), screenW, screenH, worldPxW, worldPxH);
+        const mask = getWallBitmask(this.wallOccupancyMask, feats[i], feats[i + 1]);
+        this.emitAt(D_HUT, px, py, mask, 0, GROUND_KEY + 1, screenW, screenH, worldPxW, worldPxH);
       } else if (kind === 5) {
         this.emitAt(D_GRAVE, px, py, 0, 0, q(6.2), screenW, screenH, worldPxW, worldPxH);
       } else {
@@ -1487,19 +1752,32 @@ export class CanvasRenderer {
 
       if (slot === this.selectedSlot) {
         let sx = baseX;
-        while (sx > -cs) sx -= worldPxW;
-        while (sx < -cs) sx += worldPxW;
+        if (this.wrapX) {
+          while (sx > -cs) sx -= worldPxW;
+          while (sx < -cs) sx += worldPxW;
+        }
         let sy = baseY;
-        while (sy > -2 * cs) sy -= worldPxH;
-        while (sy < -2 * cs) sy += worldPxH;
+        if (this.wrapY) {
+          while (sy > -2 * cs) sy -= worldPxH;
+          while (sy < -2 * cs) sy += worldPxH;
+        }
         this.selX = sx;
         this.selY = sy;
         this.hasSel = true;
       }
 
+      let facing = this.personFacing[slot];
+      if (dx > 0.005) {
+        facing = 1;
+        this.personFacing[slot] = 1;
+      } else if (dx < -0.005) {
+        facing = 0;
+        this.personFacing[slot] = 0;
+      }
+
       const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
       const frame = isMoving ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2) : 0;
-      this.emitAt(D_PERSON, baseX, baseY, slot, frame, 0, screenW, screenH, worldPxW, worldPxH);
+      this.emitAt(D_PERSON, baseX, baseY, slot, frame | (facing << 2), 0, screenW, screenH, worldPxW, worldPxH);
     }
   }
 
@@ -1516,12 +1794,13 @@ export class CanvasRenderer {
       case D_CAVE: this.drawCave(x0, y0, a); break;
       case D_GLOW: this.drawGlow(x0, y0, a); break;
       case D_FIRE: this.drawFire(x0, y0, a); break;
-      case D_HUT: this.drawHut(x0, y0, a); break;
+      case D_HUT: drawCutawayWall(this.ctx, x0, y0, this.cellSize, a); break;
       case D_GRAVE: this.drawGrave(x0, y0); break;
       case D_CARCASS: this.drawCarcass(x0, y0, b & 255, b >> 8); break;
       case D_WOLF: this.drawWolf(x0, y0, (a & 1) === 1, a >> 1); break;
       case D_DEER: this.drawDeer(x0, y0, (a & 1) === 1, a >> 1); break;
       case D_PERSON: this.drawPerson(x0, y0, a, b); break;
+      case D_DETAIL: this.drawDetail(x0, y0, a, b); break;
     }
   }
 
@@ -1550,7 +1829,9 @@ export class CanvasRenderer {
     );
   }
 
-  private drawPerson(fx: number, fy: number, slot: number, frame: number): void {
+  private drawPerson(fx: number, fy: number, slot: number, packed: number): void {
+    const frame = packed & 3;
+    const facing = (packed >> 2) & 1;
     const look = this.lookBytes[slot];
     const sex = (look & LOOK_SEX_MASK) === 1 ? 0 : 1; // male, female
     const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
@@ -1574,11 +1855,63 @@ export class CanvasRenderer {
       this.ctx.ellipse(fx, fy - ap, Math.max(3, 3.5 * ap), Math.max(2, 1.8 * ap), 0, 0, Math.PI * 2);
       this.ctx.fill();
     }
-    this.ctx.drawImage(
-      this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
-      Math.round(fx - spr.anchorX * ap), Math.round(fy - spr.anchorY * ap),
-      Math.round(spr.w * ap), Math.round(spr.h * ap)
-    );
+
+    if (facing === 0) {
+      this.ctx.save();
+      this.ctx.translate(Math.round(fx), 0);
+      this.ctx.scale(-1, 1);
+      this.ctx.drawImage(
+        this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
+        -Math.round(spr.anchorX * ap), Math.round(fy - spr.anchorY * ap),
+        Math.round(spr.w * ap), Math.round(spr.h * ap)
+      );
+      this.ctx.restore();
+    } else {
+      this.ctx.drawImage(
+        this.atlas.canvas, spr.x, spr.y, spr.w, spr.h,
+        Math.round(fx - spr.anchorX * ap), Math.round(fy - spr.anchorY * ap),
+        Math.round(spr.w * ap), Math.round(spr.h * ap)
+      );
+    }
+
+    // Band Leader Star: gently bobbing golden star hovering above the head
+    const isLeader =
+      this.rootLeaderIds[slot] === ((((slot & 0xfffff) << 12) | (this.slotGenerations[slot] & 0xfff)) >>> 0) &&
+      (this.bandSizes.get(this.rootLeaderIds[slot]) ?? 0) > 1;
+
+    if (isLeader) {
+      const starSpr = this.atlas.getSprite('star_leader');
+      const bounce = Math.sin(this.lastRenderTimestamp * 0.006 + slot) * 2;
+      const starScale = Math.max(1, Math.round(ap * 0.85));
+      const starW = starSpr.w * starScale;
+      const starH = starSpr.h * starScale;
+      const starX = Math.round(fx - starSpr.anchorX * starScale);
+      const starY = Math.round(fy - spr.anchorY * ap - starH * 0.65 + bounce);
+      this.ctx.drawImage(
+        this.atlas.canvas, starSpr.x, starSpr.y, starSpr.w, starSpr.h,
+        starX, starY, starW, starH
+      );
+    }
+  }
+
+  /**
+   * Close-zoom micro-accents (cs >= 10) on open ground:
+   * subtle wildflower, blade of grass, pebble, or chisel notch.
+   */
+  private drawDetail(x0: number, y0: number, tier: number, hh: number): void {
+    const u = ((hh >>> 3) & 3) + 2;
+    const v = ((hh >>> 5) & 3) + 2;
+    if (tier === 2) {
+      // Grass tier: wildflower or blade tip
+      const c = (hh & 16) === 0 ? '#facc15' : PALETTE.grass.highlightHex;
+      this.R(x0, y0, u, v, 1, 1, c);
+    } else if (tier === 1) {
+      // Sand tier: pebble
+      this.R(x0, y0, u, v, 1, 1, PALETTE.sand.shadowHex);
+    } else if (tier >= 4) {
+      // Rock/mountain tier: stone notch
+      this.R(x0, y0, u, v, 1, 1, PALETTE.rock.highlightHex);
+    }
   }
 
   /** Fish: one little silver fish on about half the shore tiles, held still by cell. Flat on the water. */
@@ -1651,28 +1984,6 @@ export class CanvasRenderer {
     this.R(x0, y0, 1.6, 6.2, 4.8, 1.0, '#4a3020'); // front log
     this.R(x0, y0, 1.6, 6.2, 4.8, 0.4, '#7a5434'); // lit top edge
     this.R(x0, y0, 1.5, 6.3, 0.8, 0.8, '#c8a070'); // cut end
-  }
-
-  /**
-   * A dry-stone hut seen from the front: a rounded roof of slabs rising above the tile, a wall of
-   * coursed stones lit on the left and shaded on the right, and a dark doorway under a lintel. A
-   * sound hut (higher durability) has a taller capstone.
-   */
-  private drawHut(x0: number, y0: number, lv: number): void {
-    const R = (u: number, v: number, w: number, h: number, c: string): void => this.R(x0, y0, u, v, w, h, c);
-    R(1.4, 7.1, 6.8, 0.9, SHADOW); // cast shadow, south-east
-    if (lv >= 2) { R(3.0, -1.0, 2.0, 0.9, '#a49a90'); R(3.0, -1.0, 2.0, 0.3, '#c4bcb4'); } // capstone
-    R(2.2, 0.0, 3.6, 1.0, '#a49a90'); R(2.2, 0.0, 3.6, 0.3, '#c4bcb4'); // roof courses, narrowing upward
-    R(1.4, 1.0, 5.2, 1.0, '#9a9086'); R(1.4, 1.0, 5.2, 0.3, '#bcb2a8'); R(5.6, 1.0, 1.0, 1.0, '#7d756f');
-    R(0.8, 2.0, 6.4, 1.0, '#8f867d'); R(0.8, 2.0, 6.4, 0.3, '#b0a8a0'); R(6.2, 2.0, 1.0, 1.0, '#6d655f');
-    R(0.6, 3.0, 6.8, 4.4, '#8f867d'); // wall
-    R(0.6, 4.4, 6.8, 0.3, '#6d655f'); R(0.6, 5.8, 6.8, 0.3, '#6d655f'); // stone courses
-    R(2.0, 3.0, 0.3, 1.4, '#6d655f'); R(5.0, 3.0, 0.3, 1.4, '#6d655f'); R(1.2, 4.7, 0.3, 1.1, '#6d655f'); R(4.4, 4.7, 0.3, 1.1, '#6d655f'); R(6.0, 5.8, 0.3, 1.6, '#6d655f');
-    R(0.6, 3.0, 0.8, 4.4, '#b6aca2'); // lit left edge
-    R(6.4, 3.0, 1.0, 4.4, '#6d655f'); // shaded right edge
-    R(0.6, 7.1, 6.8, 0.4, '#5f5852'); // foot
-    R(2.6, 4.2, 2.8, 0.5, '#b6aca2'); // lintel
-    R(2.8, 4.7, 2.4, 2.7, '#16110d'); R(3.2, 5.3, 1.6, 2.1, '#000000'); // doorway
   }
 
   /** A fresh grave: a low earth mound with a stick cross and a few bones. */
@@ -2061,8 +2372,8 @@ export class CanvasRenderer {
       if (slot === this.selectedSlot) {
         selectedRenderX = Math.round(rx * cellSize + this.panX);
         selectedRenderY = Math.round(ry * cellSize + this.panY);
-        if (selectedRenderX < 0) selectedRenderX += worldW * cellSize;
-        if (selectedRenderY < 0) selectedRenderY += worldH * cellSize;
+        if (this.wrapX && selectedRenderX < 0) selectedRenderX += worldW * cellSize;
+        if (this.wrapY && selectedRenderY < 0) selectedRenderY += worldH * cellSize;
         hasSelected = true;
       }
 
@@ -2094,6 +2405,26 @@ export class CanvasRenderer {
     for (let ty = this.panY; ty < (this.wrapY ? screenHeight : this.panY + 1); ty += worldPxH) {
       for (let tx = this.panX; tx < (this.wrapX ? screenWidth : this.panX + 1); tx += worldPxW) {
         this.ctx.drawImage(this.peopleCanvas, 0, 0, 256, 256, tx, ty, worldPxW, worldPxH);
+      }
+    }
+
+    // Band Leader Star when zoomed out
+    const starSpr = this.atlas.getSprite('star_leader');
+    for (let i = 0; i < this.activeCount; i++) {
+      const slot = this.activeSlots[i];
+      const isLeader =
+        this.rootLeaderIds[slot] === ((((slot & 0xfffff) << 12) | (this.slotGenerations[slot] & 0xfff)) >>> 0) &&
+        (this.bandSizes.get(this.rootLeaderIds[slot]) ?? 0) > 1;
+      if (isLeader) {
+        const lx = Math.round(this.currX[slot] * cellSize + this.panX);
+        const ly = Math.round(this.currY[slot] * cellSize + this.panY);
+        const bounce = Math.sin(now * 0.006 + slot) * 2;
+        const scale = Math.max(1, Math.floor(cellSize / 4));
+        const dw = starSpr.w * scale;
+        const dh = starSpr.h * scale;
+        const dx = Math.round(lx - starSpr.anchorX * scale);
+        const dy = Math.round(ly - dh - 2 + bounce);
+        this.ctx.drawImage(this.atlas.canvas, starSpr.x, starSpr.y, starSpr.w, starSpr.h, dx, dy, dw, dh);
       }
     }
 

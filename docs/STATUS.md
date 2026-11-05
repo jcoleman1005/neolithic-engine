@@ -1,3 +1,41 @@
+## Planimetric Hybrid Aesthetic (branch `art-planimetric-scaffold`)
+- **Done**: Fully completed Planimetric Hybrid Aesthetic subsystem (Phases 1 through 5):
+  - **Modules**: Created `src/render/palette.ts` (4-tone material ramps, atmospheric haze formula), `src/render/autotile.ts` (47-tile 8-neighbor lookup table, 8x8 quadrant decomposition procedural atlas builder, toroidal bitmask math), `src/render/terrace.ts` (6-tier quantization, bluff drop-shadow masking), and `src/render/walls.ts` (16-tile wall connection bitmasking, cutaway blueprint rendering).
+  - **Tests**: Created `tests/render-autotile.test.ts`, `tests/auto-camera.test.ts`, and `tests/no-water-spawns.test.ts` (all tests passing: 256-bitmask canonical mapping, headless canvas safety, tier quantization, bluff drop shadows, monotonic slate-blue depth tint, wall connection bitmasking, zero water spawns across seeds).
+  - **Renderer Integration (Phases 1–5)**:
+    - Preallocated `terraceData`, `activeElevationSlice`, and `wallOccupancyMask` on `CanvasRenderer` with zero per-frame heap allocations.
+    - Wired `buildTerraces(elevation.elevation, this.terraceData)` in `updateTerrainCache()` to quantize elevation into 6 discrete topological tiers and compute hard bluff shadow/crest masks.
+    - Painted 4-tone autotiled ground transitions (`PALETTE.*` highlight/base/shadow/rim ramps) and hard 1-2px bluff drop shadows (`rgba(20, 24, 36, 0.45)`) directly into `this.terrainImgData` via direct 32-bit ABGR blitting (`this.terrainData32`).
+    - **Elevation Slicing (Phase 3)**: Added tier scrubber dropdown (`All`, `T5`–`T1`) to `PlaybackPill` in `src/ui/controls.ts`, wired through `src/main.ts` to `setActiveElevationSlice()`. In `updateTerrainCache()`, lower tiers receive cool slate-blue atmospheric haze via `applyAtmosphericHaze()`, focus tier remains at 100% saturation, and higher sliced tiers render as subtle blueprint contour wireframes.
+    - **Blueprint Walls (Phase 4)**: Wired `populateWallSpatialMask()` and `getWallBitmask()` in `collectFeatures()`. Replaced oblique huts with 1-cell-thick top-down `drawCutawayWall()` sorted on ground plane (`GROUND_KEY + 1`), providing 100% interior room inspectability without roof occlusion.
+    - **Grounding Shadows & Particles (Phase 5)**: Added subtle planimetric grounding oval shadows (`rgba(20, 24, 36, 0.30)`) under humanoid figures in `drawPerson()`, and animated 1–2px flickering embers drifting from campfires via `PALETTE.hearthFire` in `drawFire()`.
+  - **Dwarf Fortress Steam Pixel-Art Terrain (3 Switchable Options)**:
+    - Built [`src/render/terrain-tiles.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/render/terrain-tiles.ts) containing procedural 8x8 pixel-art terrain tiles aligned to the 8-pixel art grid (`ap = cs / 8`).
+    - **Solid, Restful Hill Stones & Despeckled Water**:
+      - Hill stone tops (Variant 0) redesigned as 100% solid, flat stone floors with zero internal stripes or speckled noise, forming clean restful crags in the middle of hills.
+      - Shallows and ocean (Variant 0) redesigned as 100% flat tranquil water (removed all 1px white foam noise dots and harsh caustic speckles).
+      - Base grass (Variant 0) remains 100% flat tranquil green for maximum figure readability.
+    - **Stepped Z-Level Cliff Strata**: top-down 3D cliff courses along elevation drops (lit top lip, horizontal stone strata, vertical crevices, deep drop shadow, talus rubble).
+    - **Shoreline Wave Foam**: translucent wave fringes along water borders touching land.
+    - **3 Selectable Themes** in [`src/ui/controls.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/ui/controls.ts) and [`src/render/palette.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/render/palette.ts):
+      1. `DF Steam Classic`: warm, earthy, naturalistic frontier.
+      2. `DF Mountainhome`: high-contrast granite, basalt cliffs, deep spruce turf, glacial turquoise waters.
+      3. `DF Wilds Taiga`: Nordic peat bogs, heather moss, dark shale cliffs, deep navy waters.
+  - **Single Bounded Viewport & Continuous Toroidal Simulation**:
+    - Disables viewer/camera tiled wrapping: renders a single world canvas centered with dark void borders when zoomed out, and clamped to map boundaries when zoomed in. Zero repeated tiled copies.
+    - Simulation remains fully toroidal: units, wolves, and herds wrap seamlessly across boundaries ($x=0 \leftrightarrow 255$ and $y=0 \leftrightarrow 255$).
+    - Auto-camera disabled by default on startup (`src/main.ts`, `src/ui/controls.ts`, `src/ui/auto-camera.ts`).
+  - **Water Spawn Elimination**:
+    - Fixed PRNG coordinate bounds in [`src/sim/herds.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/sim/herds.ts) and [`src/sim/wolves.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/sim/wolves.ts) from `nextInt(0, GRID_SIZE)` to `nextInt(0, GRID_SIZE - 1)` so animal coordinates never hit 256 or wrap onto edge cells $(0, y)$.
+    - Enforced strict water rejection for founder people, newborn births, herds, and wolves across both `land.isWater` and `land.elevation.water`. Verified with multi-seed test suite [`tests/no-water-spawns.test.ts`](file:///home/jcoleman/Projects/neolithic-engine/tests/no-water-spawns.test.ts).
+  - **Band Leader Hovering Stars**:
+    - Added procedural 7×7 golden star sprite (`star_leader`) in [`src/render/sprites.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/render/sprites.ts) with brilliant core and warm amber edges.
+    - Rendered gently bobbing golden stars hovering over the heads of band leaders (`rId === idOf(slot)` and `bandSizes > 1`) in both zoomed-in oblique and zoomed-out view modes in [`src/render/renderer.ts`](file:///home/jcoleman/Projects/neolithic-engine/src/render/renderer.ts).
+  - **Perf**: **5.11 µs / person / tick** at 11,536 people (well within desktop 15.0 µs budget).
+  - **Type Check & Build**: `npx tsc -b` 0 errors; `npm run build` passes in 1.80s.
+  - **Fingerprint**: `dd4029850bd6d26e` reflecting fixed boundary indices for animal spawns.
+- **Next**: Manual browser watch on desktop / Galaxy S21 to verify single bounded map view, tranquil solid hill stones, despeckled water, and leader stars. Merged to `main`.
+
 ## Settlements plan: S1 staying pays (branch `settlements-s1`)
 - **Built**: the stay check counts the heap underfoot and the real upkeep of the tile, and roaming, curious people need more to stay (`stayValueEnabled`); a comfortable person resists a leader's pull (`comfortableStayEnabled`); a hut or nest's discount is shared above 4 or 3 people (`tileCrowdingEnabled`); heaps add to food scent (`storeScentEnabled`) and carriers unload at heaps (`storeUnloadEnabled`); huts and nests lead cold people to them (`shelterSeekEnabled`); wolves keep off fire-warmed ground (`fireDetersWolvesEnabled`) and people within 2 tiles protect each other (`wolfLoneRadius` 0 to 2). No new saved state. Tests `tests/staying.test.ts`; new probe `npm run probe`.
 - **Result** (seeds 1 to 3, year 30): villages appear (3 / 4 / 2, none before), 16 to 21 hamlets or larger, about 1.9x the people. 4 of 5 targets met; "settlements lasting 10 years at least double" missed on seed 2 (1.4x). Stopped after 3 tuning rounds. Details in `docs/findings.md`.

@@ -56,8 +56,8 @@ export class Wolves {
     const e0 = (config.wolfMaxEnergy ?? 80) * 0.6;
     let attempts = 0;
     while (this.count < want && attempts++ < want * 100) {
-      let x = this.prng.nextInt(0, GRID_SIZE);
-      let y = this.prng.nextInt(0, GRID_SIZE);
+      let x = this.prng.nextInt(0, GRID_SIZE - 1);
+      let y = this.prng.nextInt(0, GRID_SIZE - 1);
       if (herds && herds.count > 0) {
         let s = this.prng.nextInt(0, herds.capacity);
         while (herds.alive[s] === 0) s = (s + 1) % herds.capacity;
@@ -65,8 +65,8 @@ export class Wolves {
         y = (herds.y[s] + this.prng.nextInt(-4, 5)) & COORD_MASK;
       }
       const c = (y << 8) | x;
-      if (land.isWater[c] === 1 || land.fertility[c] < 0.3 || this.cellSlot[c] !== -1) continue;
-      this.spawn(x, y, e0, this.prng.nextInt(0, 800), this.prng.nextInt(0, 4));
+      if (land.isWater[c] === 1 || (land.elevation && land.elevation.water[c] > 0) || land.fertility[c] < 0.3 || this.cellSlot[c] !== -1) continue;
+      this.spawn(x, y, e0, this.prng.nextInt(0, 800), this.prng.nextInt(0, 3));
     }
   }
 

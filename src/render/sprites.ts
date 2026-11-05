@@ -38,7 +38,8 @@ export type SpriteKey =
   | 'tree_pine'
   | 'tree_fruit'
   | 'selector_chevron'
-  | 'selector_ring';
+  | 'selector_ring'
+  | 'star_leader';
 
 export interface SpriteAtlas {
   readonly canvas: HTMLCanvasElement;
@@ -49,7 +50,7 @@ export interface SpriteAtlas {
 /**
  * Procedural pixel painter writing directly into an ImageData buffer.
  */
-class PixelBuffer {
+export class PixelBuffer {
   public readonly width: number;
   public readonly height: number;
   public readonly data: Uint32Array;
@@ -136,6 +137,9 @@ const FEET = hexToABGR('#3b2a1c');
 const GROUND_SHADOW = hexToABGR('#1a1208', 72);
 const BARK_LIGHT = hexToABGR('#9a5a22');
 const LEAF_HI_PINE = hexToABGR('#34d399');
+const OUTLINE = hexToABGR('#141824');
+const BELT = hexToABGR('#3a2414');
+const BUCKLE = hexToABGR('#d4af37');
 
 /** Paints a character map (one char per art pixel, '.' is transparent) through a palette. */
 function paintMap(
@@ -198,8 +202,10 @@ function drawPerson(
   // Children are smaller (shifted down 2 pixels, shorter torso) but their feet share the adult baseline
   const yOff = isChild ? 2 : 0;
 
-  // 1. Head: hair on top, face lit on the left, a shade pixel on the right cheek
+  // 1. Head: hair on top with crisp boundary, face lit on the left, eye on right
   buf.fillRect(ox + 2, oy + yOff + 0, 4, 1, hair);
+  buf.setPixel(ox + 1, oy + yOff + 0, OUTLINE);
+  buf.setPixel(ox + 6, oy + yOff + 0, OUTLINE);
   buf.setPixel(ox + 2, oy + yOff + 1, hair);
   buf.setPixel(ox + 5, oy + yOff + 1, hair);
   if (type === 'female' || isPregnant) {
@@ -211,22 +217,31 @@ function drawPerson(
   buf.fillRect(ox + 3, oy + yOff + 1, 2, 2, skin);
   buf.setPixel(ox + 4, oy + yOff + 1, HAIR_DARK); // eye
   if (!isElder && !isStarving) buf.setPixel(ox + 4, oy + yOff + 2, SKIN_SHADE);
-  if (isElder) buf.fillRect(ox + 3, oy + yOff + 3, 2, 1, HAIR_ELDER); // beard
+  buf.setPixel(ox + 2, oy + yOff + 2, OUTLINE);
+  buf.setPixel(ox + 5, oy + yOff + 2, OUTLINE);
+  if (isElder) buf.fillRect(ox + 3, oy + yOff + 2, 2, 2, HAIR_ELDER); // full beard
 
-  // 2. Torso: lit left, shaded right column, belt row at the bottom
+  // 2. Torso: lit left, shaded right column, distinct leather belt & buckle
   const torsoY = oy + yOff + 3;
   const torsoH = isChild ? 2 : 3;
-  buf.fillRect(ox + 2, torsoY, 4, torsoH, tunic);
-  buf.fillRect(ox + 5, torsoY, 1, torsoH, tunicDark);
-  buf.fillRect(ox + 2, torsoY + torsoH - 1, 4, 1, tunicDark);
+  buf.fillRect(ox + 2, torsoY, 4, torsoH - 1, tunic);
+  buf.setPixel(ox + 5, torsoY, tunicDark);
+  buf.setPixel(ox + 1, torsoY, OUTLINE);
+  buf.setPixel(ox + 6, torsoY, OUTLINE);
 
   // Arms: left in the light, right in shade
   buf.setPixel(ox + 1, torsoY + 1, skin);
   buf.setPixel(ox + 6, torsoY + 1, SKIN_SHADE);
 
+  // Leather belt & buckle
+  buf.fillRect(ox + 2, torsoY + torsoH - 1, 4, 1, BELT);
+  buf.setPixel(ox + 3, torsoY + torsoH - 1, BUCKLE);
+  buf.setPixel(ox + 1, torsoY + torsoH - 1, OUTLINE);
+  buf.setPixel(ox + 6, torsoY + torsoH - 1, OUTLINE);
+
   if (isPregnant) {
-    buf.fillRect(ox + 4, torsoY + 1, 2, 2, BELLY_HIGHLIGHT);
-    buf.setPixel(ox + 5, torsoY + 2, tunicDark);
+    buf.fillRect(ox + 4, torsoY + 1, 2, 1, BELLY_HIGHLIGHT);
+    buf.setPixel(ox + 5, torsoY + 1, tunicDark);
   }
 
   // 3. Legs and feet (feet on row 7 for every figure)
@@ -239,16 +254,20 @@ function drawPerson(
     buf.setPixel(ox + 5, legY, LEGS_DARK);
     buf.setPixel(ox + 2, legY + 1, FEET);
     buf.setPixel(ox + 5, legY + 1, FEET);
+    buf.setPixel(ox + 1, legY + 1, OUTLINE);
+    buf.setPixel(ox + 6, legY + 1, OUTLINE);
   } else if (walkFrame === 1) {
     buf.setPixel(ox + 2, legY, LEGS_DARK);
     buf.setPixel(ox + 2, legY + 1, FEET);
     buf.setPixel(ox + 1, legY + 1, FEET);
     buf.setPixel(ox + 5, legY, FEET);
+    buf.setPixel(ox + 0, legY + 1, OUTLINE);
   } else {
     buf.setPixel(ox + 2, legY, FEET);
     buf.setPixel(ox + 5, legY, LEGS_DARK);
     buf.setPixel(ox + 5, legY + 1, FEET);
     buf.setPixel(ox + 6, legY + 1, FEET);
+    buf.setPixel(ox + 7, legY + 1, OUTLINE);
   }
 }
 
@@ -342,6 +361,42 @@ function drawSelector(buf: PixelBuffer, ox: number, oy: number): void {
 }
 
 /**
+ * 7x7 Golden Star for band leaders.
+ */
+function drawLeaderStar(buf: PixelBuffer, ox: number, oy: number): void {
+  const core = hexToABGR('#fffbeb'); // brilliant yellow-white center highlight
+  const gold = hexToABGR('#facc15'); // vibrant gold body
+  const edge = hexToABGR('#b45309'); // warm amber edge/shadow
+
+  // Row 0: Top point
+  buf.setPixel(ox + 3, oy + 0, edge);
+  // Row 1: Top taper
+  buf.setPixel(ox + 3, oy + 1, gold);
+  // Row 2: Horizontal arms
+  buf.setPixel(ox + 0, oy + 2, edge);
+  buf.fillRect(ox + 1, oy + 2, 5, 1, gold);
+  buf.setPixel(ox + 6, oy + 2, edge);
+  // Row 3: Star waist and shining center
+  buf.setPixel(ox + 1, oy + 3, edge);
+  buf.setPixel(ox + 2, oy + 3, gold);
+  buf.setPixel(ox + 3, oy + 3, core);
+  buf.setPixel(ox + 4, oy + 3, gold);
+  buf.setPixel(ox + 5, oy + 3, edge);
+  // Row 4: Star belly
+  buf.fillRect(ox + 2, oy + 4, 3, 1, gold);
+  // Row 5: Lower legs
+  buf.setPixel(ox + 1, oy + 5, gold);
+  buf.setPixel(ox + 2, oy + 5, edge);
+  buf.setPixel(ox + 4, oy + 5, edge);
+  buf.setPixel(ox + 5, oy + 5, gold);
+  // Row 6: Feet tips
+  buf.setPixel(ox + 0, oy + 6, edge);
+  buf.setPixel(ox + 1, oy + 6, edge);
+  buf.setPixel(ox + 5, oy + 6, edge);
+  buf.setPixel(ox + 6, oy + 6, edge);
+}
+
+/**
  * Factory to generate the WorldBox procedural SpriteAtlas.
  */
 export function createWorldBoxSpriteAtlas(): SpriteAtlas {
@@ -427,6 +482,18 @@ export function createWorldBoxSpriteAtlas(): SpriteAtlas {
   // Selector Chevron
   drawSelector(pBuf, curX + 4, curY + 4);
   sprites['selector_chevron'] = {
+    x: curX,
+    y: curY,
+    w: 16,
+    h: 16,
+    anchorX: 8,
+    anchorY: 8,
+  };
+  curX += 16;
+
+  // Leader Star
+  drawLeaderStar(pBuf, curX + 4, curY + 4);
+  sprites['star_leader'] = {
     x: curX,
     y: curY,
     w: 16,

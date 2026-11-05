@@ -5,6 +5,8 @@ export interface PlaybackCallbacks {
   onStep: () => void;
   onSpeedChange: (speedMultiplier: number) => void;
   onColorModeChange?: (mode: 'status' | 'bands') => void;
+  onElevationSliceChange?: (slice: number) => void;
+  onTerrainThemeChange?: (theme: 'classic' | 'mountainhome' | 'wilds') => void;
   onAutoCameraChange?: (on: boolean) => void;
 }
 
@@ -21,6 +23,8 @@ export class PlaybackPill {
   private readonly stepBtn: HTMLButtonElement;
   private readonly speedSelect: HTMLSelectElement;
   private readonly colorSelect: HTMLSelectElement | null;
+  private readonly sliceSelect: HTMLSelectElement | null;
+  private readonly terrainSelect: HTMLSelectElement | null;
   private readonly tpsBadge: HTMLElement;
   private readonly menu: HTMLElement;
   private readonly menuBtn: HTMLButtonElement;
@@ -39,11 +43,28 @@ export class PlaybackPill {
       <button id="btn-pill-menu" class="pill-btn pill-menu-btn" aria-label="More controls" aria-expanded="false">⋯</button>
       <div id="pill-menu" class="pill-menu" hidden>
         <button id="btn-step" class="pill-menu-item" aria-label="Step one tick">Step one tick</button>
-        <button id="btn-auto-camera" class="pill-menu-item" aria-pressed="true" title="Auto-camera follows the story">Auto camera</button>
+        <button id="btn-auto-camera" class="pill-menu-item" aria-pressed="false" title="Auto-camera follows the story">Auto camera</button>
         <label class="pill-menu-item">Colour
           <select id="select-color-mode" class="pill-select" aria-label="Color Mode" title="Color Mode">
             <option value="status" selected>Status</option>
             <option value="bands">Bands</option>
+          </select>
+        </label>
+        <label class="pill-menu-item">Slice
+          <select id="select-elevation-slice" class="pill-select" aria-label="Elevation Slice" title="Elevation Slice">
+            <option value="0" selected>All Tiers</option>
+            <option value="5">Tier 5 (Snow)</option>
+            <option value="4">Tier 4 (Crags)</option>
+            <option value="3">Tier 3 (Plateau)</option>
+            <option value="2">Tier 2 (Lowlands)</option>
+            <option value="1">Tier 1 (Shores)</option>
+          </select>
+        </label>
+        <label class="pill-menu-item">Terrain
+          <select id="select-terrain-style" class="pill-select" aria-label="Terrain Style" title="Terrain Style">
+            <option value="classic" selected>DF Steam Classic</option>
+            <option value="mountainhome">DF Mountainhome</option>
+            <option value="wilds">DF Wilds Taiga</option>
           </select>
         </label>
       </div>
@@ -53,6 +74,8 @@ export class PlaybackPill {
     this.stepBtn = container.querySelector('#btn-step')!;
     this.speedSelect = container.querySelector('#select-speed')!;
     this.colorSelect = container.querySelector('#select-color-mode');
+    this.sliceSelect = container.querySelector('#select-elevation-slice');
+    this.terrainSelect = container.querySelector('#select-terrain-style');
     this.tpsBadge = container.querySelector('#pill-tps')!;
     this.menu = container.querySelector('#pill-menu')!;
     this.menuBtn = container.querySelector('#btn-pill-menu')!;
@@ -84,6 +107,16 @@ export class PlaybackPill {
     this.colorSelect?.addEventListener('change', () => {
       if (this.colorSelect) {
         callbacks.onColorModeChange?.(this.colorSelect.value as 'status' | 'bands');
+      }
+    });
+    this.sliceSelect?.addEventListener('change', () => {
+      if (this.sliceSelect) {
+        callbacks.onElevationSliceChange?.(parseInt(this.sliceSelect.value, 10));
+      }
+    });
+    this.terrainSelect?.addEventListener('change', () => {
+      if (this.terrainSelect) {
+        callbacks.onTerrainThemeChange?.(this.terrainSelect.value as 'classic' | 'mountainhome' | 'wilds');
       }
     });
   }

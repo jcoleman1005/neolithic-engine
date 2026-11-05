@@ -173,7 +173,33 @@ export class TerrainField {
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 /** One field of smooth value noise in 0..1: random values on a coarse lattice, blended with a smoothstep. */
-export function valueNoise(width: number, height: number, scale: number, prng: PRNG): Float64Array {
+export function valueNoise(width: number, height: number, scale: number, prng: PRNG, wrap = false): Float64Array {
+  if (wrap) {
+    const cols = Math.max(1, Math.round(width / scale));
+    const rows = Math.max(1, Math.round(height / scale));
+    const lattice = new Float64Array(cols * rows);
+    for (let i = 0; i < lattice.length; i++) lattice[i] = prng.next();
+    const out = new Float64Array(width * height);
+    for (let y = 0; y < height; y++) {
+      const fy = (y / height) * rows;
+      const y0 = Math.floor(fy);
+      const y1 = (y0 + 1) % rows;
+      const ty = smooth(fy - y0);
+      for (let x = 0; x < width; x++) {
+        const fx = (x / width) * cols;
+        const x0 = Math.floor(fx);
+        const x1 = (x0 + 1) % cols;
+        const tx = smooth(fx - x0);
+        const a = lattice[y0 * cols + x0];
+        const b = lattice[y0 * cols + x1];
+        const c = lattice[y1 * cols + x0];
+        const d = lattice[y1 * cols + x1];
+        out[y * width + x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+      }
+    }
+    return out;
+  }
+
   const cols = Math.ceil(width / scale) + 2;
   const rows = Math.ceil(height / scale) + 2;
   const lattice = new Float64Array(cols * rows);
@@ -219,8 +245,9 @@ export function generateTerrain(config: Readonly<SimulationConfig>): TerrainFiel
   const { gridWidth: width, gridHeight: height } = config;
   const prng = new PRNG(`terrain:${String(config.seed)}`);
   const scale = Math.max(2, config.terrainScale);
-  const roughness = toFixed(valueNoise(width, height, scale, prng), config.terrainThreshold);
-  const cover = toFixed(valueNoise(width, height, scale, prng), config.terrainThreshold);
+  const wrap = config.wrapping;
+  const roughness = toFixed(valueNoise(width, height, scale, prng, wrap), config.terrainThreshold);
+  const cover = toFixed(valueNoise(width, height, scale, prng, wrap), config.terrainThreshold);
   return TerrainField.fresh(width, height, roughness, cover);
 }
 

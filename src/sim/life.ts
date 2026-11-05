@@ -716,8 +716,10 @@ export class LifeSystem {
             const offY = prng.nextInt(-1, 1);
             const bx = (px[slot] + offX) & 0xff;
             const by = (py[slot] + offY) & 0xff;
-            const childX = land.isWaterAt(bx, by) ? px[slot] : bx;
-            const childY = land.isWaterAt(bx, by) ? py[slot] : by;
+            const isWaterSpot = (cx: number, cy: number) =>
+              land.isWaterAt(cx, cy) || (land.elevation ? land.elevation.water[(cy << 8) | cx] > 0 : false);
+            const childX = isWaterSpot(bx, by) ? px[slot] : bx;
+            const childY = isWaterSpot(bx, by) ? py[slot] : by;
 
             const childSex = prng.next() < 0.5 ? 0 : 1;
             const childGen = gen[slot] + 1;
@@ -824,7 +826,7 @@ export class LifeSystem {
     while (seeded < pop && attempts++ < maxAttempts) {
       const x = prng.nextInt(0, 255);
       const y = prng.nextInt(0, 255);
-      if (!land.isWaterAt(x, y)) {
+      if (!land.isWaterAt(x, y) && (!land.elevation || land.elevation.water[(y << 8) | x] === 0)) {
         const sex = prng.next() < 0.5 ? 0 : 1;
         // Start as young adults so mating begins reasonably soon
         const founderAge = adultAge + prng.nextInt(0, 1000);

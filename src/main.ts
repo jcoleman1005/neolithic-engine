@@ -184,6 +184,7 @@ const sim: SimulationClient = new SimulationClient({
 const renderer = new CanvasRenderer(canvas, sim);
 
 const camera = new AutoCamera();
+camera.enabled = false;
 renderer.onUserInput = () => camera.notifyUserInput(performance.now());
 
 // scripts/capture.ts aims the camera through this; only present with ?capture in the URL.
@@ -259,6 +260,12 @@ const pill = new PlaybackPill($('#playback'), {
   },
   onColorModeChange: (mode) => {
     renderer.colorMode = mode;
+  },
+  onElevationSliceChange: (slice) => {
+    renderer.setActiveElevationSlice(slice);
+  },
+  onTerrainThemeChange: (theme) => {
+    renderer.setTerrainTheme(theme);
   },
   onAutoCameraChange: (on) => {
     camera.enabled = on;

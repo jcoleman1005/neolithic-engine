@@ -56,10 +56,10 @@ export class Herds {
     const e0 = (config.herdMaxEnergy ?? 50) * 0.6;
     let attempts = 0;
     while (this.count < want && attempts++ < want * 100) {
-      const x = this.prng.nextInt(0, GRID_SIZE);
-      const y = this.prng.nextInt(0, GRID_SIZE);
+      const x = this.prng.nextInt(0, GRID_SIZE - 1);
+      const y = this.prng.nextInt(0, GRID_SIZE - 1);
       const c = (y << 8) | x;
-      if (land.isWater[c] === 1 || land.fertility[c] < 0.3 || this.cellSlot[c] !== -1) continue;
+      if (land.isWater[c] === 1 || (land.elevation && land.elevation.water[c] > 0) || land.fertility[c] < 0.3 || this.cellSlot[c] !== -1) continue;
       this.spawn(x, y, e0, this.prng.nextInt(0, 600));
     }
   }
