@@ -325,9 +325,17 @@ initBitmaskLookup();
 export function generateAutotileAtlas(ramp: MaterialRamp, substrateRamp: MaterialRamp): HTMLCanvasElement {
   const TILE_SIZE = 16;
   const HALF = 8;
+  const totalW = TILE_SIZE * 47;
+  const totalH = TILE_SIZE;
+
+  // Headless mock fallback for Node / Vitest testing environment
+  if (typeof document === 'undefined') {
+    return { width: totalW, height: totalH } as any;
+  }
+
   const canvas = document.createElement('canvas');
-  canvas.width = TILE_SIZE * 47;
-  canvas.height = TILE_SIZE;
+  canvas.width = totalW;
+  canvas.height = totalH;
   const ctx = canvas.getContext('2d')!;
 
   const canonical47 = [
