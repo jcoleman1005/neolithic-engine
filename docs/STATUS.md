@@ -1,4 +1,4 @@
-## Phase 7 Foundations: Combat Courage & Battlefield Looting (branch `feat-resource-clashes`)
+## Phase 7 Foundations: Combat Courage & Battlefield Looting (merged to `main`)
 - **Done**:
   - Built **Primitive 78 (Carried Loot Transfer)**:
     - Victor in an unallied clash claims the loser's carried item (`people.carryKind`, `people.carry`).
@@ -15,9 +15,9 @@
   - **Invariants & Ledger**: Energy ledger verified with zero violations over 300+ ticks (`ledger.violations === 0`). Strict off-switch fingerprint parity verified (`3846cf0469ad880d`).
   - **Tests**: `tests/clash.test.ts` (all 6 tests passing: victor loot claim, full-hands ground drop, outmatched coward retreat, brave last stand, off-switch parity, multi-generation energy balance).
   - **Perf**: **10.24 µs / person / tick** at ~8,600–10,000 people (well within desktop 15.0 µs budget).
-- **Next**: Merge `feat-resource-clashes` into `main`, then proceed to Phase 5e golden crops or S3 review.
+- **Next**: Proceed to Phase 5e golden crops or S3 review.
 
-## Resource-Motivated Clashes & Battlefield Fatalities (branch `feat-resource-clashes`)
+## Resource-Motivated Clashes & Battlefield Fatalities (merged to `main`)
 - **Done**:
   - Audited combat resolution and resolved the zero-casualty phenomenon:
     - Replaced abstract personality friction with material stakes (hunger vs food/supplies, carried food, food heaps, and crowded cold shelter) via `resourceClashEnabled`, `clashHungerThreshold` (35.0), and `clashContestedResourceBonus` (1.5). Peaceful or moderately belligerent strangers without stakes no longer fight.
@@ -28,7 +28,7 @@
   - **Invariants & Ledger**: Energy ledger verified with 0 violations (`ledger.violations === 0`) across 1,000+ ticks; exact off-switch parity with `resourceClashEnabled: false`.
   - **Perf**: **6.44 µs / person / tick** at ~7,700–10,000 people (budget 15.0 µs).
   - **Type Check & Build**: `tsc -b && vite build` passed cleanly in 3.39s.
-- **Next**: Merge branch to `main`.
+- **Next**: Merged to `main`.
 
 ## Settlements plan: S2 paths (branch `settlements-s2`)
 - **Built**: each step wears the tile (`Land.wear`, saved; hashed only while `pathsEnabled` is on); worn ground costs up to half as much to step onto, and people lean toward the more worn neighbour. Wear fades one point every 2 ticks. Paths reach the viewer as a new per-tile channel with the land overlay and draw as trodden earth; `npm run map` shows them and reports worn land. Tests `tests/paths.test.ts`.
