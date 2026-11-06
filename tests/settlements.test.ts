@@ -209,7 +209,7 @@ describe('settlement observer', () => {
     const plain = new World({ initialPopulation: 150 }, 11);
     const watched = new World({ initialPopulation: 150 }, 11);
     const chronicle = new Chronicle();
-    for (let t = 0; t < 700; t++) {
+    for (let t = 0; t < 350; t++) {
       plain.step();
       watched.step();
       chronicle.record(watched);

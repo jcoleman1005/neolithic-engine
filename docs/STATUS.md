@@ -13,10 +13,17 @@
   - Added `npm run test:fast` alias for fast dot-reporter test feedback; updated Rules 1 & 3 in `AGENTS.md` to prevent unnecessary token dumps on targeted tasks.
   - Verification: `ok check`, `ok test`, `ok build`. Perf: **8.35 µs / person / tick** at 8,739 people (desktop budget: 15.0 µs).
 
-## Verify Speed-up (`chore/faster-verify`)
-- **Done**: Test files now run in parallel (`vitest.config.ts`: forks pool, cores − 1 workers, `VITEST_MAX_WORKERS` override, timeout 300 s; dropped per-test `120000` overrides that pinned the old value). `verify.sh` build step calls `vite build` directly, so `tsc -b` no longer runs twice. Added event-loop yields to the sync `run()` helpers in `bands.test.ts` and `chronicle-observer.test.ts` (>60 s synchronous stretches tripped vitest worker-RPC timeouts).
-- **Measured** (4 cores, idle): test step 23m22s → 9m13s; ~11 s saved on build. Full verify passed in 15m28s even under heavy external load (load avg ~11). No sim code changed.
-- **Finding**: tests are bound by full-grid per-tick work (256×256 `land.step`/`life.step`/`world.step` ≈ 18 ms/tick at ~300 people), not people. Main remaining lever: smaller grids or shared runs in the heaviest observer/round-trip tests.
+## Verify Speed-up (`perf/test-suite-optimizations` merged to `main`)
+- **Done**:
+  - Test files now run in parallel (`vitest.config.ts`: forks pool, cores − 1 workers, `VITEST_MAX_WORKERS` override, timeout 300 s; dropped per-test `120000` overrides that pinned the old value).
+  - Build step in `verify.sh` calls `vite build` directly, eliminating duplicate `tsc -b`.
+  - Added event-loop yields to long sync test loops (`bands.test.ts`, `chronicle-observer.test.ts`).
+  - Pruned gratuitous over-simulation across 17 test suites (e.g. `away-view.test.ts` 2,400 ticks -> early break at tick 419; `farming.test.ts` 6,000-step soil recovery loop -> 100 steps; `chronicle-observer-part2.test.ts` 2,400 ticks × 2 -> 600 ticks; `bands.test.ts` 2,500 ticks -> 600 ticks; save/restore lockstep loops calibrated to 40-50 ticks).
+- **Measured**:
+  - Full `npm run verify` suite runtime dropped from **~24 minutes** (serial baseline) to **7m 32s** (~68% reduction).
+  - Test CPU user-time dropped by ~6 CPU minutes.
+  - All 42 test suites / 275 tests passing cleanly.
+  - Perf benchmark: **8.29 µs / person / tick** at 8,536 people (desktop budget: 15.0 µs).
 
 ## Active Phase: Phase 5e (Golden Crops & Active Farming Tending — merged to `main`)
 - **Status**: Completed & verified; merged to `main`.

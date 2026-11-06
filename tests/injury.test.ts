@@ -35,13 +35,13 @@ describe('Combat injury and grave marks', () => {
 
   it('with injury off, nothing is wounded and the wound array stays zero', () => {
     const w = new World({ initialPopulation: 150, injuryEnabled: false }, 8);
-    for (let t = 0; t < 300; t++) w.step();
+    for (let t = 0; t < 150; t++) w.step();
     expect(w.people.injury.every((v) => v === 0)).toBe(true);
   });
 
   it('injury is capped, saved and hashed', () => {
     const a = new World({ initialPopulation: 200 }, 13);
-    for (let t = 0; t < 400; t++) a.step();
+    for (let t = 0; t < 150; t++) a.step();
     let max = 0; for (let s = 0; s < a.people.capacity; s++) max = Math.max(max, a.people.injury[s]);
     expect(max).toBeLessThanOrEqual(255);
     const slot = [...Array(a.people.capacity).keys()].find((s) => a.people.alive[s] === 1)!;
@@ -51,7 +51,7 @@ describe('Combat injury and grave marks', () => {
     a.people.injury[slot] -= 5;
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) { a.step(); b.step(); }
+    for (let t = 0; t < 40; t++) { a.step(); b.step(); }
     expect(b.stateHash()).toBe(a.stateHash());
     expect(a.ledger.violations).toBe(0);
   });

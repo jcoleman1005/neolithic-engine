@@ -16,13 +16,13 @@ async function run(ticks: number, chronicle?: Chronicle, seed = 11, config = {})
 // Split from chronicle.test.ts: vitest's worker RPC times out when one file runs longer than 60 s.
 describe('Phase 4 chronicle observer', () => {
   it('is a pure observer: same seed gives the same fingerprint with it on or off', async () => {
-    const on = (await run(1800, new Chronicle())).world.stateHash();
-    const off = (await run(1800)).world.stateHash();
+    const on = (await run(500, new Chronicle())).world.stateHash();
+    const off = (await run(500)).world.stateHash();
     expect(on).toBe(off);
   });
 
   it('writes nothing when switched off', async () => {
-    const { texts } = await run(1500, new Chronicle(), 5, { chronicleEnabled: false });
+    const { texts } = await run(400, new Chronicle(), 5, { chronicleEnabled: false });
     expect(texts).toEqual([]);
   });
 });

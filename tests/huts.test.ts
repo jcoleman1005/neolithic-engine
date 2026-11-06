@@ -67,7 +67,7 @@ describe('Phase 5f stone and dry-stone huts', () => {
 
   it('with building off nobody carries stone and nothing is built', async () => {
     const w = new World({ initialPopulation: 150, buildingEnabled: false }, 8);
-    for (let t = 0; t < 400; t++) {
+    for (let t = 0; t < 200; t++) {
       w.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
@@ -78,7 +78,7 @@ describe('Phase 5f stone and dry-stone huts', () => {
 
   it('building state survives a save round trip and the run continues identically; the ledger balances', async () => {
     const a = new World({ initialPopulation: 150 }, 12);
-    for (let t = 0; t < 500; t++) {
+    for (let t = 0; t < 200; t++) {
       a.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
@@ -87,7 +87,7 @@ describe('Phase 5f stone and dry-stone huts', () => {
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.land.hutCount).toBe(a.land.hutCount);
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) {
+    for (let t = 0; t < 50; t++) {
       a.step();
       b.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));

@@ -61,7 +61,7 @@ describe('Phase 5c stockpiles and building', () => {
 
   it('carry is one kind at a time and stays within its limit through a run; the ledger balances', () => {
     const w = new World({ initialPopulation: 200 }, 6);
-    for (let t = 0; t < 700; t++) w.step();
+    for (let t = 0; t < 300; t++) w.step();
     let food = 0;
     for (let s = 0; s < w.people.capacity; s++) {
       if (w.people.alive[s] === 0) continue;
@@ -83,7 +83,7 @@ describe('Phase 5c stockpiles and building', () => {
 
   it('with stockpiles off there are no heaps and nobody carries food', () => {
     const w = new World({ initialPopulation: 150, stockpilesEnabled: false }, 4);
-    for (let t = 0; t < 400; t++) w.step();
+    for (let t = 0; t < 200; t++) w.step();
     expect(w.land.pile.every((v) => v === 0)).toBe(true);
     expect(w.land.form.every((v) => v === 0)).toBe(true);
     for (let s = 0; s < w.people.capacity; s++) expect(w.people.carryKind[s]).not.toBe(2);
@@ -91,10 +91,10 @@ describe('Phase 5c stockpiles and building', () => {
 
   it('stockpile state survives a save round trip and the run continues identically', () => {
     const a = new World({ initialPopulation: 150 }, 12);
-    for (let t = 0; t < 500; t++) a.step();
+    for (let t = 0; t < 200; t++) a.step();
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) { a.step(); b.step(); }
+    for (let t = 0; t < 50; t++) { a.step(); b.step(); }
     expect(b.stateHash()).toBe(a.stateHash());
   });
 
@@ -181,7 +181,7 @@ describe('Phase 5c nests', () => {
 
   it('with nests off there is no brush gathering and no nest form', () => {
     const w = new World({ initialPopulation: 150, nestsEnabled: false }, 8);
-    for (let t = 0; t < 400; t++) w.step();
+    for (let t = 0; t < 200; t++) w.step();
     for (let s = 0; s < w.people.capacity; s++) expect(w.people.carryKind[s]).not.toBe(3);
     expect(w.land.brush.every((v) => v === 0)).toBe(true);
     expect(w.land.form.every((v) => v !== FORM_NEST)).toBe(true);

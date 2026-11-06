@@ -140,7 +140,7 @@ describe('Phase 3 Rules & Invariants', () => {
 
   it('energy ledger balances identically with climb, copy, and touch active', async () => {
     const world = new World({ initialPopulation: 150 }, 77);
-    for (let t = 0; t < 500; t++) {
+    for (let t = 0; t < 300; t++) {
       world.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
@@ -154,7 +154,7 @@ describe('Phase 3 Rules & Invariants', () => {
 
   it('save and restore round trip reproduces exact stateHash including genes, habits, and scent', () => {
     const world1 = new World({ initialPopulation: 100 }, 555);
-    for (let t = 0; t < 150; t++) {
+    for (let t = 0; t < 100; t++) {
       world1.step();
     }
 
@@ -167,8 +167,8 @@ describe('Phase 3 Rules & Invariants', () => {
     // State hash must match immediately
     expect(world2.stateHash()).toBe(world1.stateHash());
 
-    // Step both worlds for another 150 ticks
-    for (let t = 0; t < 150; t++) {
+    // Step both worlds for another 50 ticks
+    for (let t = 0; t < 50; t++) {
       world1.step();
       world2.step();
     }

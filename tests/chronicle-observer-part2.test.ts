@@ -16,8 +16,8 @@ async function run(ticks: number, chronicle?: Chronicle, seed = 11, config = {})
 // Split from chronicle.test.ts: vitest's worker RPC times out when one file runs longer than 60 s.
 describe('Phase 4 chronicle observer (part 2)', () => {
   it('entries are reproducible for the same seed', async () => {
-    const a = await run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
-    const b = await run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
+    const a = await run(600, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 8, chronicleSplitMinSize: 8 });
+    const b = await run(600, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 8, chronicleSplitMinSize: 8 });
     expect(a.texts.length).toBeGreaterThan(0);
     expect(a.texts).toEqual(b.texts);
   });

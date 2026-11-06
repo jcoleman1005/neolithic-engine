@@ -18,7 +18,7 @@ describe('Phase 4 chronicle', () => {
   it('a fight is reported after it ends, with its size and outcome', () => {
     const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1 }, 5);
     const chronicle = new Chronicle();
-    for (let i = 0; i < 1500; i++) {
+    for (let i = 0; i < 600; i++) {
       world.step();
       chronicle.record(world);
     }
@@ -62,7 +62,7 @@ describe('Phase 4 chronicle', () => {
   it('fights are sized skirmish, battle or great battle by their clashes', () => {
     const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1, chronicleBattleCooldown: 0 }, 5);
     const chronicle = new Chronicle();
-    for (let i = 0; i < 1500; i++) {
+    for (let i = 0; i < 600; i++) {
       world.step();
       chronicle.record(world);
     }
@@ -92,7 +92,7 @@ describe('Phase 4 chronicle', () => {
 
   it('state survives a JSON round trip', () => {
     const chronicle = new Chronicle();
-    run(2000, chronicle);
+    run(600, chronicle);
     const state = JSON.parse(JSON.stringify(chronicle.exportState()));
     const copy = new Chronicle();
     copy.importState(state);

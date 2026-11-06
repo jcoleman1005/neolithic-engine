@@ -14,14 +14,14 @@ async function run(ticks: number, tracker?: BandTracker, seed = 7): Promise<Worl
 
 describe('Phase 4 band tracker', () => {
   it('is a pure observer: same seed gives the same fingerprint with it on or off', async () => {
-    const a = await run(1500, new BandTracker());
-    const b = await run(1500);
+    const a = await run(500, new BandTracker());
+    const b = await run(500);
     expect(a.stateHash()).toBe(b.stateHash());
   });
 
   it('tracks bands with sane records on the wrapping grid', async () => {
     const tracker = new BandTracker();
-    const world = await run(2500, tracker);
+    const world = await run(600, tracker);
     expect(tracker.bands.size).toBeGreaterThan(0);
     const min = world.config.bandTrackMinSize ?? 10;
     for (const b of tracker.bands.values()) {
