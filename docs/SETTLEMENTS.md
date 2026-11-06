@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0 to S2 merged. S3-pre and the S3a layout test built on `settlements-s3`; walls form along shores because people can only drink there, so S3w (carried water) is planned next, then S3a is re-run. See `docs/STATUS.md`.
+**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x (healing and fear), then the S3a re-run. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
@@ -185,6 +185,45 @@ This answers the roadmap's closed-rooms question: no room detector and no wall t
 
 *Tests:* fetching only next to natural water and only on the chance; spill per step; drinking from a carry and from a store; pouring only far enough from natural water; evaporation faster when warm and slower when covered; findable hysteresis; `drinkDist` including stores and matching after a load; the thirst stop rule on a store tile; the carry byte round trip; off parity.
 
+**S3x Turmoil: healing and fear (planned 2026-11-06; build before S3b).** Why: the death probe (`scripts/death-probe.ts`, `docs/findings.md`) found no code bug, but wounds never heal at today's balance. From year 20, 95 to 97% of people are wounded, averaging 220 of 255. Wounds heal only above half energy, while clashes come about every 2 months per child. Wounds add upkeep and stop steps, so the wounded get hungrier, stop healing, and fewer women are fed enough to mate (43% falling to 13%). Nothing lets repeated defeat drive people away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step.
+
+Three switches, all on by default, built and compared in this order:
+1. **`slowHealEnabled`.** Wounds heal at any energy, at `healBase` per tick. That rate is scaled up by fed state (energy / maxEnergy) and by shelter (`healShelterMul` on a sheltered tile, using `Land.sheltered`; it will follow exposure once S3b is on). Healing costs no energy, so the ledger is unchanged. Off keeps today's rule (0.3 per tick, only above half energy).
+2. **`fearEnabled`.** New per-person state: `fear` (Uint8), `fearX`, `fearY` (Uint8, the centre of the place where the person was beaten).
+   - **Only losers gain it:** the loser of a clash, and someone bitten by a wolf, gain `fearPerLoss`. Winners, bystanders, band-mates and kin gain nothing.
+   - **It stacks:** a loss within `fearRadius` of the centre adds to `fear` and nudges the centre toward the new spot. A loss farther away starts a new centre and keeps half the old fear.
+   - **It lasts:** fear decays at `fearDecayInside` per tick (very slow) while inside the region and `fearDecayOutside` (faster) once out. At 0 the centre is cleared.
+   - **What it does, inside the region only:**
+     - It raises the food the person needs before staying is worth it (in `worthStaying`, and in the old calm path when `stayValueEnabled` is off).
+     - It adds a push straight away from the centre, at full strength until the person is out. No momentum rule is added.
+3. **`fearWoundsEnabled`.** Injury raises how strongly fear pushes (`fearWoundMul` at full injury), so the badly hurt leave first. With this on, hunger no longer halves fear for a person who has fear.
+
+**Edge cases and how they are handled:**
+
+| Case | Handling |
+|---|---|
+| Hemmed in by water (small island, peninsula, a shore at the centre) | The push only picks passable neighbours, the way thirst does. The slow inside decay means a trapped person is not frightened forever. People eat wherever they stand, so a restless trapped person pays walking energy (about +20% upkeep), not lost meals. |
+| Standing exactly on the centre (zero vector) | Push along `prevDir`, else the first passable direction. No random draw. |
+| Thirst and cold return early in `climb` | Thirst stays first, or the frightened die of thirst. Fear goes before cold's "stay sheltered" check, so a hut inside the region does not hold a frightened person. Cold-seeking toward a shelter inside the region is skipped while the person has fear. |
+| Food, shelter or leader pulling people back at the edge | Expected: people hover at the edge of the region, which reads as keeping a safe distance. It is measured, not fixed. |
+| Leader inside the region pulls a follower back | At high fear the push must beat the strongest leader pull (1.6). Tuning target, checked in the first run. A comfortable follower is not comfortable while afraid, so `comfortableStayEnabled` does not hold them. |
+| Children lose most clashes | They gain fear like anyone (only losers, no exceptions). Childcare is a cost to the mother, not a benefit to the child, so a child who leaves only loses kin sharing. Child deaths are reported per run, and a jump is a stop-and-report. |
+| Refugees lose again elsewhere | A new centre, keeping half the old fear. Weak people may keep moving. That is accepted and reported as the share of people with fear and how far they moved. |
+| Everyone near full injury saturates `fearWoundMul` | Slow healing goes in and is measured first, so injury levels drop before fear builds on them. |
+| Wrap at the map edge | The centre is nudged with `wrapDiff`; Uint8 coordinates wrap with `& 255`. |
+| Slot reuse, growth, saves | Reset in `People.kill` and `spawn`; added to the capacity-growth copy; saved per person as optional fields defaulting to 0 (old saves load with no fear). |
+| Fingerprint parity | Fear and the new healing are hashed only when their switch is on; no random numbers; the three switches are added (off) to the pinned-hash test. |
+| Perf | Healing is one multiply in the existing upkeep loop. Fear is one wrap-aware distance check per decision. Both are well under 0.1 µs per person. |
+
+*On the map:* nothing new is drawn at first. The inspector shows fear and its centre, and the death probe and map dumps show whether fought-over ground empties of losers. Something visible (rule 13) to watch: a contested camp where beaten people leave and the winners stay, compared with the switches off.
+
+*How S3x is judged.* No target for where people go. Targets are written in `docs/findings.md` before running:
+- **Runs:** 3 seeds, 50 years, all on against all off and one off at a time; death probe plus wound probe.
+- **Measure:** share wounded and mean injury; deaths while wounded; births per head; share of losers who end more than `fearRadius` from where they lost, against winners; settlements lasting 10 years or more.
+- **Guardrails, reported and not targets:** no seed dies out; camps lasting 10 years or more not down by more than 25%; child deaths not up; perf within budget.
+
+*Tests:* healing at any energy, faster when fed and sheltered; only the loser gains fear; stacking inside the radius and moving the centre; half carried to a new centre; decay inside slower than outside; push away from the centre and never into water; zero vector falls back to `prevDir`; fear reset on kill and slot reuse; save round trip; off parity.
+
 **S3-pre Packed earth.** Stone exists only on hill tiles and is picked up only by people standing there, so lowland camps could almost never build. Add earth, dug from any land tile: a new `CARRY_EARTH` kind (new carry kind plumbing, inspector), and a per-cell material for built cells, so earth gives less durability and wears faster than stone. Digging costs energy and is booked in the ledger. Stone becomes the upgrade near hills. Switch `earthBuildingEnabled`. No "go fetch stone" drive yet.
 
 **S3a Layout spike (headless, no art).** Prototype exposure and directional unloading, then dump the built cells as images on 3 seeds. Do walls form, or only pillars and noise? If only noise, change the rules before anything else depends on them. Walls stay tile-thick, so this also checks whether room sizes and material use are workable, since a freestanding room takes 9 tiles and shared walls have to bring that down.
@@ -237,6 +276,7 @@ Art comes from the `graphics` agent (`.claude/agents/graphics.md`), following `d
 - **S0:** new `src/sim/settlements.ts`; `src/sim/host.ts`, `src/ui/simulation-client.ts`; `src/sim/world.ts`, `chronicle.ts`, `protocol.ts`, `config.ts`; `src/render/renderer.ts`; `src/ui/inspector.ts`, `legend.ts`, panel code; new `tests/settlements.test.ts`
 - **S1:** `src/sim/rules.ts`, `life.ts`, `land.ts`, `wolves.ts`, `config.ts`, `types.ts`; new `scripts/settle-probe.ts`; new `tests/staying.test.ts`
 - **S2:** `src/sim/land.ts`, `rules.ts`, `life.ts`, `protocol.ts`, `host.ts`; `src/ui/simulation-client.ts`; `src/render/renderer.ts`; new test
+- **S3x:** `src/sim/life.ts`, `rules.ts`, `wolves.ts`, `people.ts`, `config.ts`, `types.ts`; `src/ui/inspector.ts`; `scripts/death-probe.ts`; new `tests/turmoil.test.ts`
 - **S3w:** `src/sim/land.ts`, `life.ts`, `rules.ts`, `people.ts`, `world.ts`, `protocol.ts`, `config.ts`, `types.ts`; `src/ui/simulation-client.ts`, `inspector.ts`, `settlements-view.ts`, `legend.ts`; `src/render/renderer.ts`; `scripts/map-dump.ts`, `settle-probe.ts`; new `tests/water-carry.test.ts`
 - **S3:** `src/sim/land.ts`, `seasons.ts`, `rules.ts`, `life.ts`, `config.ts`, `world.ts`; `src/render/renderer.ts`; new `tests/exposure.test.ts`
 - **Docs for every stage:** `docs/decisions.md` (the three decisions above, recorded at the start), `docs/ROADMAP.md`, `docs/findings.md`, `docs/STATUS.md`

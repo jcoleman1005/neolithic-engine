@@ -788,3 +788,26 @@ Trigger fixed: `hungerSearchFlat` (0.5, a scent-slope test that fired for 0.09% 
 | Everything on, seeds 1 / 2 / 3 (before the fix) | 5975 / 5589 / 6161 | 4143 / 4130 / 4195 | 2239 / 2587 / 2014 | 57 to 64% | 3 to 6% |
 
 Population peaks near year 30 and then falls by two thirds with everything on, and by 90% with the settlement work off. The collapse predates the settlement work: the Phase 1 check (steady for 200 years) no longer holds. With the settlement work off, few people are hungry while the population falls, so the cause is not starvation; with it on, the end state is starvation (about 60% hungry) with no spread inland. The fixed search trigger changes nothing measurable. Two likely reasons, not measured: hungry people cannot fetch water (fetching needs a full stomach), so searchers keep returning to the river; and "13 or more steps from fresh water" includes land beside the salt sea. Next: deaths by cause and births per decade.
+
+### Deaths by cause and wounds (2026-11-06)
+
+`scripts/death-probe.ts` and `scripts/wound-probe.ts` wrap `people.kill` and read state only. Population totals match the earlier runs exactly, so the probes change nothing. Seed 1, 80 years (death probe) and 50 years (wound probe, everything on). Each death gets the first matching label in this order: wolf, clash, old age, thirst, wound, sick, pregnant, child.
+
+| Over 80 years | All settlement switches off | Everything on |
+|---|---|---|
+| Ran out of energy while wounded | 6,870 (79%) | 14,259 (86%) |
+| Clash | 379 | 1,639 |
+| Wolf | 352 | 2 |
+| Child, not wounded, ran out of energy | 461 | 40 |
+| Old age (60) | 35 | 262 |
+| Thirst, sick, other | 680 | 233 |
+
+Average age at death is 11 to 23 years, so the founders do not die together. After year 30, births fall each decade while deaths stay high (everything on: 4,808 in years 21 to 30, then 3,352, 2,496 and 790 in years 71 to 80).
+
+| Years (everything on) | People | Wounded | Mean wound (of 255) | Wounded able to heal (energy 50+) | Children | Women fed enough to mate |
+|---|---|---|---|---|---|---|
+| 1 to 5 | 1,760 | 74% | 178 | 69% | 62% | 43% |
+| 21 to 25 | 5,621 | 95% | 217 | 51% | 68% | 26% |
+| 46 to 50 | 4,096 | 97% | 223 | 28% | 58% | 13% |
+
+No code bug found: clashes, wounds, healing, mating, childbirth and childcare do what their code says. Most people pass the belligerence threshold of 180 (habit plus cruelty gene, which averages about 256). Any two non-allies on one tile can clash every tick, children included, and most wounds go to children, about 6 per child per year. Wounds heal only above half energy, at 0.3 a tick, so injury builds to near the cap, and the wounded get hungrier and stop healing. The same pattern is there with the settlement switches off, at 74% wounded in years 1 to 5. Turmoil never drives the losers away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step. The response is S3x in `docs/SETTLEMENTS.md`.
