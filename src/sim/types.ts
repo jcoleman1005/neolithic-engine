@@ -427,6 +427,10 @@ export interface SimulationConfig {
   clashLootEnabled?: boolean;
   clashCourageEnabled?: boolean;
   courageOddsThreshold?: number;
+  clashRetreatMoveMul?: number;
+  clashRetreatFatigue?: number;
+  clashRetreatInjuryMul?: number;
+  clashRetreatDropThreshold?: number;
   incumbencyBonus: number;
   rootLeaderSliceCount: number;
   shareEnergyMinSurplus: number;

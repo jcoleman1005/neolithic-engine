@@ -98,7 +98,7 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
     expect(land.pile[cell] - initialLandPile).toBeCloseTo(8.0, 1);
   });
 
-  it('Primitive 76 (Courage): outmatched coward retreats before combat without taking damage', () => {
+  it('Primitive 76 (Courage): outmatched coward retreats before combat with realistic physical costs and cargo panic drop', () => {
     const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false };
     const people = new People(10);
     const land = new Land(config);
@@ -107,12 +107,14 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
     const ledger = new EnergyLedger();
     const prng = new PRNG(10);
 
-    // Fighter A: Outnumbered, zero bravery (pure coward)
+    // Fighter A: Outnumbered, zero bravery (pure coward), carries heavy food cargo (5.0 units > threshold 3.0)
     const idA = people.spawn(60, 60, 50.0, 0, 1, 0, 0);
     const slotA = idA >>> 12;
     people.genes[slotA * GENE_COUNT + GENE_STRENGTH] = 20;
     people.genes[slotA * GENE_COUNT + GENE_BRAVERY] = 0; // zero courage
     people.habits[slotA * HABIT_COUNT + HABIT_BELLIGERENCE] = 240;
+    people.carryKind[slotA] = CARRY_FOOD;
+    people.carry[slotA] = 5.0;
 
     // Fighter B: Strong with high strength
     const idB = people.spawn(60, 60, 80.0, 0, 1, 0, 0);
@@ -134,14 +136,29 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
 
     const initialEnergyA = people.energy[slotA];
     const initialInjuryA = people.injury[slotA];
+    const initialFatigueA = people.fatigue[slotA];
 
     Rules.touch(slotA, slotB, people, land, fields, spatial, ledger, config, prng);
 
     // Coward A should have retreated rather than fighting
-    // Energy and injury should be completely unharmed!
-    expect(people.energy[slotA]).toBe(initialEnergyA);
-    expect(people.injury[slotA]).toBe(initialInjuryA);
-    // Position stepped away or disengaged
+    // 1. Move cost paid (1.5x standard moveCost)
+    const expectedMoveCost = (config.moveCost ?? 0.05) * (config.clashRetreatMoveMul ?? 1.5);
+    expect(people.energy[slotA]).toBeCloseTo(initialEnergyA - expectedMoveCost, 4);
+    expect(ledger.move).toBeCloseTo(expectedMoveCost, 4);
+
+    // 2. Minor scrape injury from parting swipe (much less than full clashInjury of 60)
+    expect(people.injury[slotA]).toBeGreaterThan(initialInjuryA);
+    expect(people.injury[slotA]).toBeLessThan(25);
+
+    // 3. Fatigue spike from sprint
+    expect(people.fatigue[slotA]).toBe(initialFatigueA + (config.clashRetreatFatigue ?? 6));
+
+    // 4. Panic cargo drop: 5.0 units dropped onto land tile
+    expect(people.carryKind[slotA]).toBe(CARRY_NONE);
+    expect(people.carry[slotA]).toBe(0);
+    expect(land.pile[(60 << 8) | 60]).toBeCloseTo(5.0, 1);
+
+    // Danger scent deposited
     expect(fields.dangerCurrent[(60 << 8) | 60]).toBeGreaterThan(0);
   });
 

@@ -66,6 +66,10 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-05 | `clashLootEnabled` | false | true | Phase 7 / Primitive 78: victor loots loser carried goods or knocks loose to land |
 | 2026-11-05 | `clashCourageEnabled` | false | true | Phase 7 / Primitive 76: outmatched timid fighters tactically retreat before blows land |
 | 2026-11-05 | `courageOddsThreshold` | 0 | 0.35 | Base combat power odds ratio below which timid fighters retreat |
+| 2026-11-05 | `clashRetreatMoveMul` | 0 | 1.5 | Movement energy multiplier for retreat sprint (1.5x moveCost booked to ledger.move) |
+| 2026-11-05 | `clashRetreatFatigue` | 0 | 6 | Fatigue increment sustained by retreating coward (adrenaline exhaustion) |
+| 2026-11-05 | `clashRetreatInjuryMul` | 0 | 0.20 | Fractional clash injury taken as a glancing blow/scrape during flight |
+| 2026-11-05 | `clashRetreatDropThreshold` | 0 | 3.0 | Heavy cargo threshold where panicking coward drops carried goods to flee faster |
 | 2026-11-04 | `birthHazardsEnabled` | false | true | Deterministic childbirth physical trauma and metabolic demands switch |
 | 2026-11-04 | `pregnancyUpkeepMul` | 1.0 | 1.25 | Extra upkeep multiplier during pregnancy (+25%) |
 | 2026-11-04 | `pregnancyMiscarriageEnergy` | 0 | 15.0 | Energy threshold below which severe starvation terminates pregnancy to protect mother |
@@ -725,8 +729,8 @@ Starting values (new): `wearStep` 16, `wearDecaySlices` 8 (a full trail fades in
 Round 1 wore most of the land, so it read as worn ground everywhere rather than trails. Kept round 2: `wearStep` 16 to 4, `wearDecaySlices` 8 to 2, so a tile has to be stepped on about every 8 ticks to stay worn. The hamlet target is missed on seed 3; per the 2026-11-05 decision, tuning waits for the combined pass. On the map, worn ground forms bands along shores and around lakes and settlements more than trails that cross open land between camps; in the game view, people stand in lines along the worn ground near the largest settlement.
 
 ## Combat Courage & Battlefield Looting (Primitives 76 & 78)
-- **Primitive 76 (Tactical Courage)**: added `clashCourageEnabled` (default true) and `courageOddsThreshold` (0.35). Outmatched combatants calculate power odds from strength and nearby allies; if odds are below `courageOddsThreshold * (1.2 - bravery)`, they retreat step before combat without suffering physical trauma or energy forfeiture.
+- **Primitive 76 (Tactical Courage & Physical Retreat Costs)**: added `clashCourageEnabled` (default true), `courageOddsThreshold` (0.35), `clashRetreatMoveMul` (1.5), `clashRetreatFatigue` (6), `clashRetreatInjuryMul` (0.20), and `clashRetreatDropThreshold` (3.0). Outmatched combatants calculate power odds from strength and nearby allies; if odds are below `courageOddsThreshold * (1.2 - bravery)`, they disengage early via a retreat step. Fleeing imposes realistic physical costs: sprint movement energy (`1.5 * moveCost` booked to `ledger.move`), an adrenaline fatigue spike (+6), glancing scrapes/scratches from the aggressor's parting swipe (`20%` clash injury scaled by cruelty and belligerence), and panic-dropping heavy cargo (> 3.0 units) directly onto the land tile.
 - **Primitive 78 (Battlefield Looting)**: added `clashLootEnabled` (default true). The victor claims the loser's carried item (`people.carryKind`, `people.carry`). When the victor already carries a different resource or exceeds body capacity, excess drops directly to the tile as a ground heap.
-- **Energy Ledger Balance**: lethal combat deaths caused by trauma collapse preserve energy balance by crediting the victim's remaining body energy to `ledger.deathFat`, yielding 0 ledger violations across 300+ simulation ticks.
+- **Energy Ledger Balance**: lethal combat deaths caused by trauma collapse preserve energy balance by crediting the victim's remaining body energy to `ledger.deathFat`, and retreat sprint exertion correctly credits `ledger.move`, yielding 0 ledger violations across 300+ simulation ticks.
 - **Determinism & Parity**: exact bit-for-bit stateHash match with switches disabled (`3846cf0469ad880d` at 1,000 ticks, seed 42).
-- **Performance**: 10.24 µs / person / tick at ~8,600 people (under desktop budget of 15.0 µs).
+- **Performance**: 12.72 µs / person / tick at ~8,548 people (under desktop budget of 15.0 µs).

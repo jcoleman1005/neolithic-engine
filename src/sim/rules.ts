@@ -845,10 +845,47 @@ export class Rules {
 
           if (retreatA || retreatB) {
             const cowardSlot = (retreatA && retreatB) ? (oddsA <= oddsB ? slotA : slotB) : (retreatA ? slotA : slotB);
+            const pursuerSlot = cowardSlot === slotA ? slotB : slotA;
             fields.depositDanger(px, py, (config.scentDangerClash ?? 5.0) * 0.5);
             if (config.experienceHabitsEnabled ?? true) {
               Rules.nudgeHabit(people, cowardSlot, HABIT_CAUTION, 1);
             }
+
+            // Tactical retreat physical honesty:
+            // 1. Exertion sprint energy cost (booked to ledger.move)
+            const retreatMoveCost = (config.moveCost ?? 0.05) * (config.clashRetreatMoveMul ?? 1.5);
+            people.energy[cowardSlot] -= retreatMoveCost;
+            ledger.move += retreatMoveCost;
+            if (people.energy[cowardSlot] < 0) {
+              ledger.overdraft += -people.energy[cowardSlot];
+              people.energy[cowardSlot] = 0;
+            }
+
+            // 2. Adrenaline exhaustion / fatigue spike
+            if (config.fatigueEnabled !== false) {
+              people.fatigue[cowardSlot] = Math.min(255, people.fatigue[cowardSlot] + (config.clashRetreatFatigue ?? 6));
+            }
+
+            // 3. Glancing strike / parting swipe scaled by pursuer's cruelty & belligerence
+            if (config.injuryEnabled !== false) {
+              const pursuerGOff = pursuerSlot * GENE_COUNT;
+              const pursuerHOff = pursuerSlot * HABIT_COUNT;
+              const cruelty = people.genes[pursuerGOff + GENE_CRUELTY] / 255;
+              const belligerence = people.habits[pursuerHOff + HABIT_BELLIGERENCE] / 255;
+              const pursuitUrge = (cruelty + belligerence) * 0.5;
+              const baseInjury = config.clashInjury ?? 60;
+              const scrape = Math.round(baseInjury * (config.clashRetreatInjuryMul ?? 0.20) * (0.5 + 0.5 * pursuitUrge));
+              people.injury[cowardSlot] = Math.min(255, people.injury[cowardSlot] + scrape);
+            }
+
+            // 4. Encumbrance panic drop: drop heavy cargo to flee faster
+            const dropThreshold = config.clashRetreatDropThreshold ?? 3.0;
+            if (people.carryKind[cowardSlot] !== CARRY_NONE && people.carry[cowardSlot] > dropThreshold) {
+              Rules.dropCarriedToLand(people.carryKind[cowardSlot], people.carry[cowardSlot], px, py, land, config);
+              people.carryKind[cowardSlot] = CARRY_NONE;
+              people.carry[cowardSlot] = 0;
+            }
+
             Rules.retreatStep(cowardSlot, people, land, prng);
             return;
           }

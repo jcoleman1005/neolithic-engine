@@ -1,4 +1,4 @@
-## Phase 7 Foundations: Combat Courage & Battlefield Looting (merged to `main`)
+## Phase 7 Foundations: Combat Courage & Battlefield Looting (branch `feat-resource-clashes`)
 - **Done**:
   - Built **Primitive 78 (Carried Loot Transfer)**:
     - Victor in an unallied clash claims the loser's carried item (`people.carryKind`, `people.carry`).
@@ -6,16 +6,21 @@
     - If victor's hands hold a different item, the loser's carried goods are knocked loose onto the ground (`land.dropFood`, `land.dropSeeds`, `land.dropBrush`, `land.build`).
     - Loser's hands are completely stripped.
     - Switch: `clashLootEnabled`.
-  - Built **Primitive 76 (Tactical Courage Retreat)**:
+  - Built **Primitive 76 (Tactical Courage & Honest Physical Retreat Costs)**:
     - Before blow exchange, outmatched fighters calculate ally-adjusted combat power and compare odds against `GENE_BRAVERY`.
-    - Timid individuals facing overwhelming odds disengage safely (`Rules.retreatStep`) before taking physical trauma or energy forfeiture.
+    - Timid individuals facing overwhelming odds disengage safely (`Rules.retreatStep`) before taking full clash damage or losing body energy to the victor.
+    - Physical costs of fleeing:
+      1. Sprint exertion: movement energy cost (`1.5 * moveCost`) booked to `ledger.move`.
+      2. Adrenaline exhaustion: `+6` fatigue added to fleeing coward.
+      3. Glancing scrapes: takes `20%` clash injury scaled by aggressor's cruelty and belligerence (parting strike).
+      4. Cargo panic drop: carried goods exceeding `3.0` units are dropped onto the land tile to sprint away unencumbered.
     - Deposits mild danger scent and grants `HABIT_CAUTION` experience. Fearless fighters stand and clash even when heavily outnumbered.
-    - Switch: `clashCourageEnabled`, tunable: `courageOddsThreshold` (0.35).
+    - Switches & tunables: `clashCourageEnabled`, `courageOddsThreshold` (0.35), `clashRetreatMoveMul` (1.5), `clashRetreatFatigue` (6), `clashRetreatInjuryMul` (0.20), `clashRetreatDropThreshold` (3.0).
   - Fixed lethal combat energy accounting: remaining positive energy in victims killed by trauma collapse is booked into `ledger.deathFat`, preventing ledger residual violations.
   - **Invariants & Ledger**: Energy ledger verified with zero violations over 300+ ticks (`ledger.violations === 0`). Strict off-switch fingerprint parity verified (`3846cf0469ad880d`).
-  - **Tests**: `tests/clash.test.ts` (all 6 tests passing: victor loot claim, full-hands ground drop, outmatched coward retreat, brave last stand, off-switch parity, multi-generation energy balance).
-  - **Perf**: **10.24 µs / person / tick** at ~8,600–10,000 people (well within desktop 15.0 µs budget).
-- **Next**: Proceed to Phase 5e golden crops or S3 review.
+  - **Tests**: `tests/clash.test.ts` (all 6 tests passing: victor loot claim, full-hands ground drop, outmatched coward retreat with physical exertion & panic drop, brave last stand, off-switch parity, multi-generation energy balance).
+  - **Perf**: **12.72 µs / person / tick** at ~8,548 people (well within desktop 15.0 µs budget).
+- **Next**: Review branch `feat-resource-clashes` or merge into `main`.
 
 ## Resource-Motivated Clashes & Battlefield Fatalities (merged to `main`)
 - **Done**:

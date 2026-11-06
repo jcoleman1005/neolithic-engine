@@ -263,6 +263,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   clashLootEnabled: true, // victor loots loser's carried goods (Primitive 78)
   clashCourageEnabled: true, // tactical retreat when outmatched and bravery is low (Primitive 76)
   courageOddsThreshold: 0.35, // base odds ratio threshold below which a timid fighter disengages
+  clashRetreatMoveMul: 1.5, // movement energy multiplier paid by a fleeing fighter (exertion sprint)
+  clashRetreatFatigue: 6, // fatigue added to a retreating coward (adrenaline crash)
+  clashRetreatInjuryMul: 0.20, // fraction of clash injury taken as a glancing strike / scrape when fleeing
+  clashRetreatDropThreshold: 3.0, // carried cargo amount above which a panicking coward drops goods to run faster
   // Bodies (5g). Life stages: children and elders give less work (forage bite, carry, clash
   // strength). Strength gene scales carrying. Childcare: a child under adultAge costs its
   // mother (split with a mate beside them) childCare energy a tick while within careRadius.
