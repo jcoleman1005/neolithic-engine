@@ -416,6 +416,7 @@ export class Rules {
   ): void {
     const px = people.x[slot];
     const py = people.y[slot];
+    const adultAge = config.adultAge ?? 5760;
     const maxEnergy = config.maxEnergy ?? 100.0;
     const radius = config.leaderSearchRadius ?? 6;
     const stickiness = config.habitStickiness ?? 0.9;
@@ -463,6 +464,7 @@ export class Rules {
         for (let idx = start; idx < end; idx++) {
           const otherSlot = cellPeople[idx];
           if (otherSlot === slot || people.alive[otherSlot] === 0) continue;
+          if (people.age[otherSlot] < adultAge) continue;
 
           const score = Rules.scoreAttraction(slot, otherSlot, people, config, maxEnergy);
           // Compare candidates to each other with a plain >
@@ -486,7 +488,7 @@ export class Rules {
         const shifted = Math.round(cur * stickiness + tgt * (1.0 - stickiness));
         people.habits[hOff + h] = Math.max(0, Math.min(255, shifted));
       }
-    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId) || people.age[slotFromId(curLeaderId)] < (config.adultAge ?? 5760)) {
+    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId) || people.age[slotFromId(curLeaderId)] < adultAge) {
       people.leaderId[slot] = 0;
     }
   }
