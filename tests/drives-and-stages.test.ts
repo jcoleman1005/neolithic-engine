@@ -182,6 +182,6 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
       }
       // Baseline fingerprint updated for hillside cliff-face cave generation fix
       expect(wOff.stateHash()).toBe('665525a4ed984acf');
-    }, 120000);
+    });
   });
 });

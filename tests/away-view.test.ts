@@ -82,5 +82,5 @@ describe('Phase 4c inspector story', () => {
     expect(a.detail).toMatch(/^Leads \d+ followers near .+\.$/);
     expect(chronicle.describePerson(world, info(follower)).detail).toMatch(/^Follows .+, with \d+ others, near .+\.$/);
     expect(chronicle.describePerson(world, info(follower)).headline).toMatch(/ of the /);
-  }, 120000);
+  });
 });

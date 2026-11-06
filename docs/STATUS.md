@@ -13,6 +13,11 @@
   - Added `npm run test:fast` alias for fast dot-reporter test feedback; updated Rules 1 & 3 in `AGENTS.md` to prevent unnecessary token dumps on targeted tasks.
   - Verification: `ok check`, `ok test`, `ok build`. Perf: **8.35 µs / person / tick** at 8,739 people (desktop budget: 15.0 µs).
 
+## Verify Speed-up (`chore/faster-verify`)
+- **Done**: Test files now run in parallel (`vitest.config.ts`: forks pool, cores − 1 workers, `VITEST_MAX_WORKERS` override, timeout 300 s; dropped per-test `120000` overrides that pinned the old value). `verify.sh` build step calls `vite build` directly, so `tsc -b` no longer runs twice. Added event-loop yields to the sync `run()` helpers in `bands.test.ts` and `chronicle-observer.test.ts` (>60 s synchronous stretches tripped vitest worker-RPC timeouts).
+- **Measured** (4 cores, idle): test step 23m22s → 9m13s; ~11 s saved on build. Full verify passed in 15m28s even under heavy external load (load avg ~11). No sim code changed.
+- **Finding**: tests are bound by full-grid per-tick work (256×256 `land.step`/`life.step`/`world.step` ≈ 18 ms/tick at ~300 people), not people. Main remaining lever: smaller grids or shared runs in the heaviest observer/round-trip tests.
+
 ## Active Phase: Phase 5e (Golden Crops & Active Farming Tending — merged to `main`)
 - **Status**: Completed & verified; merged to `main`.
   - **Ripening & Art**: Cultivated cells (`farmLevel >= 2`, `tilled >= 0.05` or `seeds > 0`) ripen to golden fields (`COLOR_SEEDS_RGB = 0x28c8f0`) at food capacity >= 0.70. Tuned `cropRipenMinFarmLevel` to 2 to eliminate premature wild grass ripening from single bites, and lowered overlay alpha (50% ripe sheen). Added procedural wheat stalk rendering (`D_CROPS = 15`) with slender stems, golden ears, awn whiskers, and wind sway.

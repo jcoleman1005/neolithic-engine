@@ -20,5 +20,5 @@ describe('Phase 4 chronicle observer (part 2)', () => {
     const b = await run(2400, new Chronicle(), 5, { chronicleBattleClashes: 3, chronicleFoundMinSize: 15, chronicleSplitMinSize: 12 });
     expect(a.texts.length).toBeGreaterThan(0);
     expect(a.texts).toEqual(b.texts);
-  }, 120000);
+  });
 });

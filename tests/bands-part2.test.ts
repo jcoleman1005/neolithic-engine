@@ -23,7 +23,7 @@ describe('Phase 4 band tracker (part 2)', () => {
     const copy = new BandTracker();
     copy.importState(JSON.parse(JSON.stringify(t1.exportState())));
     expect(copy.exportState()).toEqual(t1.exportState());
-  }, 120000);
+  });
 
   it('does nothing when switched off', () => {
     const tracker = new BandTracker();
