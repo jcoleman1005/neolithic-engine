@@ -827,3 +827,14 @@ Seeds 1 to 3, 30 years (healing alone) and 50 years (with fear), wound and death
 | People | 5,916 / 6,221 | 5,676 / 5,848 | 6,463 / 6,356 |
 
 Wounds still arrive faster than they can heal: a lost clash about every 55 ticks needs more than 1 point a tick, against 0.3 at most (0.45 sheltered). Healing does not fix the wound load by itself; fewer repeated clashes have to.
+
+**S3x fear result** (seeds 1 to 3, 50 years, slow healing on in all arms, wound probe). "Away" means more than 8 tiles from the spot of a clash 90 days later, found from the wound jump, so it is measured the same way with fear off.
+
+| Years 26 to 30 | Fear off | Fear on | Fear on, wounds not scaling it |
+|---|---|---|---|
+| Losers away, seeds 1 / 2 / 3 | 38.5 / 38.6 / 37.4% | 62.3 / 59.1 / 64.0% | 59.1 / 61.6 / 62.5% |
+| Winners away | 34.3 / 34.6 / 36.0% | 35.4 / 33.0 / 34.5% | 34.3 / 34.9 / 34.0% |
+
+The target is met on every seed: losers leave and winners don't (years 16 to 20: losers 49 / 45 / 52% against 23 / 23 / 22% off). Scaling fear by wounds adds little.
+
+Guardrails: no seed dies out, and child deaths are not up (7,817 / 8,335 / 8,584 on against 8,270 / 8,300 / 8,690 off). **Population falls further, though**: at year 50 it is 2,714 / 2,948 / 2,863 with fear on against 4,611 / 4,531 / 4,751 off, about 38% lower. Deaths are lower, but births fall faster. Women fed enough to mate drop to 5 to 7% (11 to 15% off), and pregnancy to 17 to 21% (37 to 48% off). The wound load does not fall (84 to 90% wounded, against 86 to 92% off), so leaving does not escape fighting: refugees meet strangers elsewhere. Likely causes, not measured: frightened people keep walking instead of grazing still, which costs energy and skips tilling, and they leave the richer shore. Not measured yet: settlements lasting 10 years or more, and perf (the machine was loaded).
