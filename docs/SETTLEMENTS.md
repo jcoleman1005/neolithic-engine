@@ -54,6 +54,7 @@ Phase 7 walls and Phase 8 polities then build on this unchanged.
 
 - **One stage per session, then stop.** Stop points: after T0, S0, S1, S2, S3a and S3. A person watches or reviews before the next stage starts (rule 13). The agent never closes a stage itself.
 - **Tuning has a limit.** Before running, write the targets in `docs/findings.md`. Stop at the first set that passes. After 8 tuning rounds on a stage, stop and report what was tried. Don't move the targets to pass, and don't add new mechanics to pass.
+- **Directional hypotheses over arbitrary cutoffs.** Frame proof of change around directional effect sizes across multiple seeds (e.g. 'longevity increases by >= 1.5x') rather than brittle target percentages (e.g. exactly 25%). If an effect is macroscopically distinguishable from baseline noise and visible on screen (rule 13), it stands; do not contort tunables to force an arbitrary number.
 - **A target missed is a valid result.** Report it plainly. The gates below are reported from runs, never written as tests (rule 10).
 - **When an old test fails,** decide whether the mechanism intentionally changed. If it did, make the test check the new rule as tightly as before, and say so. Never loosen a test just to pass, and never skip one.
 - **Compare all on, all off and one off at a time** for a stage's switches, not every combination.

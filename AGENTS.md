@@ -11,7 +11,7 @@ Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it s
 7. The tick loop uses typed arrays and allocates nothing per person.
 8. Run `npm run perf` at 10,000 people before merging. Stay at or under 15 µs per person per tick on desktop; report the number in `docs/STATUS.md`.
 9. New mechanics go in on by default, with a switch in `config.ts` so an off run can be compared.
-10. Tests check mechanisms and invariants: energy balances, wrapping, slot reuse, save round trip, same seed gives the same fingerprint. Never assert that a behavior emerges.
+10. Tests check mechanisms and invariants: energy balances, wrapping, slot reuse, save round trip, same seed gives the same fingerprint. Never assert that a behavior emerges. When proving a mechanic in runs, test directional hypotheses and macroscopic effect sizes across multiple seeds (not arbitrary target cutoffs or bare p-values); report missed expectations as findings rather than tuning to force arbitrary numbers.
 11. Observers (chronicle, tribes, city-state detection, names) only read the world, draw no random numbers, and change no outcome.
 12. Ideas outside the current phase go to the Parking lot. Agree bigger changes with the user first and record them in `docs/decisions.md`. Keep chat output short: summary tables, not logs.
 13. Every phase names a visible consequence, something you can point at on the map, and closes only when someone has watched it happen. Metrics alone do not close a phase.
