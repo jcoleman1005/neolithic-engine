@@ -73,6 +73,7 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-05 | `goldenCropsEnabled` | false | true | Phase 5e: cultivated cells ripen into visible golden fields when food approaches capacity |
 | 2026-11-05 | `cropRipenThreshold` | 0 | 0.70 | Fraction of capacityAt above which cultivated cells are encoded as ripe golden grain |
 | 2026-11-06 | `cropRipenMinFarmLevel` | 1 | 2 | Minimum farmLevel (worked soil >= 2) required for golden crops ripening; prevents single wild bites turning yellow |
+| 2026-11-06 | `stoneBarrenEnabled` | false | true | Rock/stone cells are barren mineral: zero plant food, zero fertility, cannot be grazed or farmed |
 | 2026-11-05 | `tendingEnabled` | false | true | Primitive 5: gentle harvesting without stripping boosts cultivation and regrowth |
 | 2026-11-05 | `tendingGain` | 0 | 0.03 | Extra cultivation (tilled) gained per gentle harvest on healthy soil |
 | 2026-11-05 | `tendingRegrowBoost` | 0 | 0.40 | Regrowth multiplier bonus for well-tended cultivated soil |

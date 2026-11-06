@@ -211,6 +211,8 @@ export class Land {
     const baseCap = config.landFoodMax ?? 20.0;
     this.baseFoodCap = baseCap;
     const elev = this.elevation;
+    const stoneBarren = config.stoneBarrenEnabled !== false;
+    const rockLevel = config.elevationHillLevel ?? 0.68;
 
     for (let i = 0; i < TOTAL_CELLS; i++) {
       let f = 0.5; // default moderate fertility
@@ -227,9 +229,10 @@ export class Land {
       }
 
       this.isWater[i] = water ? 1 : 0;
-      this.fertility[i] = f;
+      const isRock = stoneBarren && (this.stone[i] > 0 || (elev && i < elev.elevation.length && elev.elevation[i] / 65535 >= rockLevel));
+      this.fertility[i] = isRock ? 0 : f;
 
-      if (water) {
+      if (water || isRock) {
         this.maxFood[i] = 0;
         this.food[i] = 0;
       } else {
@@ -244,6 +247,7 @@ export class Land {
   /** Food capacity of a cell now: natural capacity, scaled by soil health and the seeds on it. */
   public capacityAt(i: number, config: Readonly<SimulationConfig>): number {
     const max = this.maxFood[i];
+    if (max <= 0) return 0;
     if (config.farmingPhysicsEnabled === false) return max;
     const sf = Math.min(1, this.seeds[i] / (config.seedCap ?? 10));
     return max * this.soilHealth[i] * (1 + (config.seedCapacityBoost ?? 0.6) * sf);
@@ -455,8 +459,8 @@ export class Land {
     }
   }
 
-  /** Natural caves built into the sides of hills and mountains, spaced apart, picked with a seeded shuffle. */
-  private initCaves(config: Readonly<SimulationConfig>): void {
+  /** Stone on hill and rock cells. */
+  private initStone(config: Readonly<SimulationConfig>): void {
     const elev = this.elevation;
     if (!elev) return;
     for (let i = 0; i < TOTAL_CELLS; i++) this.upland[i] = elev.upland01(i);
@@ -464,7 +468,12 @@ export class Land {
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 0 && elev.elevation[i] / 65535 >= rockLevel) this.stone[i] = config.stoneCap ?? 30;
     }
-    if (config.cavesEnabled === false) return;
+  }
+
+  /** Natural caves built into the sides of hills and mountains, spaced apart, picked with a seeded shuffle. */
+  private initCaves(config: Readonly<SimulationConfig>): void {
+    const elev = this.elevation;
+    if (!elev || config.cavesEnabled === false) return;
     const hill = config.elevationHillLevel ?? 0.68;
     const cands: number[] = [];
     for (let i = 0; i < TOTAL_CELLS; i++) {
@@ -786,6 +795,7 @@ export class Land {
     const cap = config.compactionCap ?? 2;
     this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03) * workMultiplier);
     if (config.fertilityChangeEnabled !== false && this.isWater[i] === 0) {
+      if ((config.stoneBarrenEnabled !== false) && this.stone[i] > 0) return;
       const fMax = config.fertilityMax ?? 1.5;
       const curF = this.fertility[i];
       if (curF < fMax) {
@@ -835,7 +845,7 @@ export class Land {
   /** A resting person drops carried seeds on their own cell. */
   public dropSeeds(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
-    if (this.isWater[i] === 1) return;
+    if (this.isWater[i] === 1 || ((config.stoneBarrenEnabled !== false) && this.stone[i] > 0)) return;
     this.seeds[i] = Math.min(config.seedCap ?? 10, this.seeds[i] + amount);
     if (config.fertilityChangeEnabled !== false) {
       const fMax = config.fertilityMax ?? 1.5;
@@ -882,7 +892,7 @@ export class Land {
    */
   public graze(x: number, y: number, want: number, config: Readonly<SimulationConfig>, till = true): number {
     const index = (y & COORD_MASK) * GRID_SIZE + (x & COORD_MASK);
-    if (this.isWater[index] === 1) return 0;
+    if (this.isWater[index] === 1 || ((config.stoneBarrenEnabled !== false) && this.stone[index] > 0)) return 0;
 
     const floor = config.landGrazingFloor ?? 1.0;
     const available = this.food[index] - floor;

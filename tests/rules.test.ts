@@ -459,7 +459,7 @@ describe('Phase 3 Rules & Invariants', () => {
     const slotObsChild = slotFromId(idObsChild);
     people.age[slotObsChild] = 500;
 
-    // Observer adult at (10, 11)
+    // Observer adult at (10, 11) - sees child with 250 stats at (10, 10)
     const obsAdultGenes = new Uint8Array(GENE_COUNT).fill(100);
     const idObsAdult = people.spawn(10, 11, 50, 0, 0, 0, 0, obsAdultGenes, undefined, 0);
     const slotObsAdult = slotFromId(idObsAdult);
@@ -469,15 +469,54 @@ describe('Phase 3 Rules & Invariants', () => {
     expect(Rules.scoreAttraction(slotObsChild, slotChild, people, config, 100)).toBe(0);
     expect(Rules.scoreAttraction(slotObsAdult, slotChild, people, config, 100)).toBe(0);
 
+    // Place adult far away at (50, 50) to test child-only neighborhood
+    people.x[slotObsAdult] = 50;
+    people.y[slotObsAdult] = 50;
+
     const spatial = new SpatialIndex();
     spatial.build(people);
 
-    // 2. Rules.copy must not assign child as leader to another child
+    // 2. Rules.copy must not assign child as leader to another child even when child candidate has max stats
     Rules.copy(slotObsChild, people, spatial, config, prng);
     expect(people.leaderId[slotObsChild]).toBe(0);
 
     // 3. Rules.copy must not assign child as leader to an adult
     Rules.copy(slotObsAdult, people, spatial, config, prng);
     expect(people.leaderId[slotObsAdult]).toBe(0);
+
+    // 4. When adult moves within radius of child, child follows the adult (not the child candidate)
+    people.x[slotObsAdult] = 10;
+    people.y[slotObsAdult] = 11;
+    spatial.build(people);
+
+    Rules.copy(slotObsChild, people, spatial, config, prng);
+    expect(people.leaderId[slotObsChild]).toBe(idObsAdult);
+  });
+
+  it('newborn child born to a band leader inherits the mother as direct leader', () => {
+    const world = new World({ initialPopulation: 0 }, 42);
+    const people = world.people;
+    const config = world.config;
+
+    // Leader mother with leaderId = 0
+    const mId = people.spawn(50, 50, 80, 0, 1, 0, 0);
+    const mSlot = slotFromId(mId);
+    people.age[mSlot] = 6000;
+    people.pregnant[mSlot] = (config.gestationTicks ?? 135) - 1;
+    people.mateId[mSlot] = 0;
+
+    world.step();
+
+    // Find the newborn
+    let babyId = 0;
+    for (let s = 0; s < people.capacity; s++) {
+      if (people.alive[s] === 1 && people.motherId[s] === mId) {
+        babyId = people.idOf(s);
+        break;
+      }
+    }
+    expect(babyId).toBeGreaterThan(0);
+    const babySlot = slotFromId(babyId);
+    expect(people.leaderId[babySlot]).toBe(mId);
   });
 });
