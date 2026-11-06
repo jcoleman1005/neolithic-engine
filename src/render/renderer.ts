@@ -102,7 +102,7 @@ const THATCH_SHADE = ['#a07c38', '#8a6a2c'];
 const STUMP_SPOTS: readonly (readonly [number, number])[] = [[1, 1.5], [4.5, 0.8], [2.5, 4.6], [5.6, 4.2], [0.8, 5.8]];
 // Drawable kinds
 const D_TREE = 1, D_STUMPS = 2, D_STRUCT = 3, D_FISH = 4, D_CAVE = 5, D_GLOW = 6, D_FIRE = 7;
-const D_CARCASS = 8, D_WOLF = 9, D_DEER = 10, D_PERSON = 11, D_HUT = 12, D_GRAVE = 13, D_DETAIL = 14;
+const D_CARCASS = 8, D_WOLF = 9, D_DEER = 10, D_PERSON = 11, D_HUT = 12, D_GRAVE = 13, D_DETAIL = 14, D_CROPS = 15;
 // Sort keys: screen y of an object's base, biased positive and packed with its index so ties keep the order collected
 const GROUND_KEY = -50000; // flat ground marks sort before everything standing
 const KEY_BIAS = 65536;
@@ -1607,6 +1607,20 @@ export class CanvasRenderer {
           this.push(D_STRUCT, x0, y0, st, wx | (wy << 8) | (forest ? 1 << 16 : 0),
             forest ? treeKey + 1 : form === 3 ? nestKey : lowKey);
         }
+
+        // Ripe golden crops: standing wheat/barley stalks swaying on worked farmland
+        const overlay = this.world.landOverlay;
+        if (overlay && !forest && (st === 0 || (form === 1 && level === 0))) {
+          const b = overlay[idx];
+          const seedLevel = b >> 6;
+          if (seedLevel === 3) {
+            // Full ripe golden wheat stalks
+            this.push(D_CROPS, x0, y0, 3, wx | (wy << 8), lowKey);
+          } else if (seedLevel === 1) {
+            // Younger growing amber shoots
+            this.push(D_CROPS, x0, y0, 1, wx | (wy << 8), lowKey);
+          }
+        }
       }
     }
   }
@@ -1810,6 +1824,7 @@ export class CanvasRenderer {
       case D_DEER: this.drawDeer(x0, y0, (a & 1) === 1, a >> 1); break;
       case D_PERSON: this.drawPerson(x0, y0, a, b); break;
       case D_DETAIL: this.drawDetail(x0, y0, a, b); break;
+      case D_CROPS: this.drawCropStalks(x0, y0, a, b & 255, b >> 8); break;
     }
   }
 
@@ -1920,6 +1935,56 @@ export class CanvasRenderer {
     } else if (tier >= 4) {
       // Rock/mountain tier: stone notch
       this.R(x0, y0, u, v, 1, 1, PALETTE.rock.highlightHex);
+    }
+  }
+
+  /**
+   * Standing wheat/barley stalks on cultivated land.
+   * Renders natural clusters of vertical cereal stems with drooping ripe golden heads,
+   * gentle wind sway, and fine grain awns so ripe plots read unmistakably as wheat fields.
+   */
+  private drawCropStalks(x0: number, y0: number, ripeness: number, wx: number, wy: number): void {
+    const isRipe = ripeness === 3;
+    const count = isRipe ? 5 : 3;
+    const t = performance.now() / 900;
+
+    // Golden harvest grain tones
+    const stalkColor = isRipe ? '#b8860b' : '#9a9438';     // dark goldenrod / olive green stem
+    const earColor = isRipe ? '#ffd700' : '#d4af37';       // bright ripe golden yellow / amber
+    const awnHighlight = isRipe ? '#fff3a8' : '#e6cc70';   // sunlit golden wheat tip
+    const stalkShadow = '#785408';
+
+    for (let k = 0; k < count; k++) {
+      const h = ((wx * 1973 + wy * 9277 + k * 8461) >>> 0);
+      // Base root position within the 8x8 tile: furrows spaced across the tile
+      const baseX = 1.0 + (k * 1.3) + (((h >> 3) & 7) * 0.12);
+      const baseY = 6.2 + (((h >> 6) & 3) * 0.35);
+
+      // Height of this stalk: 3.2 to 4.8 art-pixels tall
+      const stalkH = isRipe ? (3.8 + ((h & 7) * 0.15)) : (2.4 + ((h & 3) * 0.2));
+
+      // Wind sway offset: organic gentle breeze
+      const phase = (wx * 0.7 + wy * 0.5 + k * 1.1);
+      const sway = Math.sin(t + phase) * (isRipe ? 0.35 : 0.2);
+
+      const topX = baseX + sway;
+      const topY = baseY - stalkH;
+
+      // 1. Slender vertical stalk stem
+      this.R(x0, y0, baseX + sway * 0.3, topY + 1.2, 0.45, stalkH - 1.2, stalkColor);
+      this.R(x0, y0, baseX + sway * 0.3 + 0.45, topY + 2.0, 0.3, stalkH - 2.0, stalkShadow);
+
+      // 2. Grain head (ear of wheat): plump oval grain cluster
+      const earH = isRipe ? 1.8 : 1.2;
+      const earW = isRipe ? 0.95 : 0.7;
+      this.R(x0, y0, topX - 0.25, topY, earW, earH, earColor);
+      this.R(x0, y0, topX - 0.25, topY, earW * 0.5, earH * 0.7, awnHighlight);
+
+      // 3. Bristling wheat awns (whiskers at top of ear)
+      if (isRipe && this.cellSize >= 8) {
+        this.R(x0, y0, topX - 0.4, topY - 0.7, 0.35, 0.8, awnHighlight);
+        this.R(x0, y0, topX + 0.3, topY - 0.6, 0.35, 0.7, awnHighlight);
+      }
     }
   }
 
