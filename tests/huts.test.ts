@@ -65,23 +65,33 @@ describe('Phase 5f stone and dry-stone huts', () => {
     expect(mk(true)).toBeLessThan(mk(false));
   });
 
-  it('with building off nobody carries stone and nothing is built', () => {
+  it('with building off nobody carries stone and nothing is built', async () => {
     const w = new World({ initialPopulation: 150, buildingEnabled: false }, 8);
-    for (let t = 0; t < 400; t++) w.step();
+    for (let t = 0; t < 400; t++) {
+      w.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
+    }
     for (let s = 0; s < w.people.capacity; s++) expect(w.people.carryKind[s]).not.toBe(4);
     expect(w.land.hutCount).toBe(0);
     expect(w.land.durability.every((v) => v === 0)).toBe(true);
   });
 
-  it('building state survives a save round trip and the run continues identically; the ledger balances', () => {
+  it('building state survives a save round trip and the run continues identically; the ledger balances', async () => {
     const a = new World({ initialPopulation: 150 }, 12);
-    for (let t = 0; t < 500; t++) a.step();
+    for (let t = 0; t < 500; t++) {
+      a.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
+    }
     a.land.build(40, 40, 20, a.config);
     for (let t = 0; t < 20; t++) a.step();
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.land.hutCount).toBe(a.land.hutCount);
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) { a.step(); b.step(); }
+    for (let t = 0; t < 100; t++) {
+      a.step();
+      b.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
+    }
     expect(b.stateHash()).toBe(a.stateHash());
     expect(a.ledger.violations).toBe(0);
   });

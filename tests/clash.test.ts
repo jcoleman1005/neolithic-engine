@@ -218,8 +218,8 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
       wOff.step();
       if (t % 100 === 0) await new Promise(r => setImmediate(r));
     }
-    // Baseline fingerprint before Phase 7 foundations on this branch
-    expect(wOff.stateHash()).toBe('3846cf0469ad880d');
+    // Baseline fingerprint before Phase 7 foundations on this branch (updated for hillside cave fix)
+    expect(wOff.stateHash()).toBe('4f7eab55d5e2a971');
   }, 120000);
 
   it('Energy ledger balances with zero violations over 300 ticks with looting & courage active', () => {

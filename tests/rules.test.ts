@@ -73,11 +73,12 @@ describe('Phase 3 Rules & Invariants', () => {
     }
   });
 
-  it('touch friction: with touchEnabled=false, border clashes disappear', () => {
+  it('touch friction: with touchEnabled=false, border clashes disappear', async () => {
     // Run 1: touchEnabled = true
     const worldOn = new World({ initialPopulation: 200, touchEnabled: true }, 99);
     for (let t = 0; t < 200; t++) {
       worldOn.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
     const attackOn = worldOn.ledger.attack;
 
@@ -85,6 +86,7 @@ describe('Phase 3 Rules & Invariants', () => {
     const worldOff = new World({ initialPopulation: 200, touchEnabled: false }, 99);
     for (let t = 0; t < 200; t++) {
       worldOff.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
     const attackOff = worldOff.ledger.attack;
 
@@ -112,10 +114,11 @@ describe('Phase 3 Rules & Invariants', () => {
     expect(people.leaderId[followerSlot]).toBe(0);
   });
 
-  it('genes and habits are bounded and properly inherited across generations', () => {
+  it('genes and habits are bounded and properly inherited across generations', async () => {
     const world = new World({ initialPopulation: 100 }, 333);
     for (let t = 0; t < 400; t++) {
       world.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
 
     const people = world.people;
@@ -135,10 +138,11 @@ describe('Phase 3 Rules & Invariants', () => {
     }
   });
 
-  it('energy ledger balances identically with climb, copy, and touch active', () => {
+  it('energy ledger balances identically with climb, copy, and touch active', async () => {
     const world = new World({ initialPopulation: 150 }, 77);
     for (let t = 0; t < 500; t++) {
       world.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
 
     const report = world.ledger.report();
