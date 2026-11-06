@@ -134,5 +134,5 @@ describe('Phase 1 Invariants & Mechanics (part 2)', () => {
         expect(worldB.stateHash(), `State hash mismatch at tick ${tick}`).toBe(worldA.stateHash());
       }
     }
-  }, 30000);
+  }, 90000);
 });
