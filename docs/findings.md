@@ -723,3 +723,10 @@ Starting values (new): `wearStep` 16, `wearDecaySlices` 8 (a full trail fades in
 | Round 2 hamlets or larger, on / off | 13 / 16 (81%) | 21 / 21 | 10 / 16 (**62%, missed**) |
 
 Round 1 wore most of the land, so it read as worn ground everywhere rather than trails. Kept round 2: `wearStep` 16 to 4, `wearDecaySlices` 8 to 2, so a tile has to be stepped on about every 8 ticks to stay worn. The hamlet target is missed on seed 3; per the 2026-11-05 decision, tuning waits for the combined pass. On the map, worn ground forms bands along shores and around lakes and settlements more than trails that cross open land between camps; in the game view, people stand in lines along the worn ground near the largest settlement.
+
+## Combat Courage & Battlefield Looting (Primitives 76 & 78)
+- **Primitive 76 (Tactical Courage)**: added `clashCourageEnabled` (default true) and `courageOddsThreshold` (0.35). Outmatched combatants calculate power odds from strength and nearby allies; if odds are below `courageOddsThreshold * (1.2 - bravery)`, they retreat step before combat without suffering physical trauma or energy forfeiture.
+- **Primitive 78 (Battlefield Looting)**: added `clashLootEnabled` (default true). The victor claims the loser's carried item (`people.carryKind`, `people.carry`). When the victor already carries a different resource or exceeds body capacity, excess drops directly to the tile as a ground heap.
+- **Energy Ledger Balance**: lethal combat deaths caused by trauma collapse preserve energy balance by crediting the victim's remaining body energy to `ledger.deathFat`, yielding 0 ledger violations across 300+ simulation ticks.
+- **Determinism & Parity**: exact bit-for-bit stateHash match with switches disabled (`3846cf0469ad880d` at 1,000 ticks, seed 42).
+- **Performance**: 10.24 µs / person / tick at ~8,600 people (under desktop budget of 15.0 µs).
