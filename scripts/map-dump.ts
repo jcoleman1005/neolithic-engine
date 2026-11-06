@@ -159,8 +159,9 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
   }
   const p = w.people;
   const adultAge = w.config.adultAge ?? 5760;
-  let adults = 0, adultsNear = 0;
+  let adults = 0, adultsNear = 0, far = 0, alive = 0, hungry = 0;
   for (let s = 0; s < p.capacity; s++) {
+    if (p.alive[s] === 1) { alive++; if (w.land.waterDist[(p.y[s] << 8) | p.x[s]] >= 13) far++; if (p.energy[s] < 35) hungry++; }
     if (p.alive[s] === 1 && p.age[s] >= adultAge) {
       adults++;
       if (near[(p.y[s] << 8) | p.x[s]] === 1) adultsNear++;
@@ -179,7 +180,7 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const lasted = lives.filter((l) => l >= 10).length;
   return `Year ${String(year).padStart(3)}: people ${w.population}, adults outside camps ${100 - nearPct}%, ` +
     `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}, built earth ${earthBuilt} stone ${stoneBuilt}; ` +
-    `worn land ${((100 * worn) / Math.max(1, landCells)).toFixed(1)}%, bands ${chronicle.tracker.bands.size} (largest ${largestBand}); ${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
+    `hungry ${((100 * hungry) / Math.max(1, alive)).toFixed(1)}%, 13+ from water ${((100 * far) / Math.max(1, alive)).toFixed(1)}%, worn land ${((100 * worn) / Math.max(1, landCells)).toFixed(1)}%, bands ${chronicle.tracker.bands.size} (largest ${largestBand}); ${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
 }
 
 function main(): void {

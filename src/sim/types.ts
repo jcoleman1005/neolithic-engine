@@ -97,6 +97,14 @@ export interface SimulationConfig {
   climbEnabled: boolean;
   calmMovementEnabled: boolean;
   stayFoodFraction: number;
+  hungerSearchEnabled: boolean;
+  hungerSearchFood: number;
+  hungerSearchPersist: number;
+  hungerSearchExplore: number;
+  farSightEnabled: boolean;
+  farSightInterval: number;
+  farSightPull: number;
+  farSightMargin: number;
   waterCarryEnabled: boolean;
   adjacentStoresEnabled: boolean;
   waterCarryMax: number;

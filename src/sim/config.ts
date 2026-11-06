@@ -64,6 +64,18 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // and wears away faster, so stone stays the better material near the hills.
   // S3w (docs/SETTLEMENTS.md): carried water. Water is an ordinary carried item: fetched from
   // rivers and lakes, drunk from the carry, and poured into small stores at camps away from the river.
+  // Shore test 1 (docs/findings.md): a hungry person on poor ground with no better smell nearby
+  // keeps walking the way they were going, instead of stopping to roam less.
+  hungerSearchEnabled: true,
+  hungerSearchFood: 6.0, // a hungry person searches when plant food on their tile and the 4 beside it averages below this (was a scent-slope test that never fired)
+  hungerSearchPersist: 1.2, // pull to keep going the same way
+  hungerSearchExplore: 0.6, // chance of a random step while searching
+  // Shore test 2: a searching person can see which neighbouring 16-tile block holds the most standing
+  // plant food, and heads that way (sight across open land, not smell).
+  farSightEnabled: true,
+  farSightInterval: 30, // ticks between refreshes of the block food map
+  farSightPull: 1.0, // pull toward the best block
+  farSightMargin: 0.2, // a neighbouring block must hold this much more food (share) to draw them
   waterCarryEnabled: true, // a water store can be drunk from on its tile or any of the 8 around it, like a river
   adjacentStoresEnabled: true, // hungry people also eat from food heaps on the 8 tiles around them
   waterCarryMax: 20.0, // hydration a person can carry

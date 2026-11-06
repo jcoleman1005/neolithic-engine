@@ -752,3 +752,39 @@ Six seeds, 30 years, distance from natural fresh water of people standing still,
 Neither is significant. Within-seed rank tests are large but disagree in direction from seed to seed; they count thousands of related samples from one run as independent, so the across-seed test is the one to read.
 
 Why carried water shows nothing (seed 1, years 5 to 15): 1.7% of people carry water at any time, none of them 4 or more tiles from water, and no store formed. Carriers fill up at the river, stay near the shore and drink it there. The mechanism works (tests), but nothing takes people inland for it to act on: the shore holds about twice the plant food, and people return to it. The result is "not exercised", not "no effect".
+
+## Shore against inland: lowland measured over 30 years
+Lowland only (no stone, upland below 0.5), grouped by steps from fresh water at the start; seeds 1 to 3, current defaults.
+
+| Steps from water | 1 | 2 to 3 | 4 to 6 | 7 to 12 | 13+ |
+|:--|:--|:--|:--|:--|:--|
+| Lowland tiles, seed 1 | 2664 | 4161 | 4124 | 5666 | 13747 |
+| Plant capacity, year 0 | 24.0 | 19.7 | 10.7 | 7.9 | 15.2 |
+| Plant capacity, year 30 | 19.8 to 20.6 | 11.8 to 13.2 | 8.3 to 8.9 | 7.0 to 7.4 | 14.4 to 15.1 |
+| Plant food standing, year 30 | 8.0 to 9.3 | 2.9 to 3.8 | 3.0 to 3.3 | 4.4 to 4.6 | 13.6 to 14.4 |
+| Worn-out soil (health below 0.6), year 30 | 10 to 18% | 5 to 10% | 1% | 0% | 0% |
+| People per 100 tiles, year 30 | 83 to 105 | 30 to 32 | 13 to 15 | 9 to 10 | 1.5 to 2.4 |
+
+The shore is not too rich: by year 30 it is worn down, holding about 40% of its capacity in standing food, with 10 to 18% of its soil worn out. Between 4 and 12 steps from water lies a naturally poor belt (fertility 0.3 to 0.4). Beyond 13 steps is the largest block of lowland (about 45%), nearly untouched, with about 14 food per tile standing. Food scent fades within 2 to 3 tiles, so nobody on the shore can sense it, and the hunger drive (primitive 18) switches off roaming when very hungry, so starving people on a worn shore search less, not more.
+
+## Shore tests 1 and 2: hunger search and far sight
+New values: `hungerSearchFlat` 0.5, `hungerSearchPersist` 1.2, `hungerSearchExplore` 0.6, `farSightInterval` 30, `farSightPull` 1.0, `farSightMargin` 0.2. Six seeds, 30 years, `npm run compare` on distance from water of people standing still:
+
+| Comparison | Mean change | 95% interval | Sign-flip p |
+|:--|:--|:--|:--|
+| Hunger search off to on (far sight on) | -0.07 | -0.35 to +0.21 | 0.56 |
+| Far sight off to on (hunger search on) | -0.13 | -0.48 to +0.23 | 0.41 |
+
+Neither is significant, and neither was really exercised. Seed 1, years 5 to 15: 78% of people stand still, 41% have energy of 90 or more, 6.7% are hungry (below 35) and 1.5% critically hungry; only 0.09% are ever searching, because plant scent gives a slope almost everywhere (median scent difference among the hungry 5.1, against the 0.5 trigger). The shore is worn to about 40% of capacity but still feeds everyone, so nothing pushes people off it. Population is still rising at year 30, and the share of people 13 or more steps from water rises in every run (1 to 6% at year 20, 4 to 9% at year 30). Next: long runs to see whether pressure arrives on its own.
+
+Trigger fixed: `hungerSearchFlat` (0.5, a scent-slope test that fired for 0.09% of people) replaced by `hungerSearchFood` 6: a hungry person searches when plant food on their tile and the 4 beside it averages below 6.
+
+## Long runs: overshoot and collapse (seed 1 unless noted, 80 years)
+| Run | Year 30 | Year 50 | Year 80 | Hungry at 80 | 13+ steps from fresh water at 80 |
+|:--|:--|:--|:--|:--|:--|
+| All settlement switches off (S1 to S3w, paths, earth, search, far sight) | 2964 | 694 | 289 | 12% | 1.7% |
+| S1 stay rules off only | 2771 | 650 | 183 | 10% | 1.1% |
+| Everything on, search trigger fixed | 5916 | 4096 | 2184 | 63% | 4.3% |
+| Everything on, seeds 1 / 2 / 3 (before the fix) | 5975 / 5589 / 6161 | 4143 / 4130 / 4195 | 2239 / 2587 / 2014 | 57 to 64% | 3 to 6% |
+
+Population peaks near year 30 and then falls by two thirds with everything on, and by 90% with the settlement work off. The collapse predates the settlement work: the Phase 1 check (steady for 200 years) no longer holds. With the settlement work off, few people are hungry while the population falls, so the cause is not starvation; with it on, the end state is starvation (about 60% hungry) with no spread inland. The fixed search trigger changes nothing measurable. Two likely reasons, not measured: hungry people cannot fetch water (fetching needs a full stomach), so searchers keep returning to the river; and "13 or more steps from fresh water" includes land beside the salt sea. Next: deaths by cause and births per decade.

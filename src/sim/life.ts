@@ -50,6 +50,7 @@ export class LifeSystem {
     // Water stores belong with the other stores, so carried water also needs stockpiles on.
     const waterOn = config.waterCarryEnabled !== false && config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && config.stockpilesEnabled !== false;
     if (waterOn) land.refreshDrink();
+    if (config.farSightEnabled !== false && config.hungerSearchEnabled !== false && tick % (config.farSightInterval ?? 30) === 0) land.refreshBlockFood();
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
     if (config.buildingEnabled !== false) land.erode(tick, config);

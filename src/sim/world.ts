@@ -494,6 +494,7 @@ export class World {
     h.updateIntArray(land.form);
     if (this.config.pathsEnabled !== false) h.updateIntArray(land.wear);
     if (this.config.earthBuildingEnabled !== false) h.updateIntArray(land.material);
+    if (this.config.farSightEnabled !== false && this.config.hungerSearchEnabled !== false) h.updateFloatArray(land.blockFood);
     if (this.config.waterCarryEnabled !== false) {
       h.updateFloatArray(land.waterStore);
       h.updateIntArray(land.waterFindable);

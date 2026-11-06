@@ -158,6 +158,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         earthBuildingEnabled: false,
         waterCarryEnabled: false,
         adjacentStoresEnabled: false,
+        hungerSearchEnabled: false,
+        farSightEnabled: false,
       }, 42);
 
       for (let t = 1; t <= 1000; t++) {

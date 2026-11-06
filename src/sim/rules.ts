@@ -176,6 +176,7 @@ export class Rules {
     let foodWeight = 1.0 + 0.5 * forageTenacity;
     let leaderPullMul = 1.0;
     let suppressRoam = false;
+    let searching = false;
 
     // Primitive 18: Hunger drive - chosen from body state
     const drivesOn = config.bodyDrivesEnabled !== false;
@@ -189,10 +190,22 @@ export class Rules {
         foodWeight *= hungerWeightMul;
         leaderPullMul = config.hungerLeaderPullMul ?? 0.25;
 
+        // Shore test 1: with nothing better to smell, a hungry person searches: keeps going the
+        // way they were heading, and roams rather than stalling.
+        if (config.hungerSearchEnabled !== false) {
+          // Searching starts when the ground around is poor, not when the scent is flat: plants
+          // give off scent almost everywhere, so a flat-scent test hardly ever fired.
+          const f = land.food;
+          const row = py << 8;
+          const around = (f[row | px] + f[row | ((px + 1) & 0xff)] + f[row | ((px - 1) & 0xff)] +
+            f[(((py + 1) & 0xff) << 8) | px] + f[(((py - 1) & 0xff) << 8) | px]) / 5;
+          searching = around < (config.hungerSearchFood ?? 6);
+        }
+
         // When critically hungry, suppress curiosity/roaming jitter and reduce danger aversion
         const critHungerThreshold = (config.criticalHungerThreshold ?? 0.20) * maxE;
         if (curE < critHungerThreshold) {
-          suppressRoam = true;
+          suppressRoam = !searching;
           dangerAversion *= 0.5; // starving people risk danger for food
         }
       }
@@ -301,8 +314,35 @@ export class Rules {
       }
     }
 
+    if (searching && config.farSightEnabled !== false) {
+      // Shore test 2: look across the neighbouring blocks for richer land and lean toward the best.
+      const bx = px >> 4, by = py >> 4;
+      const own = land.blockFood[by * 16 + bx];
+      let best = own * (1 + (config.farSightMargin ?? 0.2)), bdx = 0, bdy = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const f = land.blockFood[((by + dy) & 15) * 16 + ((bx + dx) & 15)];
+          if (f > best) { best = f; bdx = dx; bdy = dy; }
+        }
+      }
+      const pull = config.farSightPull ?? 1.0;
+      vx += bdx * pull;
+      vy += bdy * pull;
+    }
+    if (searching) {
+      const d = people.prevDir[slot];
+      const keep = config.hungerSearchPersist ?? 1.2;
+      if (d === 0) vx += keep;
+      else if (d === 1) vx -= keep;
+      else if (d === 2) vy += keep;
+      else if (d === 3) vy -= keep;
+    }
+
     // Roaming / curiosity jitter
-    const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
+    const exploreChance = (drivesOn && suppressRoam) ? 0
+      : searching ? Math.max((curiosity + roaming) * 0.2, config.hungerSearchExplore ?? 0.6)
+      : (curiosity + roaming) * 0.2;
     if (prng.next() < exploreChance) {
       const jDir = prng.nextInt(0, 4);
       if (jDir === 0) vx += 0.8;

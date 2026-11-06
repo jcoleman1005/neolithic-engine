@@ -58,6 +58,8 @@ export interface LandState {
   /** Carried-water stores (S3w); absent in older saves. */
   readonly waterStore?: readonly number[];
   readonly waterFindable?: readonly number[];
+  /** Far-sight block food map; absent in older saves. */
+  readonly blockFood?: readonly number[];
   readonly structure?: readonly number[];
 }
 
@@ -122,6 +124,8 @@ export class Land {
   public readonly material: Uint8Array;
   /** S3a: how open a tile is to the wind, 0 enclosed to 255 open. Refreshed in slices, so saved. */
   public readonly exposure: Uint8Array;
+  /** Shore test 2: mean standing plant food per 16 x 16 block, refreshed on a fixed interval. Saved; hashed when on. */
+  public readonly blockFood = new Float32Array(256);
   /** S3w: water poured into a store on this tile. Saved; hashed only while carried water is on. */
   public readonly waterStore: Float32Array;
   /** S3w: 1 while thirsty people can find this store (set at the find level, cleared below half). Saved. */
@@ -610,6 +614,24 @@ export class Land {
       this.structure[i] = 0;
       this.hutCount--;
       if (config.shelterSeekEnabled !== false) this.warmDirty = true;
+    }
+  }
+
+  /** Shore test 2: recomputes the block food map (mean standing plant food on land per 16 x 16 block). */
+  public refreshBlockFood(): void {
+    for (let by = 0; by < 16; by++) {
+      for (let bx = 0; bx < 16; bx++) {
+        let sum = 0, n = 0;
+        for (let y = by * 16; y < by * 16 + 16; y++) {
+          for (let x = bx * 16; x < bx * 16 + 16; x++) {
+            const c = (y << 8) | x;
+            if (this.isWater[c] === 1) continue;
+            sum += this.food[c];
+            n++;
+          }
+        }
+        this.blockFood[by * 16 + bx] = n > 0 ? sum / n : 0;
+      }
     }
   }
 
@@ -1160,6 +1182,7 @@ export class Land {
       material: Array.from(this.material),
       waterStore: Array.from(this.waterStore),
       waterFindable: Array.from(this.waterFindable),
+      blockFood: Array.from(this.blockFood),
       exposure: Array.from(this.exposure),
       structure: Array.from(this.structure),
     };
@@ -1212,6 +1235,8 @@ export class Land {
     this.waterFindable.fill(0);
     if (state.waterFindable) for (let i = 0; i < len; i++) this.waterFindable[i] = state.waterFindable[i] ?? 0;
     this.drinkDirty = true;
+    this.blockFood.fill(0);
+    if (state.blockFood) for (let i = 0; i < 256; i++) this.blockFood[i] = state.blockFood[i] ?? 0;
     this.material.fill(0);
     if (state.material) for (let i = 0; i < len; i++) this.material[i] = state.material[i] ?? 0;
     this.exposure.fill(255);
