@@ -2,7 +2,7 @@ import type { World } from './world';
 import type { Land } from './land';
 import { FORM_GRANARY, FORM_NEST } from './land';
 import type { BandTracker } from './bands';
-import { makeTongue, hash32, type Tongue } from '../core/naming';
+import { makeTongue, hash32, type Tongue } from './naming';
 
 /**
  * Settlement tracker: finds clusters of built cells and gives them names and tiers. Read-only

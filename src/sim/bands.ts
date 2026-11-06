@@ -1,6 +1,6 @@
 import type { World } from './world';
 import { slotFromId } from './people';
-import { driftTongue, makeTongue, type Tongue } from '../core/naming';
+import { driftTongue, makeTongue, type Tongue } from './naming';
 
 /**
  * Band tracker for the chronicle. A band is everyone sharing one `rootLeaderId`.

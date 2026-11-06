@@ -438,4 +438,46 @@ describe('Phase 3 Rules & Invariants', () => {
     // Follower must retain incumbent leader because challenger did not beat 35% incumbency
     expect(people.leaderId[slotFol]).toBe(idInc);
   });
+
+  it('children cannot be selected as leaders and cannot attract followers', () => {
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false };
+    const people = new People(10);
+    const prng = new PRNG(101);
+
+    // Highly charismatic child candidate at (10, 10)
+    const childGenes = new Uint8Array(GENE_COUNT).fill(128);
+    childGenes[4] = 250; // Max charisma
+    childGenes[0] = 250; // Max strength
+    const childHabits = new Uint8Array(HABIT_COUNT).fill(200);
+    const idChild = people.spawn(10, 10, 90, 1, 0, 0, 0, childGenes, childHabits, 0);
+    const slotChild = slotFromId(idChild);
+    people.age[slotChild] = 500; // Well below adultAge (5760)
+
+    // Observer child at (11, 10)
+    const obsChildGenes = new Uint8Array(GENE_COUNT).fill(100);
+    const idObsChild = people.spawn(11, 10, 50, 0, 0, 0, 0, obsChildGenes, undefined, 0);
+    const slotObsChild = slotFromId(idObsChild);
+    people.age[slotObsChild] = 500;
+
+    // Observer adult at (10, 11)
+    const obsAdultGenes = new Uint8Array(GENE_COUNT).fill(100);
+    const idObsAdult = people.spawn(10, 11, 50, 0, 0, 0, 0, obsAdultGenes, undefined, 0);
+    const slotObsAdult = slotFromId(idObsAdult);
+    people.age[slotObsAdult] = config.adultAge + 100;
+
+    // 1. scoreAttraction must return 0 for non-adult candidates regardless of observer age
+    expect(Rules.scoreAttraction(slotObsChild, slotChild, people, config, 100)).toBe(0);
+    expect(Rules.scoreAttraction(slotObsAdult, slotChild, people, config, 100)).toBe(0);
+
+    const spatial = new SpatialIndex();
+    spatial.build(people);
+
+    // 2. Rules.copy must not assign child as leader to another child
+    Rules.copy(slotObsChild, people, spatial, config, prng);
+    expect(people.leaderId[slotObsChild]).toBe(0);
+
+    // 3. Rules.copy must not assign child as leader to an adult
+    Rules.copy(slotObsAdult, people, spatial, config, prng);
+    expect(people.leaderId[slotObsAdult]).toBe(0);
+  });
 });

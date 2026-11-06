@@ -105,6 +105,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // Phase 5e: golden crops and active tending (Primitives 5, 9, 41)
   goldenCropsEnabled: true, // worked cells ripen to golden fields as food approaches capacity
   cropRipenThreshold: 0.70, // fraction of capacityAt above which cultivated cells are ripe
+  cropRipenMinFarmLevel: 2, // minimum farmLevel (worked soil >= 2) required for crops to ripen to golden
   tendingEnabled: true, // repeated gentle harvesting/foraging boosts soil cultivation and regrowth (Primitive 5)
   tendingGain: 0.03, // extra cultivation (tilled) gained per gentle harvest without stripping
   tendingRegrowBoost: 0.40, // regrowth multiplier bonus for well-tended cultivated soil
@@ -319,6 +320,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   sickUpkeep: 0.8,
   sickFedHeal: 1, // extra ticks of recovery per tick while fed
   buildingEnabled: true,
+  stoneBarrenEnabled: true, // rock/stone cells are barren mineral: zero plant food, zero fertility, cannot be grazed or farmed
   stoneCap: 30.0, // stone on a rock tile (finite, does not regrow)
   stoneBite: 1.0, // stone picked up per tick on rock
   stoneCarryMax: 8.0,

@@ -6,7 +6,7 @@ import { CLASH_RING, Rules } from './rules';
 import { slotFromId, GENE_STRENGTH, GENE_CRUELTY, GENE_CHARISMA, GENE_WISDOM, GENE_BRAVERY, GENE_COUNT } from './people';
 import {
   bandName, epithet, landformFor, makeTongue, personName, placeName, placeRoot, type EpithetFacts, type Tongue,
-} from '../core/naming';
+} from './naming';
 
 /**
  * The chronicle: turns band changes, clash streaks and population swings into

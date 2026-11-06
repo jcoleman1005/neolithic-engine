@@ -2,9 +2,9 @@
 
 Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it stands.
 
-1. At the start of a session, read `AGENTS.md`, `docs/STATUS.md` and the current phase in `docs/ROADMAP.md`. At the end, update `docs/STATUS.md`: what was done, what is next.
-2. Work one phase at a time, on a branch per task off `main`. Merge when `npm run verify` passes; tick a phase's checks only when a run or the S21 confirms them.
-3. First reply on a task: a short plan only (files touched, new state, risks, open questions). Then build it.
+1. At the start of a session, read `AGENTS.md`, active status in `docs/STATUS.md`, and only the current phase in `docs/ROADMAP.md`. At the end, update `docs/STATUS.md`: what was done, what is next.
+2. Work one phase at a time, on a branch per task off `main`. Merge when `npm run verify` passes; tick a phase's checks only when a run or the S21 confirms them. (During iteration, use targeted tests e.g. `npx vitest run tests/foo.test.ts` or `VERIFY_TESTS="tests/foo.test.ts" npm run verify` to conserve time and output).
+3. First reply on a new feature phase or architectural change: a short plan only (files touched, new state, risks, open questions). For bugfixes, targeted changes, or direct queries, proceed directly.
 4. Script nothing at the level of groups. No raid, tribe, leader or state rules; change the land, bodies, costs or rewards instead.
 5. Every tunable number lives in `src/sim/config.ts`. Log each tuned value, old and new, and why, in `docs/findings.md`.
 6. Seeded random numbers only, in a fixed order. No `Math.random()` or `Date.now()` in simulation code, which never imports render or UI code.

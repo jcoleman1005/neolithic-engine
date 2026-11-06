@@ -436,7 +436,7 @@ export class Rules {
       thresholdToBeat = curScore * (1 + incumbency);
     }
 
-    let bestCandidateScore = -1;
+    let bestCandidateScore = 0;
     let bestCandidateSlot = -1;
 
     // Remove directional bias: start scan at a randomized offset within the search square
@@ -486,7 +486,7 @@ export class Rules {
         const shifted = Math.round(cur * stickiness + tgt * (1.0 - stickiness));
         people.habits[hOff + h] = Math.max(0, Math.min(255, shifted));
       }
-    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId)) {
+    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId) || people.age[slotFromId(curLeaderId)] < (config.adultAge ?? 5760)) {
       people.leaderId[slot] = 0;
     }
   }
@@ -506,9 +506,9 @@ export class Rules {
     const targetAge = people.age[targetSlot];
     const isAdult = targetAge >= adultAge;
 
-    // Children are generally not followed by adults
-    if (!isAdult && people.age[observerSlot] >= adultAge) {
-      return 0.1;
+    // Primitive 24: adultAge gates leader attraction. Non-adults cannot lead.
+    if (!isAdult) {
+      return 0;
     }
 
     const tGOff = targetSlot * GENE_COUNT;

@@ -1110,8 +1110,8 @@ export class CanvasRenderer {
         let c = 0;
         // A faint checker on worked soil reads as tilled ground, distinct from smooth desert.
         const checker = ((i + (i >> 8)) & 1) * 10;
-        if (seeds === 3) c = (((230 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // ripe golden crops: brilliant rich gold
-        else if (seeds > 0) c = (((120 + seeds * 35 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // growing grain / seedbed
+        if (seeds === 3) c = (((130 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // ripe golden crops: warm golden harvest sheen
+        else if (seeds > 0) c = (((55 + seeds * 25 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // growing grain / seedbed
         else if (farm >= 2 && farm >= desert) c = (((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // worked soil: dark brown
         else if (desert >= 2) c = (((85 + desert * 20) << 24) | COLOR_DESERT_RGB) >>> 0; // stripped land: pale sand
         else if (farm === 1) c = (((70 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // barely worked
@@ -1900,6 +1900,7 @@ export class CanvasRenderer {
 
     // Band Leader Star: gently bobbing golden star hovering above the head
     const isLeader =
+      stage !== LOOK_STAGE_CHILD &&
       this.rootLeaderIds[slot] === ((((slot & 0xfffff) << 12) | (this.slotGenerations[slot] & 0xfff)) >>> 0) &&
       (this.bandSizes.get(this.rootLeaderIds[slot]) ?? 0) > 1;
 
@@ -2486,6 +2487,9 @@ export class CanvasRenderer {
     const starSpr = this.atlas.getSprite('star_leader');
     for (let i = 0; i < this.activeCount; i++) {
       const slot = this.activeSlots[i];
+      const look = this.lookBytes[slot];
+      const stage = (look & LOOK_STAGE_MASK) >> 2;
+      if (stage === LOOK_STAGE_CHILD) continue;
       const isLeader =
         this.rootLeaderIds[slot] === ((((slot & 0xfffff) << 12) | (this.slotGenerations[slot] & 0xfff)) >>> 0) &&
         (this.bandSizes.get(this.rootLeaderIds[slot]) ?? 0) > 1;

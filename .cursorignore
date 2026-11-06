@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-server/
+coverage/
+data/
+scratch/
+.worktrees/
+*.log
+*.tsbuildinfo
+package-lock.json

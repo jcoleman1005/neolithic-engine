@@ -194,6 +194,7 @@ export interface SimulationConfig {
   soilMin: number;
   goldenCropsEnabled?: boolean;
   cropRipenThreshold?: number;
+  cropRipenMinFarmLevel?: number;
   tendingEnabled?: boolean;
   tendingGain?: number;
   tendingRegrowBoost?: number;
@@ -359,6 +360,7 @@ export interface SimulationConfig {
   sickUpkeep: number;
   sickFedHeal: number;
   buildingEnabled: boolean;
+  stoneBarrenEnabled?: boolean;
   stoneCap: number;
   stoneBite: number;
   stoneCarryMax: number;

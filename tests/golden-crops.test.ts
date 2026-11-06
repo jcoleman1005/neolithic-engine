@@ -84,6 +84,18 @@ describe('Phase 5e & Primitive 5: Golden Crops and Active Tending', () => {
     byte = overlay[c];
     seeds = byte >> 6;
     expect(seeds).toBe(3); // ripe golden grain!
+
+    // 3. A lightly grazed wild tile (farmLevel = 1 < minFarmLevel 2) does NOT turn golden even with full food
+    const wildCell = cell(71, 71);
+    land.isWater[wildCell] = 0;
+    land.tilled[wildCell] = 0.015; // single graze bite: farmLevel = 1 (barely worked)
+    land.seeds[wildCell] = 0;
+    land.maxFood[wildCell] = 20.0;
+    land.food[wildCell] = 20.0; // 100% full food
+    land.packOverlay(overlay, config);
+    const wildByte = overlay[wildCell];
+    expect(wildByte >> 6).toBe(0); // must NOT turn golden!
+    expect((wildByte >> 3) & 7).toBe(1); // farmLevel = 1 (barely worked soil only)
   });
 
   it('Phase 5e (Harvest Cycle): harvesting ripe crops resets visual overlay to tilled earth', () => {

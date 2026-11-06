@@ -384,7 +384,7 @@ export class LifeSystem {
         }
         if (eaten < Math.min(fb, maxEnergy - curE)) {
           eaten += land.graze(px[slot], py[slot], Math.min(fb, maxEnergy - curE) - eaten, config, people.prevDir[slot] === 4);
-          if (eaten > 0 && farmOn && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_BRUSH) {
+          if (eaten > 0 && farmOn && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
             const c = people.carry[slot] + seedPickup;
             people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
             carryKind[slot] = CARRY_SEED;
@@ -805,7 +805,7 @@ export class LifeSystem {
               fId,
               scratchChildGenes,
               scratchChildHabits,
-              people.leaderId[slot]
+              people.leaderId[slot] !== 0 ? people.leaderId[slot] : mId
             );
 
             if (birthHazardsOn) {

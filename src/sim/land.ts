@@ -173,6 +173,7 @@ export class Land {
     this.elevation = elevation ?? (config.elevationEnabled ? generateElevation(gridConfig) : null);
     this.terrain = terrain ?? (config.terrainEnabled ? generateTerrain(gridConfig) : null);
 
+    this.initStone(gridConfig);
     this.initFoodCapacities(gridConfig);
     const cover = this.terrain?.cover;
     if (cover) {
@@ -454,7 +455,7 @@ export class Land {
     }
   }
 
-  /** Natural caves on the edges of the hills, spaced apart, picked with a seeded shuffle. */
+  /** Natural caves built into the sides of hills and mountains, spaced apart, picked with a seeded shuffle. */
   private initCaves(config: Readonly<SimulationConfig>): void {
     const elev = this.elevation;
     if (!elev) return;
@@ -465,17 +466,26 @@ export class Land {
     }
     if (config.cavesEnabled === false) return;
     const hill = config.elevationHillLevel ?? 0.68;
-    const mountain = config.elevationMountainLevel ?? 0.8;
     const cands: number[] = [];
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) continue;
       const h = elev.elevation[i] / 65535;
-      if (h < hill || h >= mountain) continue;
+      // Must be at least in the highland/hill elevations
+      if (h < hill) continue;
       const x = i & COORD_MASK, y = i >> 8;
       const ns = [(y << 8) | ((x + 1) & COORD_MASK), (y << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | x, (((y - 1) & COORD_MASK) << 8) | x];
-      let edge = false;
-      for (let k = 0; k < 4; k++) if (elev.elevation[ns[k]] / 65535 < hill && this.isWater[ns[k]] === 0) edge = true;
-      if (edge) cands.push(i);
+      
+      let downhillDrop = false;
+      let uphillRockWall = false;
+      for (let k = 0; k < 4; k++) {
+        const nh = elev.elevation[ns[k]] / 65535;
+        // Front drop: adjacent dry land tile that is noticeably lower (cliff face or hill slope)
+        if (this.isWater[ns[k]] === 0 && nh <= h - 0.015) downhillDrop = true;
+        // Back rock wall: hill or mountain mass rising behind the cave opening
+        if (nh >= h + 0.015) uphillRockWall = true;
+      }
+      // A genuine hillside/mountain cave requires an uphill cliff behind it and a drop in front
+      if (downhillDrop && uphillRockWall) cands.push(i);
     }
     const rng = new PRNG(((config.seed ?? 0) ^ 0x5ca5e) >>> 0);
     for (let k = cands.length - 1; k > 0; k--) {
@@ -847,13 +857,14 @@ export class Land {
     const span = Math.max(1e-6, 1 - soilMin);
     const goldenOn = config.goldenCropsEnabled !== false;
     const ripenThreshold = config.cropRipenThreshold ?? 0.70;
+    const minFarm = config.cropRipenMinFarmLevel ?? 2;
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) { out[i] = 0; continue; }
       const dmg = Math.min(7, Math.round(((1 - this.soilHealth[i]) / span) * 7));
       // Square-root scale so lightly worked soil still shows.
       const farmLevel = Math.min(7, Math.round(Math.sqrt(Math.min(1, this.tilled[i])) * 7));
       let seedLevel = Math.min(3, Math.round((this.seeds[i] / seedCap) * 3));
-      if (goldenOn && farmLevel >= 1 && seedLevel === 0) {
+      if (goldenOn && farmLevel >= minFarm && seedLevel === 0) {
         const cap = this.capacityAt(i, config);
         if (cap > 0 && this.food[i] >= cap * ripenThreshold) {
           seedLevel = 3; // Ripe golden crop!
