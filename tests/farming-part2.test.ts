@@ -40,7 +40,9 @@ describe('Phase 5b farming physics (part 2)', () => {
       const kind = w.people.carryKind[s];
       // Food and brush limits scale with the person's strength gene; stage only ever lowers them.
       const body = 1 + (cfg.strengthCarry ?? 0.6) * (w.people.genes[s * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5);
-      const limit = kind === 2 ? cfg.foodCarryMax * body : kind === 3 ? cfg.brushCarryMax * body : cfg.seedCarryMax;
+      // Water (6), stone (4) and earth (5) have their own body-scaled limits.
+      const limit = kind === 2 ? cfg.foodCarryMax * body : kind === 3 ? cfg.brushCarryMax * body
+        : kind === 4 ? cfg.stoneCarryMax * body : kind === 5 ? cfg.earthCarryMax * body : kind === 6 ? cfg.waterCarryMax * body : cfg.seedCarryMax;
       expect(w.people.carry[s]).toBeLessThanOrEqual(limit + 1e-4);
     }
     expect(w.ledger.violations).toBe(0);

@@ -227,7 +227,7 @@ export class World {
 
   /** S2 path wear for the viewer, base64 (see Land.packPaths). */
   public packLandPaths(): string {
-    this.land.packPaths(this.pathsBuffer);
+    this.land.packPaths(this.pathsBuffer, this.config);
     return fastBase64Encode(this.pathsBuffer);
   }
 
@@ -321,6 +321,10 @@ export class World {
         buf[offset++] = (rId >> 8) & 0xff;
         buf[offset++] = (rId >> 16) & 0xff;
         buf[offset++] = (rId >>> 24) & 0xff;
+        // What they carry: kind in the low 3 bits, amount (0 to 31) above it.
+        const kind = people.carryKind[slot] & 7;
+        const amt = kind === 0 ? 0 : Math.min(31, Math.ceil(people.carry[slot]));
+        buf[offset++] = kind | (amt << 3);
       }
     }
 
@@ -490,6 +494,10 @@ export class World {
     h.updateIntArray(land.form);
     if (this.config.pathsEnabled !== false) h.updateIntArray(land.wear);
     if (this.config.earthBuildingEnabled !== false) h.updateIntArray(land.material);
+    if (this.config.waterCarryEnabled !== false) {
+      h.updateFloatArray(land.waterStore);
+      h.updateIntArray(land.waterFindable);
+    }
     if (this.config.exposureEnabled === true) h.updateIntArray(land.exposure);
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);

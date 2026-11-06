@@ -62,6 +62,20 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // S3-pre (docs/SETTLEMENTS.md): packed earth. Well-fed people with empty hands dig earth from
   // trodden ground and set it down where people rest together, like stone. It builds less per load
   // and wears away faster, so stone stays the better material near the hills.
+  // S3w (docs/SETTLEMENTS.md): carried water. Water is an ordinary carried item: fetched from
+  // rivers and lakes, drunk from the carry, and poured into small stores at camps away from the river.
+  waterCarryEnabled: true, // a water store can be drunk from on its tile or any of the 8 around it, like a river
+  adjacentStoresEnabled: true, // hungry people also eat from food heaps on the 8 tiles around them
+  waterCarryMax: 20.0, // hydration a person can carry
+  waterFetchChance: 0.05, // per tick, for someone who could fetch (keeps hands free for other work)
+  waterFetchHydration: 90.0, // only someone this well watered fills up
+  waterSpill: 0.2, // carried water lost per step
+  waterPourMinDist: 4, // stores only this far or further from natural fresh water
+  waterStoreCap: 100.0, // most water one tile's store holds
+  waterEvaporation: 0.05, // store lost per tick in cool weather ...
+  waterEvapWarm: 2.0, // ... times (1 + this x warmth) in warm weather
+  waterCoveredEvapMul: 0.25, // ... and times this on a built tile (a covered jar)
+  waterStoreFindMin: 10.0, // a store this full is found by thirsty people; it drops out below half
   earthBuildingEnabled: true,
   earthWear: 64, // earth comes only from ground worn at least this much (bare, trodden soil)
   earthBite: 1.0, // earth dug per tick

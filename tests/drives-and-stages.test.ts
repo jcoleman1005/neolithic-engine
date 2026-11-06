@@ -156,6 +156,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         wolfLoneRadius: 0,
         pathsEnabled: false,
         earthBuildingEnabled: false,
+        waterCarryEnabled: false,
+        adjacentStoresEnabled: false,
       }, 42);
 
       for (let t = 1; t <= 1000; t++) {

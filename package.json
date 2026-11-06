@@ -23,6 +23,7 @@
     "map": "vite-node scripts/map-dump.ts --",
     "capture": "vite-node scripts/capture.ts --",
     "probe": "vite-node scripts/settle-probe.ts --",
+    "compare": "vite-node scripts/compare.ts --",
     "perf": "vite-node scripts/perf.ts",
     "build:server": "vite build --ssr server/main.ts --outDir dist-server --emptyOutDir",
     "server": "npm run build && npm run build:server && node dist-server/main.js",

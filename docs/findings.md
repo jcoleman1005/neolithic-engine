@@ -738,3 +738,17 @@ Layout of built tiles at year 30, seeds 1 and 3 (`npm run map` now prints this):
 | Open tiles walled on 3 or more sides | 0, 0 | 42, 44 |
 
 Directional building turns scattered pillars into lines and some partial enclosures. In the zoomed images the lines mostly run along both banks of rivers and around shores, where people rest, rather than in rings round fires. Every wall tile at 60 durability still counts as a one-tile hut (shelter and half upkeep), which the exposure step (S3b) has to replace; until then walls give more shelter than they should.
+
+## S3w carried water and adjacent stores: first result
+Starting values (new): `waterCarryMax` 20, `waterFetchChance` 0.05, `waterFetchHydration` 90, `waterSpill` 0.2, `waterPourMinDist` 4, `waterStoreCap` 100, `waterEvaporation` 0.05, `waterEvapWarm` 2, `waterCoveredEvapMul` 0.25, `waterStoreFindMin` 10. Stores and heaps can be reached on the 8 tiles around a person (water always; food with `adjacentStoresEnabled`).
+
+Six seeds, 30 years, distance from natural fresh water of people standing still, sampled every 90 ticks from year 10 (`npm run compare`):
+
+| Comparison | Per-seed mean change (tiles) | Mean | 95% interval | Sign-flip p |
+|:--|:--|:--|:--|:--|
+| Carried water off to on | +0.32, +0.56, +0.11, +0.41, -0.06, -0.29 | +0.17 | -0.16 to +0.51 | 0.22 |
+| Adjacent eating off to on | +1.01, +0.31, +0.13, +0.28, +0.07, -0.22 | +0.26 | -0.17 to +0.70 | 0.16 |
+
+Neither is significant. Within-seed rank tests are large but disagree in direction from seed to seed; they count thousands of related samples from one run as independent, so the across-seed test is the one to read.
+
+Why carried water shows nothing (seed 1, years 5 to 15): 1.7% of people carry water at any time, none of them 4 or more tiles from water, and no store formed. Carriers fill up at the river, stay near the shore and drink it there. The mechanism works (tests), but nothing takes people inland for it to act on: the shore holds about twice the plant food, and people return to it. The result is "not exercised", not "no effect".

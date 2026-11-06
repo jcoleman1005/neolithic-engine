@@ -97,6 +97,18 @@ export interface SimulationConfig {
   climbEnabled: boolean;
   calmMovementEnabled: boolean;
   stayFoodFraction: number;
+  waterCarryEnabled: boolean;
+  adjacentStoresEnabled: boolean;
+  waterCarryMax: number;
+  waterFetchChance: number;
+  waterFetchHydration: number;
+  waterSpill: number;
+  waterPourMinDist: number;
+  waterStoreCap: number;
+  waterEvaporation: number;
+  waterEvapWarm: number;
+  waterCoveredEvapMul: number;
+  waterStoreFindMin: number;
   earthBuildingEnabled: boolean;
   earthWear: number;
   earthBite: number;

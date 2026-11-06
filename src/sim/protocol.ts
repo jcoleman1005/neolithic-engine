@@ -7,8 +7,9 @@ import type { SettlementView } from './settlements';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
-export const PERSON_FRAME_BYTES = 10;
+export const PERSON_FRAME_BYTES = 11;
 
+// Person frame: slot (2), x, y, look, generation, root leader id (4), carry (kind in bits 0 to 2, amount 0 to 31 above).
 // Look byte bit layout:
 // Bit 0: sex (0 = female, 1 = male)
 // Bit 1: pregnant (0 = no, 1 = yes)

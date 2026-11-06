@@ -6,7 +6,7 @@
  * Writes <out>-yNN.png at each snapshot and prints one stats line. Only reads the world.
  *
  * Colours: water blue; land green, brighter with plant food; woodland dark green; rock grey-brown;
- * tilled soil tan; worn paths pale sand, paler with use; heap orange; granary gold; nest brown; hut white; fire red; cave black;
+ * stored water bright blue; tilled soil tan; worn paths pale sand, paler with use; heap orange; granary gold; nest brown; hut white; fire red; cave black;
  * set-down stone not yet a hut pale grey; people magenta, brighter when more share a tile.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -48,6 +48,7 @@ function cellColor(w: World, c: number, out: Uint8Array, o: number): void {
       else { r = 175 - k * 75; g = 175 - k * 75; b = 170 - k * 70; }
     }
     if (l.form[c] === FORM_HEAP || l.pile[c] > 1) { r = 230; g = 130; b = 30; }
+    if (l.waterStore[c] > 0) { r = 60; g = 120; b = 230; }
     if (l.form[c] === FORM_GRANARY) { r = 245; g = 205; b = 60; }
     if (l.form[c] === FORM_NEST) { r = 120; g = 72; b = 34; }
     if (l.structure[c] === 1 && l.material[c] !== 1) { r = 250; g = 250; b = 250; }
@@ -182,7 +183,7 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
 }
 
 function main(): void {
-  const { named, overrides } = parseArgs(process.argv.slice(2), ['seed', 'years', 'every', 'out', 'scale', 'save', 'crop']);
+  const { named, overrides } = parseArgs(process.argv.slice(2), ['seed', 'years', 'every', 'out', 'scale', 'save', 'crop', 'samples', 'from']);
   const seed = parseInt(named.seed ?? '3', 10);
   const years = parseInt(named.years ?? '20', 10);
   const every = parseInt(named.every ?? String(years), 10);
@@ -191,10 +192,20 @@ function main(): void {
   const world = new World(overrides as Partial<SimulationConfig>, seed);
   const ticksPerYear = world.config.ticksPerYear || 360;
   const chronicle = new Chronicle();
+  // --samples <file>: how far from natural fresh water people standing still are, every 90 ticks
+  // from year --from (default 10), for npm run compare.
+  const samples: number[] = [];
+  const fromTick = parseInt(named.from ?? '10', 10) * ticksPerYear;
   for (let y = 1; y <= years; y++) {
     for (let t = 0; t < ticksPerYear; t++) {
       world.step();
       chronicle.record(world);
+      if (named.samples && world.tick >= fromTick && world.tick % 90 === 0) {
+        const p = world.people;
+        for (let s = 0; s < p.capacity; s++) {
+          if (p.alive[s] === 1 && p.prevDir[s] === 4) samples.push(world.land.waterDist[(p.y[s] << 8) | p.x[s]]);
+        }
+      }
     }
     if (y % every === 0 || y === years) {
       const path = `${out}-y${String(y).padStart(2, '0')}.png`;
@@ -211,6 +222,11 @@ function main(): void {
       console.log(layoutLine(world));
     }
     if (world.population === 0) { console.log(`Died out in year ${y}`); break; }
+  }
+  if (named.samples) {
+    mkdirSync(dirname(named.samples), { recursive: true });
+    writeFileSync(named.samples, JSON.stringify({ seed, overrides, samples }));
+    console.log(`Wrote ${samples.length} samples to ${named.samples}`);
   }
   if (named.save) {
     const saved: SavedWorld = {

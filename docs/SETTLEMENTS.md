@@ -150,43 +150,40 @@ No new scent and no stored home. People stay when the place is physically better
 ### S3 Exposure and walls
 This answers the roadmap's closed-rooms question: no room detector and no wall tag. Rooms are simply places where exposure is low. Built in this order, stopping to review after each step:
 
-**S3w Carried water (planned 2026-11-05; build before S3b).** Why: on seed 3 with the layout test on, half of everyone standing still is on a tile next to fresh water and 88% are within 3 tiles, while 65% of the land is 7 or more tiles from water and holds 3% of resting people and 5% of walls. People can only drink beside a river or lake, so settlements can only grow as ribbons along shores.
+**S3w Carried water (planned and reviewed 2026-11-05; build before S3b).** Why: with thirst on, half of everyone standing still is next to fresh water; with thirst off, 41% stand 7 or more tiles away (seed 3, years 5 to 15). Thirst is not a range limit, since a full drink lasts about 100 ticks; it is a trip. Every 100 ticks or so it drags everyone to the river, and nothing pulls them back inland. Shore land also holds about twice the plant food (capacity 23.5 next to water, 6.7 to 11.5 inland), so the shore is a real draw anyway. The aim is not to move people anywhere: it is to let them drink without the trip and see whether behaviour changes.
 
-*Approach:* water becomes an ordinary hand-carried item (one thing at a time, like food), poured into a small store on a tile at camp. Not a personal waterskin: that would break the one-carry rule and hand everyone a container at year 0. A skin made from hunted hides could come later.
+*Approach:* water becomes an ordinary hand-carried item (one thing at a time, like food). People drink from what they carry and pour it into small stores at camps away from the river. Not a personal waterskin: that would break the one-carry rule and hand everyone a container at year 0; waterskins and wells are parked.
 
 *Mechanics* (switch `waterCarryEnabled`; every number in config):
-- **Fetch:** a well-fed, well-watered person with empty hands, standing beside fresh river or lake water, fills up to `waterCarryMax`. Food hoarding comes first, so hands full of food stay full.
-- **Spill:** carried water loses `waterSpill` per step, so only short hauls pay.
-- **Drink on the way:** a thirsty carrier drinks from what they carry before walking to water, so carriers can range inland.
-- **Pour:** a resting carrier pours into the tile's store (`Land.waterStore`, capped at `waterStoreCap`) where at least `dropCrowd` people rest or a store already stands, never right beside natural water.
-- **Evaporate:** stores lose `waterEvaporation` a tick, more in warm seasons, and much less on built or low-exposure tiles (a covered jar). That gives a physical reason to build at camps.
-- **Drink from stores:** someone thirsty on a store tile drinks from it at up to `drinkRate`, and the store goes down.
-- **Find water:** thirsty people head for the nearest drinkable water, which now includes stores above `waterStoreFindMin`.
+- **Fetch:** a fed person with empty hands and nearly full hydration, standing next to fresh river or lake water, fills up to `waterCarryMax`, but only on a small chance per tick (`waterFetchChance`, a hash of tick and slot, no random draw). Without that chance, everyone at the shore would fill up, and hands full of water would stop stone, earth and brush carrying.
+- **Spill:** carried water loses `waterSpill` per step.
+- **Drink from the carry:** a thirsty carrier drinks what they carry first, so a forager can stay inland instead of walking back. This is the part most likely to change behaviour.
+- **Pour:** a resting carrier pours into the tile's store (`Land.waterStore`, capped at `waterStoreCap`) only at least `waterPourMinDist` tiles from natural water, where at least `dropCrowd` people rest or a store already stands. Closer in, a store would save a step or two and nothing more, so carriers keep their water and drink it.
+- **Evaporate:** stores lose `waterEvaporation` a tick, more in warm seasons, and `waterCoveredEvapMul` as much on built tiles (nest, hut or any built durability). Exposure can join in later if S3a is accepted.
+- **Drink from a store:** a store is drunk from on its tile or any of the 8 around it, just as a river is drunk from beside it (changed 2026-11-05 at your suggestion). One rule covers both: stop and drink when natural water or a store is within reach, otherwise walk downhill on the drinkable-water distance. Up to 9 people can share a store without standing on one tile.
+- **Eat from heaps within reach (separate switch `adjacentStoresEnabled`):** hungry people also eat from food heaps on the 8 tiles around them, own tile first and then a fixed order, and S1's stay check counts heaps within reach. It changes far more than water does (each heap feeds about 9 times as many people, and fewer heaps grow into granaries), so it gets its own switch and its own comparison.
+- **Expect small inland groups:** a 50-person camp drinks about 20 units a tick, so a store of 100 lasts 5 ticks, and keeping one camp 5 tiles from water would take about 10 people hauling all the time.
 
 *Foundational changes:*
-1. **Two water distance fields:** `riverDist` (natural fresh water, used for fetching, fish and thirst-off parity) and `drinkDist` (rivers plus stores), rebuilt when a store crosses the find threshold. It is a pure function of the current state, rebuilt before any read in a tick, so a loaded save matches. It uses a reused typed queue, since `initWater` allocates a neighbour array per cell today. With the switch off, `drinkDist` is `riverDist`.
-2. **`CARRY_WATER`** through carry caps (body-scaled), carry drag, spill, the inspector and the save.
-3. **A carry byte in the person frame:** each person goes from 10 to 11 bytes, holding the carried kind (3 bits) and amount (5 bits). This lets the viewer draw every carried item, not only water, at a cost of about 10% more frame bandwidth.
-4. **`Land.waterStore`** (Float32): saved; hashed only while the switch is on.
-5. **One per-tile ground channel to the viewer:** S2's paths channel, repacked as wear (bits 0 to 2), built level (bits 3 to 5, for S3) and water store level (bits 6 and 7).
-6. **Tools:** `npm run map` and `npm run probe` report where people stand still and where walls are, by distance from natural water, as measured above, plus store counts.
+1. **Two water distance fields:** `waterDist` stays natural fresh water (fetching, fish, the shore drink). New `drinkDist` counts rivers plus findable stores. A store becomes findable at `waterStoreFindMin` and drops out only below half of it, so it does not flicker; that state is saved and hashed. `drinkDist` is rebuilt only when a store changes findable state, with a reused typed queue. With the switch off, people use `waterDist` as today.
+2. **`CARRY_WATER`** through carry caps (body-scaled), spill, drag and the save.
+3. **A carry byte in the person frame:** 10 to 11 bytes per person (carried kind and amount), so the viewer can mark what anyone carries. This is a format change, so open pages reload, and it is about 10% more frame bandwidth.
+4. **`Land.waterStore`** (Float32) and the findable state: saved, and hashed only while the switch is on.
+5. **The per-tile ground channel to the viewer:** wear (bits 0 to 2), with water store level in bits 6 and 7; bits 3 to 5 are left for S3's built level.
+6. **Tools:** `npm run map -- --samples <file>` writes thinned samples of how far people standing still are from natural water, and a new `npm run compare` runs the statistics below.
 
-*On the map:*
-- **Close zoom:** carriers show a small grey-blue gourd on the figure (other items get carry marks from the same byte). Stores draw as a top-down clay jar or pool on the tile, fuller with level.
-- **Middle zoom:** stores show as blue dots.
-- **Far zoom:** a faint blue pixel inside the settlement footprint.
-- **Panels:** the inspector shows "carrying water", the settlement card shows stored water, and the legend gets entries.
+*On the map:* stores draw as blue on the tile, stronger as they fill (a top-down jar or pool sprite comes from the graphics agent later). At close zoom a carrier shows a small mark for what they carry, blue for water. The settlement card shows stored water, and the legend gets entries.
 
-*Targets, set before running* (seeds 1 to 3, year 30, carried water on against off, S3a layout test on in both):
-- People standing still 4 or more tiles from natural fresh water: at least 25% (baseline 12% on seed 3).
-- Built tiles 4 or more tiles from natural water: at least 40% (baseline 30%).
-- Population at year 20 at least 90% of off; no seed dies out.
-- Stores visible: on every seed, stores stand inside at least 3 settlements.
-- Perf within budget, also at 2,000 to 3,000 people.
+*How S3w is judged.* No target for where people should be. The test is whether behaviour differs:
+- **Runs:** 6 seeds, 30 years each, carried water on and off. Everything else stays at defaults, with S3a off, since it is unreviewed.
+- **Measure:** distance from natural fresh water of everyone standing still, sampled every 90 ticks from year 10 to 30.
+- **Two comparisons**, each with everything else on: carried water off against on, and adjacent eating off against on.
+- **Main test:** the per-seed means are compared in pairs, with the mean difference, a 95% interval, and an exact sign-flip test (with 6 seeds, the smallest possible two-sided p is 0.03).
+- **Supporting check:** a rank test within each seed.
+- **Passes if:** the difference is significant at p < 0.05 in either direction, with the interval excluding zero.
+- **Guardrails, reported and not targets:** no seed dies out; population at year 20 within 10% of off; built tiles not down by more than 25%; perf within budget.
 
-*Risks:* everyone fetching water leaves no one carrying food, so population could drop (fetching is gated behind food hoarding). Inland stores may evaporate before they matter. Thirsty people walking to a store may find it empty (the find threshold and refresh guard this). Stores may become one more stacking point (S1 crowding applies). Frame size grows about 10%.
-
-*Tests:* fetching only beside natural water; spill per step; drinking from a carry and from a store; pouring only away from natural water; evaporation faster when warm and slower when covered; `drinkDist` including stores and matching after a load; a store emptying out of the find field; the carry byte encoding round trip; off parity.
+*Tests:* fetching only next to natural water and only on the chance; spill per step; drinking from a carry and from a store; pouring only far enough from natural water; evaporation faster when warm and slower when covered; findable hysteresis; `drinkDist` including stores and matching after a load; the thirst stop rule on a store tile; the carry byte round trip; off parity.
 
 **S3-pre Packed earth.** Stone exists only on hill tiles and is picked up only by people standing there, so lowland camps could almost never build. Add earth, dug from any land tile: a new `CARRY_EARTH` kind (new carry kind plumbing, inspector), and a per-cell material for built cells, so earth gives less durability and wears faster than stone. Digging costs energy and is booked in the ledger. Stone becomes the upgrade near hills. Switch `earthBuildingEnabled`. No "go fetch stone" drive yet.
 

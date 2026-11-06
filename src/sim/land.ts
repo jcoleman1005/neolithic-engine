@@ -55,6 +55,9 @@ export interface LandState {
   /** What built tiles are made of (S3); absent in older saves. */
   readonly material?: readonly number[];
   readonly exposure?: readonly number[];
+  /** Carried-water stores (S3w); absent in older saves. */
+  readonly waterStore?: readonly number[];
+  readonly waterFindable?: readonly number[];
   readonly structure?: readonly number[];
 }
 
@@ -119,6 +122,14 @@ export class Land {
   public readonly material: Uint8Array;
   /** S3a: how open a tile is to the wind, 0 enclosed to 255 open. Refreshed in slices, so saved. */
   public readonly exposure: Uint8Array;
+  /** S3w: water poured into a store on this tile. Saved; hashed only while carried water is on. */
+  public readonly waterStore: Float32Array;
+  /** S3w: 1 while thirsty people can find this store (set at the find level, cleared below half). Saved. */
+  public readonly waterFindable: Uint8Array;
+  /** S3w: steps to drinkable water: fresh rivers and lakes, plus findable stores. Derived, not saved. */
+  public readonly drinkDist: Uint8Array;
+  private drinkDirty = true;
+  private readonly drinkQueue = new Int32Array(TOTAL_CELLS);
   /** S3a: where the wind comes from this season, as a unit vector. */
   public windX = 0;
   public windY = -1;
@@ -172,6 +183,9 @@ export class Land {
     this.durability = new Uint8Array(TOTAL_CELLS);
     this.wear = new Uint8Array(TOTAL_CELLS);
     this.material = new Uint8Array(TOTAL_CELLS);
+    this.waterStore = new Float32Array(TOTAL_CELLS);
+    this.waterFindable = new Uint8Array(TOTAL_CELLS);
+    this.drinkDist = new Uint8Array(TOTAL_CELLS).fill(255);
     this.exposure = new Uint8Array(TOTAL_CELLS).fill(255);
     this.structure = new Uint8Array(TOTAL_CELLS);
     this.fire = new Uint8Array(TOTAL_CELLS);
@@ -562,8 +576,14 @@ export class Land {
   }
 
   /** S2: path wear for the viewer, 0 to 7 per tile. */
-  public packPaths(out: Uint8Array): void {
-    for (let i = 0; i < TOTAL_CELLS; i++) out[i] = this.wear[i] >> 5;
+  public packPaths(out: Uint8Array, config?: Readonly<SimulationConfig>): void {
+    // Ground channel: wear in bits 0 to 2 and (S3w) the water store level in bits 6 and 7.
+    const cap = config?.waterStoreCap ?? 100;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      const s = this.waterStore[i];
+      const lvl = s <= 0 ? 0 : s < cap / 3 ? 1 : s < (2 * cap) / 3 ? 2 : 3;
+      out[i] = (this.wear[i] >> 5) | (lvl << 6);
+    }
   }
 
   /** Wears every built tile down by 1, one slice of the map a tick, so each loses 1 per erosionSlices ticks. */
@@ -590,6 +610,112 @@ export class Land {
       this.structure[i] = 0;
       this.hutCount--;
       if (config.shelterSeekEnabled !== false) this.warmDirty = true;
+    }
+  }
+
+  /** S3w: rebuilds the drinkable-water distance when a store has been found or lost. */
+  public refreshDrink(): void {
+    if (!this.drinkDirty) return;
+    this.drinkDirty = false;
+    const dist = this.drinkDist;
+    const queue = this.drinkQueue;
+    dist.fill(255);
+    let head = 0, tail = 0;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.waterDist[i] === 0 || this.waterFindable[i] === 1) { dist[i] = 0; queue[tail++] = i; }
+    }
+    while (head < tail) {
+      const c = queue[head++];
+      const d = dist[c] + 1;
+      if (d > 254) continue;
+      const x = c & COORD_MASK, y = c >> 8;
+      for (let k = 0; k < 4; k++) {
+        const n = k === 0 ? (y << 8) | ((x + 1) & COORD_MASK)
+          : k === 1 ? (y << 8) | ((x - 1) & COORD_MASK)
+          : k === 2 ? (((y + 1) & COORD_MASK) << 8) | x
+          : (((y - 1) & COORD_MASK) << 8) | x;
+        if (dist[n] !== 255 || this.isWater[n] === 1) continue;
+        dist[n] = d;
+        queue[tail++] = n;
+      }
+    }
+  }
+
+  /** S3w: keeps a store's findable state, with hysteresis so it does not flicker. */
+  private updateFindable(i: number, config: Readonly<SimulationConfig>): void {
+    const min = config.waterStoreFindMin ?? 10;
+    const v = this.waterStore[i];
+    if (this.waterFindable[i] === 0 && v >= min) { this.waterFindable[i] = 1; this.drinkDirty = true; }
+    else if (this.waterFindable[i] === 1 && v < min / 2) { this.waterFindable[i] = 0; this.drinkDirty = true; }
+  }
+
+  /** S3w: pours water into a tile's store; returns how much went in. */
+  public pourWater(i: number, amount: number, config: Readonly<SimulationConfig>): number {
+    const room = (config.waterStoreCap ?? 100) - this.waterStore[i];
+    const got = amount < room ? amount : room > 0 ? room : 0;
+    this.waterStore[i] += got;
+    this.updateFindable(i, config);
+    return got;
+  }
+
+  /** S3w: takes water from a tile's store to drink; returns how much came out. */
+  public takeWater(i: number, want: number, config: Readonly<SimulationConfig>): number {
+    const got = want < this.waterStore[i] ? want : this.waterStore[i];
+    this.waterStore[i] -= got;
+    this.updateFindable(i, config);
+    return got;
+  }
+
+  /** Neighbour offsets in a fixed order (own tile first), for reaching into the tiles around someone. */
+  private static readonly REACH_DX = [0, -1, 0, 1, -1, 1, -1, 0, 1];
+  private static readonly REACH_DY = [0, -1, -1, -1, 0, 0, 1, 1, 1];
+
+  /** Food heaped on this tile and the 8 around it. */
+  public pileInReach(x: number, y: number): number {
+    let sum = 0;
+    for (let k = 0; k < 9; k++) sum += this.pile[(((y + Land.REACH_DY[k]) & COORD_MASK) << 8) | ((x + Land.REACH_DX[k]) & COORD_MASK)];
+    return sum;
+  }
+
+  /** Eats from heaps on this tile first, then the 8 around it in a fixed order. Returns what was eaten. */
+  public takePileInReach(x: number, y: number, want: number): number {
+    let got = 0;
+    for (let k = 0; k < 9 && got < want; k++) {
+      got += this.takePile(x + Land.REACH_DX[k], y + Land.REACH_DY[k], want - got);
+    }
+    return got;
+  }
+
+  /** S3w: whether any water store is on this tile or the 8 around it. */
+  public waterInReach(x: number, y: number): boolean {
+    for (let k = 0; k < 9; k++) {
+      if (this.waterStore[(((y + Land.REACH_DY[k]) & COORD_MASK) << 8) | ((x + Land.REACH_DX[k]) & COORD_MASK)] > 0) return true;
+    }
+    return false;
+  }
+
+  /** S3w: drinks from stores on this tile first, then the 8 around it. Returns what was drunk. */
+  public drinkInReach(x: number, y: number, want: number, config: Readonly<SimulationConfig>): number {
+    let got = 0;
+    for (let k = 0; k < 9 && got < want; k++) {
+      const c = (((y + Land.REACH_DY[k]) & COORD_MASK) << 8) | ((x + Land.REACH_DX[k]) & COORD_MASK);
+      if (this.waterStore[c] > 0) got += this.takeWater(c, want - got, config);
+    }
+    return got;
+  }
+
+  /** S3w: stores dry out, faster when warm, much slower on a built (covered) tile. */
+  public evaporateWater(config: Readonly<SimulationConfig>): void {
+    const warm = this.seasonTemp > 0 ? this.seasonTemp : 0;
+    const base = (config.waterEvaporation ?? 0.05) * (1 + (config.waterEvapWarm ?? 2) * warm);
+    const covered = config.waterCoveredEvapMul ?? 0.25;
+    const store = this.waterStore;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (store[i] <= 0) continue;
+      const roof = this.durability[i] > 0 || this.structure[i] === 1 || this.form[i] === FORM_NEST;
+      const v = store[i] - base * (roof ? covered : 1);
+      store[i] = v > 0 ? v : 0;
+      this.updateFindable(i, config);
     }
   }
 
@@ -1032,6 +1158,8 @@ export class Land {
       durability: Array.from(this.durability),
       wear: Array.from(this.wear),
       material: Array.from(this.material),
+      waterStore: Array.from(this.waterStore),
+      waterFindable: Array.from(this.waterFindable),
       exposure: Array.from(this.exposure),
       structure: Array.from(this.structure),
     };
@@ -1079,6 +1207,11 @@ export class Land {
     if (state.durability) for (let i = 0; i < len; i++) this.durability[i] = state.durability[i] ?? 0;
     this.wear.fill(0);
     if (state.wear) for (let i = 0; i < len; i++) this.wear[i] = state.wear[i] ?? 0;
+    this.waterStore.fill(0);
+    if (state.waterStore) for (let i = 0; i < len; i++) this.waterStore[i] = state.waterStore[i] ?? 0;
+    this.waterFindable.fill(0);
+    if (state.waterFindable) for (let i = 0; i < len; i++) this.waterFindable[i] = state.waterFindable[i] ?? 0;
+    this.drinkDirty = true;
     this.material.fill(0);
     if (state.material) for (let i = 0; i < len; i++) this.material[i] = state.material[i] ?? 0;
     this.exposure.fill(255);

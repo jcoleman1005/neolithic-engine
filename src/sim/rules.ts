@@ -21,6 +21,7 @@ import {
   genFromId,
   GEN_MASK,
   stageWork,
+  CARRY_WATER,
 } from './people';
 import type { Land } from './land';
 import { FORM_NEST } from './land';
@@ -238,16 +239,22 @@ export class Rules {
 
     // Thirst: a person low on water heads for the nearest fresh water (down the distance map),
     // and stays put once beside it to drink.
-    if (config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && people.hydration[slot] < (config.thirstSeek ?? 60)) {
-      const here = land.waterDist[(py << 8) | px];
-      if (here <= 1) return 4;
+    const carriedWater = config.waterCarryEnabled !== false && config.stockpilesEnabled !== false;
+    // S3w: someone carrying water drinks from it instead of walking to the river.
+    const hasWater = carriedWater && people.carryKind[slot] === CARRY_WATER && people.carry[slot] > 0;
+    if (config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && !hasWater && people.hydration[slot] < (config.thirstSeek ?? 60)) {
+      const cellHere = (py << 8) | px;
+      // Rivers and stores alike are drunk from on or beside them.
+      if (land.waterDist[cellHere] <= 1 || (carriedWater && land.waterInReach(px, py))) return 4;
+      const dist = carriedWater ? land.drinkDist : land.waterDist;
+      const here = dist[cellHere];
       if (here < 255) {
         let best = 4;
         let bestD = here;
         for (let d = 0; d < 4; d++) {
           const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
           const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
-          const nd = land.waterDist[(ny << 8) | nx];
+          const nd = dist[(ny << 8) | nx];
           if (nd < bestD && Rules.canStep(px, py, d, land)) { best = d; bestD = nd; }
         }
         if (best !== 4) return best;
@@ -362,7 +369,8 @@ export class Rules {
   ): boolean {
     const cell = (people.y[slot] << 8) | people.x[slot];
     const plants = land.food[cell];
-    const heap = config.stockpilesEnabled !== false ? land.pile[cell] : 0;
+    const heap = config.stockpilesEnabled === false ? 0
+      : config.adjacentStoresEnabled !== false ? land.pileInReach(people.x[slot], people.y[slot]) : land.pile[cell];
     const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
     if (hungry && heap <= 1.0 && plants <= (config.landGrazingFloor ?? 1.0) + 0.5) return false;
     let upkeepShare = 1;
