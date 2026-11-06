@@ -817,3 +817,13 @@ No code bug found: clashes, wounds, healing, mating, childbirth and childcare do
 Seeds 1 to 3, 30 years (healing alone) and 50 years (with fear), wound and death probes. Compared against the same seeds with the S3x switch off. These are what to report, not things to tune toward:
 - **Slow healing:** share wounded at years 21 to 30 below off; mean injury of the wounded below off. Guardrails: no seed dies out; population at year 20 within 10% of off; perf within budget.
 - **Fear:** of people who lost a clash, the share more than `fearRadius` from the place of the loss 90 days later is higher than off (with fear off this is measured the same way, from where they lost). Winners: no different from off. Guardrails as in `docs/SETTLEMENTS.md` S3x.
+
+**S3x slow healing result** (seeds 1 to 3, 30 years, fear off in both arms, wound probe): target met, effect small.
+
+| Years 26 to 30 | Seed 1 off / on | Seed 2 off / on | Seed 3 off / on |
+|---|---|---|---|
+| Wounded | 96% / 94% | 96% / 93% | 94% / 89% |
+| Mean wound of the wounded | 219 / 209 | 221 / 210 | 214 / 204 |
+| People | 5,916 / 6,221 | 5,676 / 5,848 | 6,463 / 6,356 |
+
+Wounds still arrive faster than they can heal: a lost clash about every 55 ticks needs more than 1 point a tick, against 0.3 at most (0.45 sheltered). Healing does not fix the wound load by itself; fewer repeated clashes have to.
