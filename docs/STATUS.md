@@ -2,7 +2,7 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
-## AI Context & Token Reduction Pass (branch `cleanup-tokens-and-context`)
+## AI Context & Token Reduction Pass (merged to `main`)
 - **Done**:
   - Eliminated root `Roadmap.md` duplicate (canonical roadmap remains `docs/ROADMAP.md`).
   - Pruned dead `src/core/` legacy code (~940 lines: `world.ts`, `config.ts`, `ledger.ts`, `hash.ts`, `brain.ts`, `noise.ts`), eliminating dual-symbol collisions with `src/sim/`.
