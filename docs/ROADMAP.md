@@ -243,7 +243,7 @@ The architectural arc, and where each piece lives:
 | 1 Nomadic | Cave shelters | Natural caves in hills; sheltered cells cut the cold | 5d | built, not watched |
 | 1 Nomadic | Campfire hearths | Fuel (brush) carried to where people gather in the cold and burned; warmth radius, glow | 5d | built, not watched |
 | 2 Domestic | Trampled crop clearings | Tilled soil and dropped seeds regrow faster; overgrazed soil goes to desert | 5b | built |
-| 2 Domestic | Golden ripe crops | Ripeness drawn on worked cells; communal hearths persist where people settle | 5e | planned |
+| 2 Domestic | Golden ripe crops | Ripeness drawn on worked cells; communal hearths persist where people settle | 5e | built, not watched |
 | 3 Dry-stone | Preserved granaries | Compacted food heaps become a granary floor that spoils slowly; stone granary later | 5c / 5f | floor built |
 | 3 Dry-stone | Dry-stone huts, closed rooms | Planned: stone gathered, dumped and tamped into wall cells; shelter grows with the walls around a cell. Built so far: stone set down on a tile until it reaches 60 durability and becomes a one-tile hut; no walls or rooms yet (see the open question) | 5f | huts built, not watched; rooms open |
 | 3 Dry-stone | Defensive barricades | Walls against raiders | Phase 7 | planned |

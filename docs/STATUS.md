@@ -1,6 +1,6 @@
 # Neolithic Engine — Status
 
-## Phase 5e: Golden Crops & Active Farming Tending (branch `phase-5e-crops`)
+## Phase 5e: Golden Crops & Active Farming Tending (merged to `main`)
 - **Done**:
   - Built **Phase 5e (Golden Crops & Crop Ripening)**:
     - Cultivated / worked cells (`tilled >= 0.15` or `seeds > 0`) ripen visually into golden fields as food reaches `cropRipenThreshold` (0.70) of cell capacity.
@@ -14,9 +14,9 @@
     - Switches & tunables: `tendingEnabled: true`, `tendingGain: 0.03`, `tendingRegrowBoost: 0.40`.
   - **Invariants & Ledger**: Energy ledger verified with 0 violations across 300+ ticks (`ledger.violations === 0`). Off-switch parity verified with baseline fingerprint (`b11b505bedb2a659`).
   - **Tests**: Created `tests/golden-crops.test.ts` (6 tests: gentle harvest tending gain, fallow till decay, ripe golden crop overlay encoding, harvest reset to tilled earth, off-switch parity, multi-generation energy balance).
-  - **Perf**: **5.605 µs / person / tick** at 8,800 people (well within desktop 15.0 µs budget).
-  - **Verify**: `npm run verify` passed (check, 41/41 test suites, 265 tests, production build).
-- **Next**: Review in browser (Rule 13), merge `phase-5e-crops` into `main`.
+  - **Perf**: **5.957 µs / person / tick** at 8,739 people (well within desktop 15.0 µs budget).
+  - **Verify**: `npm run verify` passed (check, 42/42 test suites, 271 tests, production build).
+- **Next**: Browser visual inspection (Rule 13); proceed to Phase 5f (Structures, Stone & Closed Rooms) or Phase 6b (Weather & Disaster).
 
 ## Phase 6a: Hunting & Fauna Dynamics (merged to `main`)
 - **Done**:
