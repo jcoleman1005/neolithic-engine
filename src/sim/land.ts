@@ -265,6 +265,8 @@ export class Land {
     const seedRegrow = config.seedRegrowBoost ?? 1.5;
     const seedCapBoost = config.seedCapacityBoost ?? 0.6;
     const soilRec = config.soilRecoveryRate ?? 0.0006;
+    const tendingOn = config.tendingEnabled !== false && farm;
+    const tendingBoost = config.tendingRegrowBoost ?? 0.40;
 
     const finite = config.finiteResourcesEnabled !== false;
     const treeRegrow = (config.treeRegrowRate ?? 0.0005) * growthFactor;
@@ -398,7 +400,8 @@ export class Land {
           }
         }
         cap = max * sh * (1 + seedCapBoost * sf);
-        rate = baseRate * (1 + tillBoost * t + seedRegrow * sf);
+        const tendBonus = tendingOn && t > 0.25 ? tendingBoost * Math.min(1, t) : 0;
+        rate = baseRate * (1 + tillBoost * t + seedRegrow * sf + tendBonus);
         if (cur > cap) {
           cur = cap;
           this.food[i] = cur;
@@ -842,12 +845,22 @@ export class Land {
     const soilMin = config.soilMin ?? 0.2;
     const seedCap = config.seedCap ?? 10;
     const span = Math.max(1e-6, 1 - soilMin);
+    const goldenOn = config.goldenCropsEnabled !== false;
+    const ripenThreshold = config.cropRipenThreshold ?? 0.70;
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) { out[i] = 0; continue; }
       const dmg = Math.min(7, Math.round(((1 - this.soilHealth[i]) / span) * 7));
       // Square-root scale so lightly worked soil still shows.
       const farmLevel = Math.min(7, Math.round(Math.sqrt(Math.min(1, this.tilled[i])) * 7));
-      const seedLevel = Math.min(3, Math.round((this.seeds[i] / seedCap) * 3));
+      let seedLevel = Math.min(3, Math.round((this.seeds[i] / seedCap) * 3));
+      if (goldenOn && farmLevel >= 1 && seedLevel === 0) {
+        const cap = this.capacityAt(i, config);
+        if (cap > 0 && this.food[i] >= cap * ripenThreshold) {
+          seedLevel = 3; // Ripe golden crop!
+        } else if (cap > 0 && this.food[i] >= cap * (ripenThreshold * 0.75)) {
+          seedLevel = 1; // Growing amber shoots
+        }
+      }
       out[i] = dmg | (farmLevel << 3) | (seedLevel << 6);
     }
   }
@@ -884,6 +897,10 @@ export class Land {
             if (this.berryMax[index] > 0) this.berryMax[index] = this.berryCapSaved * this.fertility[index];
           }
         }
+      } else if (config.tendingEnabled !== false && take > 0) {
+        // Primitive 5: Tending - gentle harvesting without stripping raises cultivation and regrowth
+        const tendingGain = config.tendingGain ?? 0.03;
+        this.tilled[index] = Math.min(1.0, this.tilled[index] + tendingGain * (1 - this.tilled[index]));
       }
     }
     return take;

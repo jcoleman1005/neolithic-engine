@@ -1110,10 +1110,11 @@ export class CanvasRenderer {
         let c = 0;
         // A faint checker on worked soil reads as tilled ground, distinct from smooth desert.
         const checker = ((i + (i >> 8)) & 1) * 10;
-        if (seeds > 0) c = ((110 + seeds * 40) << 24) | COLOR_SEEDS_RGB; // grain: translucent gold
-        else if (farm >= 2 && farm >= desert) c = ((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB; // worked soil: dark brown
-        else if (desert >= 2) c = ((85 + desert * 20) << 24) | COLOR_DESERT_RGB; // stripped land: pale sand
-        else if (farm === 1) c = ((70 + checker) << 24) | COLOR_FARM_RGB; // barely worked
+        if (seeds === 3) c = (((230 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // ripe golden crops: brilliant rich gold
+        else if (seeds > 0) c = (((120 + seeds * 35 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // growing grain / seedbed
+        else if (farm >= 2 && farm >= desert) c = (((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // worked soil: dark brown
+        else if (desert >= 2) c = (((85 + desert * 20) << 24) | COLOR_DESERT_RGB) >>> 0; // stripped land: pale sand
+        else if (farm === 1) c = (((70 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // barely worked
         // S2: worn paths show as trodden earth, stronger the more they are used.
         const path = paths ? paths[i] : 0;
         if (path >= 2) c = ((50 + path * 22) << 24) | COLOR_PATH_RGB;

@@ -192,6 +192,11 @@ export interface SimulationConfig {
   soilWearRate: number;
   soilRecoveryRate: number;
   soilMin: number;
+  goldenCropsEnabled?: boolean;
+  cropRipenThreshold?: number;
+  tendingEnabled?: boolean;
+  tendingGain?: number;
+  tendingRegrowBoost?: number;
   fertilityChangeEnabled: boolean;
   fertilityMin: number;
   fertilityMax: number;

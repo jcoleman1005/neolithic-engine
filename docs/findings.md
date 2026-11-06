@@ -70,6 +70,11 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-05 | `clashRetreatFatigue` | 0 | 6 | Fatigue increment sustained by retreating coward (adrenaline exhaustion) |
 | 2026-11-05 | `clashRetreatInjuryMul` | 0 | 0.20 | Fractional clash injury taken as a glancing blow/scrape during flight |
 | 2026-11-05 | `clashRetreatDropThreshold` | 0 | 3.0 | Heavy cargo threshold where panicking coward drops carried goods to flee faster |
+| 2026-11-05 | `goldenCropsEnabled` | false | true | Phase 5e: cultivated cells ripen into visible golden fields when food approaches capacity |
+| 2026-11-05 | `cropRipenThreshold` | 0 | 0.70 | Fraction of capacityAt above which cultivated cells are encoded as ripe golden grain |
+| 2026-11-05 | `tendingEnabled` | false | true | Primitive 5: gentle harvesting without stripping boosts cultivation and regrowth |
+| 2026-11-05 | `tendingGain` | 0 | 0.03 | Extra cultivation (tilled) gained per gentle harvest on healthy soil |
+| 2026-11-05 | `tendingRegrowBoost` | 0 | 0.40 | Regrowth multiplier bonus for well-tended cultivated soil |
 | 2026-11-04 | `birthHazardsEnabled` | false | true | Deterministic childbirth physical trauma and metabolic demands switch |
 | 2026-11-04 | `pregnancyUpkeepMul` | 1.0 | 1.25 | Extra upkeep multiplier during pregnancy (+25%) |
 | 2026-11-04 | `pregnancyMiscarriageEnergy` | 0 | 15.0 | Energy threshold below which severe starvation terminates pregnancy to protect mother |
@@ -763,3 +768,9 @@ Round 1 wore most of the land, so it read as worn ground everywhere rather than 
 - **Energy Ledger & Invariants**: Conserves energy with 0 violations across 500+ simulation ticks (`ledger.violations === 0`).
 - **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
 - **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).
+
+## Phase 5e: Golden Crops & Farming Tending (Primitives 5, 9, 41)
+- **Phase 5e (Golden Crops)**: added `goldenCropsEnabled` (default true) and `cropRipenThreshold` (0.70). Cultivated cells (`tilled >= 0.15` or `seeds > 0`) ripen to golden fields as plant food approaches cell capacity. In `Land.packOverlay`, ripe cells are encoded as `seedLevel = 3`, blitting as brilliant golden grain (`COLOR_SEEDS_RGB = 0x28c8f0` at 230 alpha) on the 256×256 land overlay. When foragers graze crops down below threshold, the overlay immediately drops to dark brown tilled earth (`farmLevel >= 2`, `COLOR_FARM_RGB`), establishing a visually legible ripening-and-harvesting cycle on the map.
+- **Primitive 5 (Active Tending)**: added `tendingEnabled` (default true), `tendingGain` (0.03), and `tendingRegrowBoost` (0.40). Gentle harvesting that preserves at least 25% of cell capacity raises soil cultivation (`tilled`) via `tendingGain * (1 - tilled)`. Well-tended fields (`tilled > 0.25`) enjoy an active regrowth bonus (`tendingRegrowBoost * tilled`), boosting agricultural output in settled regions while untended fallow fields naturally decay back to wild grassland.
+- **Invariants & Ledger**: Energy ledger verified with zero residual violations across 300+ simulation ticks (`ledger.violations === 0`). Strict off-switch fingerprint parity verified (`b11b505bedb2a659`).
+- **Performance**: **5.70 µs / person / tick** at ~8,800 people (well within desktop budget of 15.0 µs).

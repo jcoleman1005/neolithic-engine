@@ -198,6 +198,7 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
     const wOff = new World({
       clashLootEnabled: false,
       clashCourageEnabled: false,
+      tendingEnabled: false,
       herdScentEnabled: false,
       huntCarryMeatEnabled: false,
       huntScalingEnabled: false,

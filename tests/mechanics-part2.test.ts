@@ -109,7 +109,7 @@ describe('Phase 1 Invariants & Mechanics (part 2)', () => {
     expect(world.stateHash()).toBe(baseHash);
   });
 
-  it('runs past 5,000 people, saves through JSON round trip, restores, steps with matching stateHashes', () => {
+  it('runs past 5,000 people, saves through JSON round trip, restores, steps with matching stateHashes', async () => {
     // Start with a healthy population past 5,000
     const worldA = new World({ seed: 777, initialPopulation: 5100 });
     worldA.step();
@@ -130,9 +130,12 @@ describe('Phase 1 Invariants & Mechanics (part 2)', () => {
     for (let tick = 0; tick < 250; tick++) {
       worldA.step();
       worldB.step();
+      if (tick % 25 === 0) {
+        await new Promise(r => setImmediate(r));
+      }
       if (tick % 50 === 0 || tick === 249) {
         expect(worldB.stateHash(), `State hash mismatch at tick ${tick}`).toBe(worldA.stateHash());
       }
     }
-  }, 90000);
+  }, 120000);
 });

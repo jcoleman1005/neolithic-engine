@@ -1,6 +1,24 @@
 # Neolithic Engine — Status
 
-## Phase 6a: Hunting & Fauna Dynamics (branch `phase-6a-fauna`)
+## Phase 5e: Golden Crops & Active Farming Tending (branch `phase-5e-crops`)
+- **Done**:
+  - Built **Phase 5e (Golden Crops & Crop Ripening)**:
+    - Cultivated / worked cells (`tilled >= 0.15` or `seeds > 0`) ripen visually into golden fields as food reaches `cropRipenThreshold` (0.70) of cell capacity.
+    - Encoded in `Land.packOverlay` as `seedLevel = 3` (rich golden grain `COLOR_SEEDS_RGB = 0x28c8f0` with alpha 230), transitioning down to dark brown tilled earth (`COLOR_FARM_RGB`) immediately when harvested down by foragers.
+    - Updated overlay rendering in `src/render/renderer.ts` with textured golden crop wash (`COLOR_SEEDS_RGB` + checker) and close-zoom micro-accents.
+    - Switch: `goldenCropsEnabled: true`, tunable: `cropRipenThreshold: 0.70`.
+  - Built **Primitive 5 (Active Tending & Cultivation)**:
+    - Gentle repeated harvesting without stripping cells (`food >= 0.25 * capacity`) raises soil cultivation (`tilled` increased by `tendingGain: 0.03`).
+    - Well-tended cells (`tilled > 0.25`) receive an active regrowth bonus (`tendingRegrowBoost: 0.40`), boosting agricultural yields around settlements.
+    - Untended fallow fields naturally decay back toward wild grassland via `tillDecay`.
+    - Switches & tunables: `tendingEnabled: true`, `tendingGain: 0.03`, `tendingRegrowBoost: 0.40`.
+  - **Invariants & Ledger**: Energy ledger verified with 0 violations across 300+ ticks (`ledger.violations === 0`). Off-switch parity verified with baseline fingerprint (`b11b505bedb2a659`).
+  - **Tests**: Created `tests/golden-crops.test.ts` (6 tests: gentle harvest tending gain, fallow till decay, ripe golden crop overlay encoding, harvest reset to tilled earth, off-switch parity, multi-generation energy balance).
+  - **Perf**: **5.70 µs / person / tick** at 8,800 people (well within desktop 15.0 µs budget).
+  - **Verify**: `npm run verify` passed (check, 34/34 test suites, 219 tests, production build).
+- **Next**: Review in browser (Rule 13), merge `phase-5e-crops` into `main`.
+
+## Phase 6a: Hunting & Fauna Dynamics (merged to `main`)
 - **Done**:
   - **Predator-Prey Ecosystem Stabilization**:
     - Resolved wolf starvation extinction: tuned wolf perception (`wolfSenseRadius: 12`), lower metabolism (`wolfUpkeep: 0.05`), soft cap (`wolfSoftCap: 50`), and initial pack density (`wolfInitialCount: 28`).

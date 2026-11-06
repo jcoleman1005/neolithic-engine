@@ -102,6 +102,12 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   soilWearRate: 0.0012, // soil health lost per bite that strips a cell
   soilRecoveryRate: 0.0015, // per tick, fraction of the missing health regained when not stripped
   soilMin: 0.2, // soil health never drops below this
+  // Phase 5e: golden crops and active tending (Primitives 5, 9, 41)
+  goldenCropsEnabled: true, // worked cells ripen to golden fields as food approaches capacity
+  cropRipenThreshold: 0.70, // fraction of capacityAt above which cultivated cells are ripe
+  tendingEnabled: true, // repeated gentle harvesting/foraging boosts soil cultivation and regrowth (Primitive 5)
+  tendingGain: 0.03, // extra cultivation (tilled) gained per gentle harvest without stripping
+  tendingRegrowBoost: 0.40, // regrowth multiplier bonus for well-tended cultivated soil
   // Mutable fertility: soil fertility improves with tending (passive tilled+seeded cover,
   // explicit seed drops, tamping, compost) and degrades with overuse (repeated stripping/overgrazing).
   fertilityChangeEnabled: true,

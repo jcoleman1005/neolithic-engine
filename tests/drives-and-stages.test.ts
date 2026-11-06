@@ -158,6 +158,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         resourceClashEnabled: false,
         clashLootEnabled: false,
         clashCourageEnabled: false,
+        tendingEnabled: false,
+        goldenCropsEnabled: false,
         // Phase 6a mechanics off for baseline parity
         herdScentEnabled: false,
         huntCarryMeatEnabled: false,
