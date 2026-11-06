@@ -193,6 +193,7 @@ Three switches, all on by default, built and compared in this order:
    - **Only losers gain it:** the loser of a clash, and someone bitten by a wolf, gain `fearPerLoss`. Winners, bystanders, band-mates and kin gain nothing.
    - **It stacks:** a loss within `fearRadius` of the centre adds to `fear` and nudges the centre toward the new spot. A loss farther away starts a new centre and keeps half the old fear.
    - **It lasts:** fear decays at `fearDecayInside` per tick (very slow) while inside the region and `fearDecayOutside` (faster) once out. At 0 the centre is cleared.
+   - **Children are calmed by adults:** a child (under `adultAge`) loses fear faster when near a parent, adding `fearChildParentDecay` per tick within `careRadius` of a living mother or father (an id lookup, no search). A child near another allied adult (band-mate or kin, using `Rules.isAllied`, on the child's tile or the 8 around it) gets the smaller `fearChildAdultDecay` instead. Strangers don't calm, so the adult who beat the child never does. This adds to the inside or outside decay, and the parent rate takes precedence over the adult rate. The adult check runs on the decision stagger (every 8 ticks), and only for children with fear.
    - **What it does, inside the region only:**
      - It raises the food the person needs before staying is worth it (in `worthStaying`, and in the old calm path when `stayValueEnabled` is off).
      - It adds a push straight away from the centre, at full strength until the person is out. No momentum rule is added.
@@ -207,13 +208,13 @@ Three switches, all on by default, built and compared in this order:
 | Thirst and cold return early in `climb` | Thirst stays first, or the frightened die of thirst. Fear goes before cold's "stay sheltered" check, so a hut inside the region does not hold a frightened person. Cold-seeking toward a shelter inside the region is skipped while the person has fear. |
 | Food, shelter or leader pulling people back at the edge | Expected: people hover at the edge of the region, which reads as keeping a safe distance. It is measured, not fixed. |
 | Leader inside the region pulls a follower back | At high fear the push must beat the strongest leader pull (1.6). Tuning target, checked in the first run. A comfortable follower is not comfortable while afraid, so `comfortableStayEnabled` does not hold them. |
-| Children lose most clashes | They gain fear like anyone (only losers, no exceptions). Childcare is a cost to the mother, not a benefit to the child, so a child who leaves only loses kin sharing. Child deaths are reported per run, and a jump is a stop-and-report. |
+| Children lose most clashes | They gain fear like anyone (only losers), but parents and allied adults calm them, so a child near family stays with them, and the parents' own fear decides whether the family leaves. An orphan or a lone child keeps their fear and moves away. Childcare is a cost to the mother, not a benefit to the child, so a child who leaves only loses kin sharing. Child deaths are reported per run, and a jump is a stop-and-report. |
 | Refugees lose again elsewhere | A new centre, keeping half the old fear. Weak people may keep moving. That is accepted and reported as the share of people with fear and how far they moved. |
 | Everyone near full injury saturates `fearWoundMul` | Slow healing goes in and is measured first, so injury levels drop before fear builds on them. |
 | Wrap at the map edge | The centre is nudged with `wrapDiff`; Uint8 coordinates wrap with `& 255`. |
 | Slot reuse, growth, saves | Reset in `People.kill` and `spawn`; added to the capacity-growth copy; saved per person as optional fields defaulting to 0 (old saves load with no fear). |
 | Fingerprint parity | Fear and the new healing are hashed only when their switch is on; no random numbers; the three switches are added (off) to the pinned-hash test. |
-| Perf | Healing is one multiply in the existing upkeep loop. Fear is one wrap-aware distance check per decision. Both are well under 0.1 µs per person. |
+| Perf | Healing is one multiply in the existing upkeep loop. Fear is one wrap-aware distance check per decision. The child parent check is two id lookups; the allied-adult check scans 9 cells, every 8 ticks and only for children with fear. All well under 0.1 µs per person. |
 
 *On the map:* nothing new is drawn at first. The inspector shows fear and its centre, and the death probe and map dumps show whether fought-over ground empties of losers. Something visible (rule 13) to watch: a contested camp where beaten people leave and the winners stay, compared with the switches off.
 
@@ -222,7 +223,7 @@ Three switches, all on by default, built and compared in this order:
 - **Measure:** share wounded and mean injury; deaths while wounded; births per head; share of losers who end more than `fearRadius` from where they lost, against winners; settlements lasting 10 years or more.
 - **Guardrails, reported and not targets:** no seed dies out; camps lasting 10 years or more not down by more than 25%; child deaths not up; perf within budget.
 
-*Tests:* healing at any energy, faster when fed and sheltered; only the loser gains fear; stacking inside the radius and moving the centre; half carried to a new centre; decay inside slower than outside; push away from the centre and never into water; zero vector falls back to `prevDir`; fear reset on kill and slot reuse; save round trip; off parity.
+*Tests:* healing at any energy, faster when fed and sheltered; only the loser gains fear; stacking inside the radius and moving the centre; half carried to a new centre; decay inside slower than outside; a child near a parent loses fear faster than near an allied adult, faster than alone, and a stranger does not calm; push away from the centre and never into water; zero vector falls back to `prevDir`; fear reset on kill and slot reuse; save round trip; off parity.
 
 **S3-pre Packed earth.** Stone exists only on hill tiles and is picked up only by people standing there, so lowland camps could almost never build. Add earth, dug from any land tile: a new `CARRY_EARTH` kind (new carry kind plumbing, inspector), and a per-cell material for built cells, so earth gives less durability and wears faster than stone. Digging costs energy and is booked in the ledger. Stone becomes the upgrade near hills. Switch `earthBuildingEnabled`. No "go fetch stone" drive yet.
 
