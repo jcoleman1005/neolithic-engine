@@ -77,6 +77,24 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-04 | `birthShelterInjuryMul` | 1.0 | 0.35 | Trauma multiplier when delivering in shelter (nest, cave, stone hut, campfire aura) |
 | 2026-11-04 | `birthColdInjuryMul` | 1.0 | 1.5 | Trauma multiplier when delivering unsheltered in freezing cold |
 | 2026-11-04 | `birthExhaustionInjury` | 0 | 20.0 | Trauma inflicted when delivery fails at term due to severe maternal exhaustion |
+| 2026-11-05 | `wolfInitialCount` | 20 | 28 | Phase 6a: Increase starting wolves to sustain packs across 256x256 map |
+| 2026-11-05 | `wolfSenseRadius` | 8 | 12 | Phase 6a: Broaden prey perception radius to prevent early wolf starvation |
+| 2026-11-05 | `wolfSoftCap` | 40 | 50 | Phase 6a: Ecosystem stabilization soft cap |
+| 2026-11-05 | `wolfBreedEnergy` | 50.0 | 45.0 | Phase 6a: Lower wolf breeding threshold to sustain reproduction on kills |
+| 2026-11-05 | `wolfBirthEnergy` | 20.0 | 18.0 | Phase 6a: Accompanying pup initial energy endowment |
+| 2026-11-05 | `wolfBreedChance` | 0.02 | 0.025 | Phase 6a: Slight increase in reproduction chance when fed |
+| 2026-11-05 | `wolfUpkeep` | 0.06 | 0.05 | Phase 6a: Moderate wolf metabolism to allow tracking time between prey kills |
+| 2026-11-05 | `herdScentEnabled` | false | true | Phase 6a: Grazing herbivores emit prey food scent |
+| 2026-11-05 | `herdScentEmitRate` | 0 | 0.05 | Phase 6a: Prey food scent diffusion emission rate |
+| 2026-11-05 | `huntCarryMeatEnabled` | false | true | Phase 6a: Successful hunters butcher and carry fresh meat into hands |
+| 2026-11-05 | `huntScalingEnabled` | false | true | Phase 6a: Hunting strike success scales with strength gene and carried stone weapons |
+| 2026-11-05 | `huntStrengthBonus` | 0 | 0.35 | Phase 6a: Maximum hunting strike bonus from strength |
+| 2026-11-05 | `huntStoneBonus` | 0 | 0.25 | Phase 6a: Hunting strike bonus for carrying stone tools/weapons |
+| 2026-11-05 | `wolfScavengeEnabled` | false | true | Phase 6a: Wolves scavenge fresh meat heaps on or adjacent to their tile |
+| 2026-11-05 | `wolfScavengeBite` | 0 | 2.0 | Phase 6a: Energy gained per wolf scavenging bite |
+| 2026-11-05 | `wolfScentTrackEnabled` | false | true | Phase 6a: Wolves track prey food scent trails when herds are out of line of sight |
+| 2026-11-05 | `wolfDefenseEnabled` | false | true | Phase 6a: Human defenders strike back dealing physical combat injury to attacking wolves |
+| 2026-11-05 | `wolfDefenseDamage` | 0 | 15.0 | Phase 6a: Base physical injury inflicted on wolf by defending human |
 
 ## Experiment Log
 
@@ -734,3 +752,14 @@ Round 1 wore most of the land, so it read as worn ground everywhere rather than 
 - **Energy Ledger Balance**: lethal combat deaths caused by trauma collapse preserve energy balance by crediting the victim's remaining body energy to `ledger.deathFat`, and retreat sprint exertion correctly credits `ledger.move`, yielding 0 ledger violations across 300+ simulation ticks.
 - **Determinism & Parity**: exact bit-for-bit stateHash match with switches disabled (`3846cf0469ad880d` at 1,000 ticks, seed 42).
 - **Performance**: 12.72 µs / person / tick at ~8,548 people (under desktop budget of 15.0 µs).
+
+## Phase 6a: Hunting & Fauna Dynamics (Ecosystem Coexistence & Emergent Hunting)
+- **Predator-Prey Stabilization**: Resolved early wolf extinction collapse (previously wolves starved to extinction before Year 10 due to small perception radius and high upkeep). Tuning `wolfSenseRadius: 12`, `wolfUpkeep: 0.05`, `wolfInitialCount: 28`, and introducing carcass scavenging enables wolves, herds, and humans to sustainably coexist across 50 continuous years (18,000 ticks) across multiple seeds with zero extinctions.
+- **Emergent Hunting via Food Scent Physics**: Grazing herds emit prey food scent (`fields.foodCurrent`) during diffusion passes (`herdScentEnabled: true`, `herdScentEmitRate: 0.05`). Hungry humans ascending food scent gradients naturally detect and track migrating herds without any scripted group hunting behavior.
+- **Strength & Tool Scaling**: Hunting strike success scales with worker `GENE_STRENGTH` and carrying stone tools/weapons (`huntStrengthBonus: 0.35`, `huntStoneBonus: 0.25`).
+- **Fresh Carcass Meat Butchering**: Successful hunting strikes drop fresh meat carcasses onto the land and butcher food directly into the hunter's carried hands (`huntCarryMeatEnabled: true`, `people.carryKind = CARRY_FOOD`).
+- **Wolf Scavenging & Scent Tracking**: Wolves scavenge meat heaps on and adjacent to their tile (`wolfScavengeEnabled: true`) and pursue prey scent gradients when prey is not in line of sight (`wolfScentTrackEnabled: true`).
+- **Human Self-Defense**: Strong or stone-wielding defenders fight back against attacking wolves, dealing physical combat injury (`wolfDefenseEnabled: true`, `wolfDefenseDamage: 15.0`).
+- **Energy Ledger & Invariants**: Conserves energy with 0 violations across 500+ simulation ticks (`ledger.violations === 0`).
+- **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
+- **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).

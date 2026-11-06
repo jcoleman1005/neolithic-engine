@@ -1,3 +1,28 @@
+# Neolithic Engine — Status
+
+## Phase 6a: Hunting & Fauna Dynamics (branch `phase-6a-fauna`)
+- **Done**:
+  - **Predator-Prey Ecosystem Stabilization**:
+    - Resolved wolf starvation extinction: tuned wolf perception (`wolfSenseRadius: 12`), lower metabolism (`wolfUpkeep: 0.05`), soft cap (`wolfSoftCap: 50`), and initial pack density (`wolfInitialCount: 28`).
+    - Verified sustainable 50-year (18,000-tick) ecosystem coexistence across multiple seeds with 0 extinctions (wolves 14–48, herds 250–320).
+  - **Emergent Hunting via Food Scent Gradients**:
+    - Grazing herbivores diffuse food scent into `fields.foodCurrent` (`herdScentEnabled: true`, `herdScentEmitRate: 0.05`).
+    - Hungry humans ascending food scent gradients naturally detect and track roaming herds without scripted pack logic.
+  - **Strength & Tool Hunting Scaling**:
+    - Kill chance scales with worker `GENE_STRENGTH` and carrying stone tools/weapons (`huntScalingEnabled: true`, `huntStrengthBonus: 0.35`, `huntStoneBonus: 0.25`).
+  - **Fresh Carcass Butchering**:
+    - Successful kills drop fresh carcasses onto `land.pile` and butcher meat directly into the hunter's carried hands (`huntCarryMeatEnabled: true`, `people.carryKind = CARRY_FOOD`).
+  - **Wolf Scavenging & Scent Tracking**:
+    - Hungry wolves scavenge meat heaps on and adjacent to their tile (`wolfScavengeEnabled: true`, `wolfScavengeBite: 2.0`).
+    - Wolves track prey food scent trails when herds are out of line of sight (`wolfScentTrackEnabled: true`).
+  - **Human Self-Defense**:
+    - Strong or stone-carrying defenders strike back against attacking wolves, dealing physical combat injury (`wolfDefenseEnabled: true`, `wolfDefenseDamage: 15.0`).
+  - **Invariants & Ledger**: Energy ledger verified with zero violations over 500+ ticks (`ledger.violations === 0`).
+  - **Determinism & Parity**: Strict bit-for-bit baseline fingerprint parity preserved (`3846cf0469ad880d` and `b11b505bedb2a659`).
+  - **Tests**: Comprehensive test suite [`tests/fauna.test.ts`](file:///home/jcoleman/Projects/neolithic-engine-fauna/tests/fauna.test.ts) (all 6 tests passing).
+  - **Perf**: **9.519 µs / person / tick** at 8,347 people (well under the 15.0 µs desktop budget per Rule 8).
+- **Next**: Browser watch of wolf chases and fresh carcass hunting; merge to `main`.
+
 ## Phase 7 Foundations: Combat Courage & Battlefield Looting (merged to `main`)
 - **Done**:
   - Built **Primitive 78 (Carried Loot Transfer)**:

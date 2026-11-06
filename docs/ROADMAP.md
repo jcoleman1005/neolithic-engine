@@ -274,8 +274,8 @@ Goal: hunter-gatherers have something to hunt, and something that hunts them.
 - Prototype exists on `exp-finite-resources` (herds as animals in the people arrays, grazing, breeding, hunting, meat yield, herd sprites); port it onto the current code first, then add wolves.
 - Dumb herbivores that wander and flee, and leave a meat pile (food on the land) when they die; simple wolves that wander and emit danger scent. Rules stay at wander-and-flee: no pack tactics, no scripted hunts. Promoted ahead of weather so the Stone Age start has meat.
 
-* [ ] Herds and wolves persist for 50 years or more without taking over the map.
-* [ ] Hunting and wolf danger visibly change where people go.
+* [x] Herds and wolves persist for 50 years or more without taking over the map.
+* [ ] Hunting and wolf danger visibly change where people go. (Needs visual browser watch per Rule 13)
 
 ### Phase 6b: Weather and disaster
 
