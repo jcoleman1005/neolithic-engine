@@ -19,9 +19,10 @@
   - **Stone & Nutrients Fix**: Enforced that mineral stone cannot provide nutrients: rock/stone cells are barren (`maxFood = 0`, `fertility = 0`, cannot be grazed or seeded, switch: `stoneBarrenEnabled`). Fixed bug in `life.ts` where carrying stone was transmuted into seeds (`CARRY_SEED`) during grazing meals.
   - **Active Tending**: Gentle harvesting raises `tilled` (`+0.03`); tended soil (`> 0.25`) gets +40% regrowth boost; fallow decays via `tillDecay`.
   - **Hillside Cave Generation Fix**: Restricted natural cave generation in `initCaves` to true cliff faces and hill slopes with an uphill retaining wall (`nh >= h + 0.015`) and downhill drop (`nh <= h - 0.015`), eliminating standalone caves in flat plains.
+  - **Child Leader Bugfix**: Enforced Primitive 24 maturity gate in `scoreAttraction` (`if (!isAdult) return 0;`) so children cannot be chosen as band leaders or attract followers. Cleared stale child leadership on copy, inherited maternal leadership for newborns born to band leaders, and suppressed `star_leader` rendering on `LOOK_STAGE_CHILD`.
   - **Invariants**: Energy ledger verified with 0 violations over 300+ ticks; off-switch parity verified.
-  - **Perf**: **5.957 µs / person / tick** (benchmark at 8,739 people: 7.620 µs, desktop budget 15.0 µs).
-  - **Verify**: 42/42 test suites, 271 tests passing.
+  - **Perf**: **12.31 µs / person / tick** at 8,536 people (desktop budget: <= 15.0 µs).
+  - **Verify**: All test suites passing, production build passing.
 
 ## Current Health & Performance (Desktop)
 - **Perf**: ~5.0–6.0 µs / person / tick across ~8,500–11,500 people (desktop budget: 15.0 µs).
