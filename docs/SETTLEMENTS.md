@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0 to S2 merged. S3-pre and the S3a layout test built on `settlements-s3`, stopped for review (S3a is a stop point). See `docs/STATUS.md`.
+**Current stage:** T0 to S2 merged. S3-pre and the S3a layout test built on `settlements-s3`; walls form along shores because people can only drink there, so S3w (carried water) is planned next, then S3a is re-run. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
@@ -150,6 +150,44 @@ No new scent and no stored home. People stay when the place is physically better
 ### S3 Exposure and walls
 This answers the roadmap's closed-rooms question: no room detector and no wall tag. Rooms are simply places where exposure is low. Built in this order, stopping to review after each step:
 
+**S3w Carried water (planned 2026-11-05; build before S3b).** Why: on seed 3 with the layout test on, half of everyone standing still is on a tile next to fresh water and 88% are within 3 tiles, while 65% of the land is 7 or more tiles from water and holds 3% of resting people and 5% of walls. People can only drink beside a river or lake, so settlements can only grow as ribbons along shores.
+
+*Approach:* water becomes an ordinary hand-carried item (one thing at a time, like food), poured into a small store on a tile at camp. Not a personal waterskin: that would break the one-carry rule and hand everyone a container at year 0. A skin made from hunted hides could come later.
+
+*Mechanics* (switch `waterCarryEnabled`; every number in config):
+- **Fetch:** a well-fed, well-watered person with empty hands, standing beside fresh river or lake water, fills up to `waterCarryMax`. Food hoarding comes first, so hands full of food stay full.
+- **Spill:** carried water loses `waterSpill` per step, so only short hauls pay.
+- **Drink on the way:** a thirsty carrier drinks from what they carry before walking to water, so carriers can range inland.
+- **Pour:** a resting carrier pours into the tile's store (`Land.waterStore`, capped at `waterStoreCap`) where at least `dropCrowd` people rest or a store already stands, never right beside natural water.
+- **Evaporate:** stores lose `waterEvaporation` a tick, more in warm seasons, and much less on built or low-exposure tiles (a covered jar). That gives a physical reason to build at camps.
+- **Drink from stores:** someone thirsty on a store tile drinks from it at up to `drinkRate`, and the store goes down.
+- **Find water:** thirsty people head for the nearest drinkable water, which now includes stores above `waterStoreFindMin`.
+
+*Foundational changes:*
+1. **Two water distance fields:** `riverDist` (natural fresh water, used for fetching, fish and thirst-off parity) and `drinkDist` (rivers plus stores), rebuilt when a store crosses the find threshold. It is a pure function of the current state, rebuilt before any read in a tick, so a loaded save matches. It uses a reused typed queue, since `initWater` allocates a neighbour array per cell today. With the switch off, `drinkDist` is `riverDist`.
+2. **`CARRY_WATER`** through carry caps (body-scaled), carry drag, spill, the inspector and the save.
+3. **A carry byte in the person frame:** each person goes from 10 to 11 bytes, holding the carried kind (3 bits) and amount (5 bits). This lets the viewer draw every carried item, not only water, at a cost of about 10% more frame bandwidth.
+4. **`Land.waterStore`** (Float32): saved; hashed only while the switch is on.
+5. **One per-tile ground channel to the viewer:** S2's paths channel, repacked as wear (bits 0 to 2), built level (bits 3 to 5, for S3) and water store level (bits 6 and 7).
+6. **Tools:** `npm run map` and `npm run probe` report where people stand still and where walls are, by distance from natural water, as measured above, plus store counts.
+
+*On the map:*
+- **Close zoom:** carriers show a small grey-blue gourd on the figure (other items get carry marks from the same byte). Stores draw as a top-down clay jar or pool on the tile, fuller with level.
+- **Middle zoom:** stores show as blue dots.
+- **Far zoom:** a faint blue pixel inside the settlement footprint.
+- **Panels:** the inspector shows "carrying water", the settlement card shows stored water, and the legend gets entries.
+
+*Targets, set before running* (seeds 1 to 3, year 30, carried water on against off, S3a layout test on in both):
+- People standing still 4 or more tiles from natural fresh water: at least 25% (baseline 12% on seed 3).
+- Built tiles 4 or more tiles from natural water: at least 40% (baseline 30%).
+- Population at year 20 at least 90% of off; no seed dies out.
+- Stores visible: on every seed, stores stand inside at least 3 settlements.
+- Perf within budget, also at 2,000 to 3,000 people.
+
+*Risks:* everyone fetching water leaves no one carrying food, so population could drop (fetching is gated behind food hoarding). Inland stores may evaporate before they matter. Thirsty people walking to a store may find it empty (the find threshold and refresh guard this). Stores may become one more stacking point (S1 crowding applies). Frame size grows about 10%.
+
+*Tests:* fetching only beside natural water; spill per step; drinking from a carry and from a store; pouring only away from natural water; evaporation faster when warm and slower when covered; `drinkDist` including stores and matching after a load; a store emptying out of the find field; the carry byte encoding round trip; off parity.
+
 **S3-pre Packed earth.** Stone exists only on hill tiles and is picked up only by people standing there, so lowland camps could almost never build. Add earth, dug from any land tile: a new `CARRY_EARTH` kind (new carry kind plumbing, inspector), and a per-cell material for built cells, so earth gives less durability and wears faster than stone. Digging costs energy and is booked in the ledger. Stone becomes the upgrade near hills. Switch `earthBuildingEnabled`. No "go fetch stone" drive yet.
 
 **S3a Layout spike (headless, no art).** Prototype exposure and directional unloading, then dump the built cells as images on 3 seeds. Do walls form, or only pillars and noise? If only noise, change the rules before anything else depends on them. Walls stay tile-thick, so this also checks whether room sizes and material use are workable, since a freestanding room takes 9 tiles and shared walls have to bring that down.
@@ -202,6 +240,7 @@ Art comes from the `graphics` agent (`.claude/agents/graphics.md`), following `d
 - **S0:** new `src/sim/settlements.ts`; `src/sim/host.ts`, `src/ui/simulation-client.ts`; `src/sim/world.ts`, `chronicle.ts`, `protocol.ts`, `config.ts`; `src/render/renderer.ts`; `src/ui/inspector.ts`, `legend.ts`, panel code; new `tests/settlements.test.ts`
 - **S1:** `src/sim/rules.ts`, `life.ts`, `land.ts`, `wolves.ts`, `config.ts`, `types.ts`; new `scripts/settle-probe.ts`; new `tests/staying.test.ts`
 - **S2:** `src/sim/land.ts`, `rules.ts`, `life.ts`, `protocol.ts`, `host.ts`; `src/ui/simulation-client.ts`; `src/render/renderer.ts`; new test
+- **S3w:** `src/sim/land.ts`, `life.ts`, `rules.ts`, `people.ts`, `world.ts`, `protocol.ts`, `config.ts`, `types.ts`; `src/ui/simulation-client.ts`, `inspector.ts`, `settlements-view.ts`, `legend.ts`; `src/render/renderer.ts`; `scripts/map-dump.ts`, `settle-probe.ts`; new `tests/water-carry.test.ts`
 - **S3:** `src/sim/land.ts`, `seasons.ts`, `rules.ts`, `life.ts`, `config.ts`, `world.ts`; `src/render/renderer.ts`; new `tests/exposure.test.ts`
 - **Docs for every stage:** `docs/decisions.md` (the three decisions above, recorded at the start), `docs/ROADMAP.md`, `docs/findings.md`, `docs/STATUS.md`
 

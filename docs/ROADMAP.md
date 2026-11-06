@@ -350,6 +350,8 @@ These calls were yours to make; each is needed by the phase in brackets. The age
 These ideas are deferred on purpose; revisit them after Phase 10 or when a phase clearly needs one.
 
 - More biomes: today the land is only grass, forest, hills, mountain, snow and sand. Later add desert, tundra, savanna, jungle, marsh and so on, as physical differences in rainfall, temperature and soil (so they change food, wood, water and cold), not as labels. Needs real climate fields first, which the weather phase (6b) and the cold of 5d begin to supply.
+- Wells: a dug tile that becomes a fresh-water source where ground water is near the surface (low ground near rivers and lakes, by elevation), with a limited flow, built with labour and packed earth. It would let camps sit far from rivers without carrying water. Revisit after carried water (`docs/SETTLEMENTS.md` S3w) and the village economy (S5).
+- Waterskins from hides: a personal water container made from hunted animals, so a person can range further from water on their own. Considered for S3w and not chosen, because it breaks the one-carry rule and needs hides to exist first.
 - Seas, rivers you can sail, and boats
 - Trade, markets and debt networks
 - Healing, teaching and burying the dead
