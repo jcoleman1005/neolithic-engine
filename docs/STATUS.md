@@ -1,4 +1,4 @@
-## Phase 7 Foundations: Combat Courage & Battlefield Looting (branch `feat-resource-clashes`)
+## Phase 7 Foundations: Combat Courage & Battlefield Looting (merged to `main`)
 - **Done**:
   - Built **Primitive 78 (Carried Loot Transfer)**:
     - Victor in an unallied clash claims the loser's carried item (`people.carryKind`, `people.carry`).
@@ -19,8 +19,8 @@
   - Fixed lethal combat energy accounting: remaining positive energy in victims killed by trauma collapse is booked into `ledger.deathFat`, preventing ledger residual violations.
   - **Invariants & Ledger**: Energy ledger verified with zero violations over 300+ ticks (`ledger.violations === 0`). Strict off-switch fingerprint parity verified (`3846cf0469ad880d`).
   - **Tests**: `tests/clash.test.ts` (all 6 tests passing: victor loot claim, full-hands ground drop, outmatched coward retreat with physical exertion & panic drop, brave last stand, off-switch parity, multi-generation energy balance).
-  - **Perf**: **12.72 µs / person / tick** at ~8,548 people (well within desktop 15.0 µs budget).
-- **Next**: Review branch `feat-resource-clashes` or merge into `main`.
+  - **Perf**: **12.12 µs / person / tick** at ~8,347 people (well within desktop 15.0 µs budget).
+- **Next**: Proceed to Phase 5e golden crops or S3 review.
 
 ## Resource-Motivated Clashes & Battlefield Fatalities (merged to `main`)
 - **Done**:
