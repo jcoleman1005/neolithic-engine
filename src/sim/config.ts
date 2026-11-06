@@ -297,6 +297,31 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   injurySlow: 0.6, // fraction of steps lost at full injury
   injuryHealEnergy: 0.5, // heals only above this fraction of maxEnergy
   injuryHeal: 0.3, // injury healed per tick
+  // S3x slow healing: wounds also heal below injuryHealEnergy, more slowly the hungrier the person
+  // (healFloor of injuryHeal at zero energy, rising to the full rate at injuryHealEnergy), and
+  // healShelterMul faster on a sheltered tile (cave, fire, hut, nest). Healing costs no energy.
+  slowHealEnabled: true,
+  healFloor: 0.2, // fraction of injuryHeal at zero energy
+  healShelterMul: 1.5, // healing multiplier on a sheltered tile
+  // S3x fear: the loser of a clash, or someone bitten by a wolf, gains fearPerLoss, felt only within
+  // fearRadius of where they were beaten. Losses there stack; a loss elsewhere starts a new place
+  // keeping half. Inside the region fear raises the food staying needs (x 1 + fearStayMul at full fear)
+  // and pushes away from the centre (fearPush at full fear). It fades by fearDecayInside a tick inside
+  // the region and fearDecayOutside once out. A child near a parent (careRadius) loses
+  // fearChildParentDecay more a tick; near an allied adult (on or beside their tile), fearChildAdultDecay.
+  fearEnabled: true,
+  fearPerLoss: 60,
+  fearRadius: 8,
+  fearStayMul: 2.0,
+  fearPush: 2.0, // above the strongest leader pull (1.6), so a badly frightened follower breaks away
+  fearDecayInside: 0.02,
+  fearDecayOutside: 0.3,
+  fearChildParentDecay: 0.3,
+  fearChildAdultDecay: 0.1,
+  // S3x: wounds make fear push harder (x 1 + fearWoundMul at full injury), and hunger no longer
+  // halves the danger aversion of someone who is afraid.
+  fearWoundsEnabled: true,
+  fearWoundMul: 1.0,
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite
   graveTicks: 150, // how long a fresh grave mark stays visible

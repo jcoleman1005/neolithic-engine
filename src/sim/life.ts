@@ -107,6 +107,9 @@ export class LifeSystem {
     const injurySlow = config.injurySlow ?? 0.6;
     const healAbove = (config.injuryHealEnergy ?? 0.5) * (config.maxEnergy ?? 100);
     const injuryHeal = config.injuryHeal ?? 0.3;
+    const slowHealOn = config.slowHealEnabled !== false;
+    const healFloor = config.healFloor ?? 0.2;
+    const healShelterMul = config.healShelterMul ?? 1.5;
     const graveTicks = config.graveTicks ?? 150;
     const stagesOn = config.stagesEnabled !== false;
     const childWork = config.childWork ?? 0.6;
@@ -202,7 +205,13 @@ export class LifeSystem {
         const extra = metabolism * injuryUpkeep * (injury[slot] / 255);
         energy[slot] -= extra;
         ledger.upkeep += extra;
-        if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
+        if (slowHealOn) {
+          // S3x: heal at any energy, slower when hungry, faster when sheltered.
+          const e = energy[slot] > 0 ? energy[slot] : 0;
+          const fed = e >= healAbove ? 1 : healFloor + (1 - healFloor) * (e / healAbove);
+          const rate = injuryHeal * fed * (land.sheltered(upCell) ? healShelterMul : 1);
+          injury[slot] = injury[slot] > rate ? injury[slot] - rate : 0;
+        } else if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
       }
       if (fatigueOn && fatigue[slot] > 0) {
         const extra = metabolism * fatigueUpkeep * (fatigue[slot] / 255);
@@ -661,6 +670,50 @@ export class LifeSystem {
 
     // 6. Spatial indexing based on updated positions
     spatial.build(people);
+
+    // S3x: fear fades, very slowly inside the feared region and faster once out. Children are
+    // calmed by a parent within careRadius, or a little by an allied adult on or beside their tile.
+    // Runs after the index is built, so a loaded save steps the same.
+    if (config.fearEnabled !== false) {
+      const fear = people.fear;
+      const inside = config.fearDecayInside ?? 0.02;
+      const outside = config.fearDecayOutside ?? 0.3;
+      const parentCalm = config.fearChildParentDecay ?? 0.3;
+      const adultCalm = config.fearChildAdultDecay ?? 0.1;
+      const careR = config.careRadius ?? 4;
+      const stagger = config.decisionStaggerInterval ?? 8;
+      const adultAge = config.adultAge ?? 5760;
+      const cellStarts = spatial.cellStarts;
+      const cellPeople = spatial.cellPeople;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 0 || fear[slot] <= 0) continue;
+        let d = Rules.inFearRegion(slot, people, config) ? inside : outside;
+        if (age[slot] < adultAge) {
+          let calmed = false;
+          for (let k = 0; k < 2 && !calmed; k++) {
+            const pid = k === 0 ? motherId[slot] : fatherId[slot];
+            if (pid === 0 || !people.isValidId(pid)) continue;
+            const ps = slotFromId(pid);
+            const ex = Math.abs(px[ps] - px[slot]), ey = Math.abs(py[ps] - py[slot]);
+            if ((ex < 128 ? ex : 256 - ex) <= careR && (ey < 128 ? ey : 256 - ey) <= careR) calmed = true;
+          }
+          if (calmed) d += parentCalm;
+          else if ((tick + slot) % stagger === 0) {
+            // Checked every stagger ticks, so it counts stagger ticks' worth.
+            search: for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const c = (((py[slot] + dy) & 0xff) << 8) | ((px[slot] + dx) & 0xff);
+                for (let i = cellStarts[c]; i < cellStarts[c + 1]; i++) {
+                  const o = cellPeople[i];
+                  if (o !== slot && age[o] >= adultAge && Rules.isAllied(slot, o, people)) { d += adultCalm * stagger; break search; }
+                }
+              }
+            }
+          }
+        }
+        fear[slot] = fear[slot] > d ? fear[slot] - d : 0;
+      }
+    }
 
     // Refresh a slice of the root leader cache each tick
     const rootSlices = config.rootLeaderSliceCount ?? 8;

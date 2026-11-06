@@ -5,6 +5,7 @@ import type { Herds } from './herds';
 import type { ScentFields } from './fields';
 import type { EnergyLedger } from './ledger';
 import type { SimulationConfig } from './types';
+import { Rules } from './rules';
 
 const CELLS = GRID_SIZE * GRID_SIZE;
 
@@ -181,6 +182,7 @@ export class Wolves {
               people.energy[s] -= bite;
               ledger.deathFat += bite;
               if (config.injuryEnabled !== false) people.injury[s] = Math.min(255, people.injury[s] + (config.wolfInjury ?? 150));
+              Rules.addFear(s, nbX[k], nbY[k], people, config);
               e = Math.min(maxE, e + bite);
               fields.depositDanger(nbX[k], nbY[k], dangerDeath);
               if (people.energy[s] <= 0) {

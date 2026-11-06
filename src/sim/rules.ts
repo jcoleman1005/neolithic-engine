@@ -206,7 +206,8 @@ export class Rules {
         const critHungerThreshold = (config.criticalHungerThreshold ?? 0.20) * maxE;
         if (curE < critHungerThreshold) {
           suppressRoam = !searching;
-          dangerAversion *= 0.5; // starving people risk danger for food
+          // Starving people risk danger for food, unless wounds and a defeat have made them afraid (S3x).
+          if (!(config.fearWoundsEnabled !== false && config.fearEnabled !== false && people.fear[slot] > 0)) dangerAversion *= 0.5;
         }
       }
     }
@@ -275,7 +276,9 @@ export class Rules {
     }
 
     // Cold: a fed person in the cold heads for the nearest cave or fire and stays once sheltered.
-    if (config.coldEnabled !== false && people.energy[slot] >= (config.coldSeekEnergy ?? 0.5) * (config.maxEnergy ?? 100)) {
+    // S3x: fear is checked before cold, so a shelter inside the feared region does not hold a frightened person.
+    const afraid = Rules.inFearRegion(slot, people, config);
+    if (!afraid && config.coldEnabled !== false && people.energy[slot] >= (config.coldSeekEnergy ?? 0.5) * (config.maxEnergy ?? 100)) {
       const here = (py << 8) | px;
       if (land.coldAt(here) > 0.2) {
         if (land.sheltered(here)) return 4;
@@ -309,7 +312,7 @@ export class Rules {
       const max = land.capacityAt(cell, config);
       if (max > 0) {
         const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
-        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);
+        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1) * Rules.fearStayMul(slot, people, config);
         if (land.food[cell] >= need * max) return 4;
       }
     }
@@ -337,6 +340,24 @@ export class Rules {
       else if (d === 1) vx -= keep;
       else if (d === 2) vy += keep;
       else if (d === 3) vy -= keep;
+    }
+
+    // S3x: a frightened person is pushed straight away from where they were beaten, at full
+    // strength until they are out of the region. Wounds make the push stronger.
+    let awayX = 0, awayY = 0;
+    if (afraid) {
+      awayX = wrapDiff(px, people.fearX[slot]);
+      awayY = wrapDiff(py, people.fearY[slot]);
+      if (awayX === 0 && awayY === 0) {
+        // On the centre itself: carry on the way they were heading, else east. No random draw.
+        const d = people.prevDir[slot];
+        awayX = d === 0 ? 1 : d === 1 ? -1 : d === 4 ? 1 : 0;
+        awayY = d === 2 ? 1 : d === 3 ? -1 : 0;
+      }
+      let push = (config.fearPush ?? 2.0) * (people.fear[slot] / 255);
+      if (config.fearWoundsEnabled !== false) push *= 1 + (config.fearWoundMul ?? 1.0) * (people.injury[slot] / 255);
+      vx += (awayX > 0 ? 1 : awayX < 0 ? -1 : 0) * push;
+      vy += (awayY > 0 ? 1 : awayY < 0 ? -1 : 0) * push;
     }
 
     // Roaming / curiosity jitter
@@ -388,6 +409,14 @@ export class Rules {
       return secondaryDir;
     }
 
+    // S3x: a frightened person hemmed in by water takes any passable step that is not back toward the centre.
+    if (afraid) {
+      for (let d = 0; d < 4; d++) {
+        const back = (d === 0 && awayX < 0) || (d === 1 && awayX > 0) || (d === 2 && awayY < 0) || (d === 3 && awayY > 0);
+        if (!back && d !== primaryDir && d !== secondaryDir && Rules.canStep(px, py, d, land)) return d;
+      }
+    }
+
     // Both blocked or water: stay
     return 4;
   }
@@ -427,7 +456,8 @@ export class Rules {
     const max = land.capacityAt(cell, config);
     const ref = max > 0 ? max : config.stayRefFood ?? 10;
     const wander = 1 + (config.roamStayWeight ?? 0.5) * ((roaming + curiosity) / 2 - 0.5) * 2;
-    const need = (config.stayFoodFraction ?? 0.5) * upkeepShare * wander * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);
+    const need = (config.stayFoodFraction ?? 0.5) * upkeepShare * wander * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1)
+      * Rules.fearStayMul(slot, people, config);
     return plants + heap >= need * ref;
   }
 
@@ -629,6 +659,51 @@ export class Rules {
     }
 
     return false;
+  }
+
+  /**
+   * S3x: a defeat (a lost clash or a wolf bite) frightens only the person who suffered it. A loss
+   * near the place of earlier losses stacks and draws the centre toward the new spot; a loss
+   * elsewhere starts a new place, keeping half the old fear. No random numbers.
+   */
+  public static addFear(slot: number, x: number, y: number, people: People, config: Readonly<SimulationConfig>): void {
+    if (config.fearEnabled === false) return;
+    const add = config.fearPerLoss ?? 60;
+    const r = config.fearRadius ?? 8;
+    const f = people.fear[slot];
+    if (f > 0) {
+      const dx = wrapDiff(x, people.fearX[slot]);
+      const dy = wrapDiff(y, people.fearY[slot]);
+      if (dx * dx + dy * dy <= r * r) {
+        const nf = f + add > 255 ? 255 : f + add;
+        const w = add / (f + add);
+        people.fearX[slot] = (people.fearX[slot] + Math.round(dx * w)) & 0xff;
+        people.fearY[slot] = (people.fearY[slot] + Math.round(dy * w)) & 0xff;
+        people.fear[slot] = nf;
+        return;
+      }
+      const nf = f * 0.5 + add;
+      people.fear[slot] = nf > 255 ? 255 : nf;
+    } else {
+      people.fear[slot] = add > 255 ? 255 : add;
+    }
+    people.fearX[slot] = x & 0xff;
+    people.fearY[slot] = y & 0xff;
+  }
+
+  /** S3x: whether a person stands inside the region they fear. */
+  public static inFearRegion(slot: number, people: People, config: Readonly<SimulationConfig>): boolean {
+    if (people.fear[slot] <= 0 || config.fearEnabled === false) return false;
+    const r = config.fearRadius ?? 8;
+    const dx = wrapDiff(people.x[slot], people.fearX[slot]);
+    const dy = wrapDiff(people.y[slot], people.fearY[slot]);
+    return dx * dx + dy * dy <= r * r;
+  }
+
+  /** S3x: how much more food a frightened person needs before a tile is worth staying on (1 = no change). */
+  public static fearStayMul(slot: number, people: People, config: Readonly<SimulationConfig>): number {
+    if (!Rules.inFearRegion(slot, people, config)) return 1;
+    return 1 + (config.fearStayMul ?? 2) * (people.fear[slot] / 255);
   }
 
   /**
@@ -858,6 +933,7 @@ export class Rules {
         people.energy[loserSlot] -= loserLoss;
         people.energy[winnerSlot] += actualLoot;
         ledger.attack += struggleWaste;
+        Rules.addFear(loserSlot, px, py, people, config);
         if (config.injuryEnabled !== false) {
           const hurt = config.clashInjury ?? 60;
           people.injury[loserSlot] = Math.min(255, people.injury[loserSlot] + hurt);

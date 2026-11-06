@@ -427,6 +427,7 @@ export class World {
     const genes = people.genes;
     const habits = people.habits;
 
+    const fearOn = this.config.fearEnabled !== false;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 1) {
         h.updateInt(slot);
@@ -450,6 +451,11 @@ export class World {
         h.updateFloat(people.injury[slot]);
         h.updateInt(people.fatigue[slot]);
         h.updateInt(people.sick[slot]);
+        if (fearOn) {
+          h.updateFloat(people.fear[slot]);
+          h.updateInt(people.fearX[slot]);
+          h.updateInt(people.fearY[slot]);
+        }
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;

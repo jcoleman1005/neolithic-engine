@@ -811,3 +811,9 @@ Average age at death is 11 to 23 years, so the founders do not die together. Aft
 | 46 to 50 | 4,096 | 97% | 223 | 28% | 58% | 13% |
 
 No code bug found: clashes, wounds, healing, mating, childbirth and childcare do what their code says. Most people pass the belligerence threshold of 180 (habit plus cruelty gene, which averages about 256). Any two non-allies on one tile can clash every tick, children included, and most wounds go to children, about 6 per child per year. Wounds heal only above half energy, at 0.3 a tick, so injury builds to near the cap, and the wounded get hungrier and stop healing. The same pattern is there with the settlement switches off, at 74% wounded in years 1 to 5. Turmoil never drives the losers away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step. The response is S3x in `docs/SETTLEMENTS.md`.
+
+### S3x targets, set before running (2026-11-06)
+
+Seeds 1 to 3, 30 years (healing alone) and 50 years (with fear), wound and death probes. Compared against the same seeds with the S3x switch off. These are what to report, not things to tune toward:
+- **Slow healing:** share wounded at years 21 to 30 below off; mean injury of the wounded below off. Guardrails: no seed dies out; population at year 20 within 10% of off; perf within budget.
+- **Fear:** of people who lost a clash, the share more than `fearRadius` from the place of the loss 90 days later is higher than off (with fear off this is measured the same way, from where they lost). Winners: no different from off. Guardrails as in `docs/SETTLEMENTS.md` S3x.
