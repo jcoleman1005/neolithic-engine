@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0, S0 and S1 merged. S2 built on `settlements-s2`: one target missed on seed 3; tuning waits for a combined pass at the end (decision 2026-11-05). Next is S3, which starts with the S3-pre and S3a stop point. See `docs/STATUS.md`.
+**Current stage:** T0 to S2 merged. S3-pre and the S3a layout test built on `settlements-s3`, stopped for review (S3a is a stop point). See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 

@@ -715,3 +715,26 @@ Starting values (new): `wearStep` 16, `wearDecaySlices` 8 (a full trail fades in
 | Round 2 hamlets or larger, on / off | 13 / 16 (81%) | 21 / 21 | 10 / 16 (**62%, missed**) |
 
 Round 1 wore most of the land, so it read as worn ground everywhere rather than trails. Kept round 2: `wearStep` 16 to 4, `wearDecaySlices` 8 to 2, so a tile has to be stepped on about every 8 ticks to stay worn. The hamlet target is missed on seed 3; per the 2026-11-05 decision, tuning waits for the combined pass. On the map, worn ground forms bands along shores and around lakes and settlements more than trails that cross open land between camps; in the game view, people stand in lines along the worn ground near the largest settlement.
+
+## S3-pre packed earth and S3a layout test
+Starting values (new): `earthWear` 64, `earthBite` 1, `earthCarryMax` 6, `earthEnergy` 0.6, `earthDigCost` 0.05, `earthBuildGain` 2 (stone gives 4), `earthErodeSlices` 32. Prototype values: `exposureSlices` 8, `windWeight` 2, `brushBarrier` 4, `treeBarrier` 120, `cliffBarrier` 600, `directionalAvoidWear` 64. The wind turns once round the compass a year.
+
+Year 30, packed earth on in both columns; "test" adds the exposure field and directional building:
+
+| | Seed 1 earth | Seed 1 test | Seed 2 earth | Seed 2 test | Seed 3 earth | Seed 3 test |
+|:--|:--|:--|:--|:--|:--|:--|
+| People | 6135 | 6254 | 5980 | 5824 | 6277 | 6709 |
+| Built tiles, earth / stone | 80 / 45 | 442 / 125 | 95 / 45 | 398 / 119 | 103 / 49 | 521 / 125 |
+| Tiles at hut level | 23 | 342 | 34 | 312 | 26 | 375 |
+| Hamlets / villages | 4 / 5 | 6 / 5 | 8 / 1 | 16 / 2 | 11 / 5 | 13 / 8 |
+| Lasted 10 years or more | 14 | 39 | 19 | 36 | 25 | 51 |
+
+Layout of built tiles at year 30, seeds 1 and 3 (`npm run map` now prints this):
+
+| | Earth only | Test |
+|:--|:--|:--|
+| Standing alone | 70%, 88% | 20%, 18% |
+| In lines (2 or more built neighbours) | 4%, 2% | 47%, 47% |
+| Open tiles walled on 3 or more sides | 0, 0 | 42, 44 |
+
+Directional building turns scattered pillars into lines and some partial enclosures. In the zoomed images the lines mostly run along both banks of rivers and around shores, where people rest, rather than in rings round fires. Every wall tile at 60 durability still counts as a one-tile hut (shelter and half upkeep), which the exposure step (S3b) has to replace; until then walls give more shelter than they should.

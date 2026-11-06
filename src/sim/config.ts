@@ -59,6 +59,27 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // S1 (docs/SETTLEMENTS.md): staying pays. Each piece has its own switch so it can be compared.
   // S2 (docs/SETTLEMENTS.md): paths. Steps wear the ground; worn ground is cheaper to walk and
   // lightly preferred, so routes reinforce themselves. Wear fades a little at a time when unused.
+  // S3-pre (docs/SETTLEMENTS.md): packed earth. Well-fed people with empty hands dig earth from
+  // trodden ground and set it down where people rest together, like stone. It builds less per load
+  // and wears away faster, so stone stays the better material near the hills.
+  earthBuildingEnabled: true,
+  earthWear: 64, // earth comes only from ground worn at least this much (bare, trodden soil)
+  earthBite: 1.0, // earth dug per tick
+  earthCarryMax: 6.0,
+  earthEnergy: 0.6, // digs only above this fraction of maxEnergy
+  earthDigCost: 0.05, // energy spent per unit dug
+  earthBuildGain: 2.0, // durability per unit of earth (stone gives buildGain)
+  earthErodeSlices: 32, // earth-built tiles also lose 1 durability per this many ticks
+  // S3a layout test (prototype, off until reviewed): an exposure field and carriers who set
+  // material down on the neighbouring tile that best shelters them from the seasonal wind.
+  exposureEnabled: false,
+  exposureSlices: 8, // exposure is refreshed on 1 / this of the map each tick
+  windWeight: 2.0, // how much more the upwind side counts than the others
+  brushBarrier: 4.0, // barrier per unit of brush on a tile
+  treeBarrier: 120.0, // barrier of a full stand of trees
+  cliffBarrier: 600.0, // barrier per unit of height a neighbour stands above this tile
+  directionalBuildEnabled: false,
+  directionalAvoidWear: 64, // carriers do not build on tiles worn at least this much (they are routes)
   pathsEnabled: true,
   wearStep: 4, // wear added to a tile each time someone steps onto it, 0 to 255 (S2 tuning: was 16)
   wearDecaySlices: 2, // every tile loses 1 wear once per this many ticks (S2 tuning: was 8)

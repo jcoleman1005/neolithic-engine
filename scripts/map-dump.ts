@@ -41,30 +41,46 @@ function cellColor(w: World, c: number, out: Uint8Array, o: number): void {
     else { r = 44 + v * 20; g = 70 + v * 70; b = 40; }
     if (l.tilled[c] > 0.3) { r = 130; g = 104; b = 62; }
     if (l.wear[c] >= 64) { const k = l.wear[c] / 255; r = Math.round(r + (200 - r) * k); g = Math.round(g + (170 - g) * k); b = Math.round(b + (120 - b) * k); }
-    if (l.durability[c] > 0) { r = 170; g = 170; b = 165; }
+    if (l.durability[c] > 0) {
+      // Built-up tiles: packed earth brown, stone grey, darker and denser the more durable.
+      const k = Math.min(1, l.durability[c] / 120);
+      if (l.material[c] === 1) { r = 150 - k * 60; g = 105 - k * 45; b = 60 - k * 25; }
+      else { r = 175 - k * 75; g = 175 - k * 75; b = 170 - k * 70; }
+    }
     if (l.form[c] === FORM_HEAP || l.pile[c] > 1) { r = 230; g = 130; b = 30; }
     if (l.form[c] === FORM_GRANARY) { r = 245; g = 205; b = 60; }
     if (l.form[c] === FORM_NEST) { r = 120; g = 72; b = 34; }
-    if (l.structure[c] === 1) { r = 250; g = 250; b = 250; }
+    if (l.structure[c] === 1 && l.material[c] !== 1) { r = 250; g = 250; b = 250; }
+    if (l.structure[c] === 1 && l.material[c] === 1) { r = 230; g = 200; b = 150; }
     if (l.cave[c] === 1) { r = 0; g = 0; b = 0; }
     if (l.fire[c] === 1) { r = 255; g = 40; b = 20; }
   }
   out[o] = r; out[o + 1] = g; out[o + 2] = b;
 }
 
-function render(w: World, scale: number, path: string): void {
+function render(w: World, scale: number, path: string, crop: { x: number; y: number; r: number } | null = null): void {
   const counts = new Uint16Array(CELLS);
   const p = w.people;
   for (let s = 0; s < p.capacity; s++) {
     if (p.alive[s] === 1) counts[(p.y[s] << 8) | p.x[s]]++;
   }
-  const px = SIZE * scale;
+  const span = crop ? crop.r * 2 + 1 : SIZE;
+  const px = span * scale;
   const rgb = new Uint8Array(px * px * 3);
   const cell = new Uint8Array(3);
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const c = (y << 8) | x;
+  for (let y = 0; y < span; y++) {
+    for (let x = 0; x < span; x++) {
+      const c = crop ? (((crop.y - crop.r + y) & 255) << 8) | ((crop.x - crop.r + x) & 255) : (y << 8) | x;
       cellColor(w, c, cell, 0);
+      // In crops, everything that is not built is dimmed, so walls and their shapes stand out.
+      if (crop && w.land.durability[c] === 0 && w.land.form[c] !== FORM_NEST && w.land.fire[c] === 0) {
+        cell[0] *= 0.45; cell[1] *= 0.45; cell[2] *= 0.45;
+      }
+      // With exposure on, sheltered ground is drawn darker (only in crops, to keep the full map readable).
+      if (crop && w.config.exposureEnabled === true && w.land.isWater[c] === 0) {
+        const k = 0.45 + 0.55 * (w.land.exposure[c] / 255);
+        cell[0] *= k; cell[1] *= k; cell[2] *= k;
+      }
       for (let dy = 0; dy < scale; dy++) {
         for (let dx = 0; dx < scale; dx++) {
           const o = ((y * scale + dy) * px + x * scale + dx) * 3;
@@ -74,7 +90,8 @@ function render(w: World, scale: number, path: string): void {
       // People take the middle of the cell, so what they stand on still shows round the edge.
       if (counts[c] > 0) {
         const v = Math.min(255, 110 + counts[c] * 25);
-        const m = scale >= 3 ? 1 : 0;
+        // In crops people are small dots, so the ground and walls under them stay readable.
+        const m = crop ? Math.floor(scale / 2) - 1 : scale >= 3 ? 1 : 0;
         for (let dy = m; dy < scale - m; dy++) {
           for (let dx = m; dx < scale - m; dx++) {
             const o = ((y * scale + dy) * px + x * scale + dx) * 3;
@@ -96,9 +113,33 @@ function lifetimes(chronicle: Chronicle, tick: number, ticksPerYear: number): nu
   return out.sort((a, b) => a - b);
 }
 
+/**
+ * Layout of built tiles (durability > 0): how many stand alone, how many sit in lines (two or more
+ * built neighbours of 8), and how many open tiles are walled in on at least 3 of their 4 sides.
+ */
+function layoutLine(w: World): string {
+  const d = w.land.durability;
+  let built = 0, alone = 0, lines = 0, enclosed = 0;
+  for (let c = 0; c < CELLS; c++) {
+    const x = c & 255, y = c >> 8;
+    const at = (dx: number, dy: number): number => (d[(((y + dy) & 255) << 8) | ((x + dx) & 255)] > 0 ? 1 : 0);
+    if (d[c] > 0) {
+      built++;
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx !== 0 || dy !== 0) n += at(dx, dy);
+      if (n === 0) alone++;
+      else if (n >= 2) lines++;
+    } else if (w.land.isWater[c] === 0 && at(1, 0) + at(-1, 0) + at(0, 1) + at(0, -1) >= 3) {
+      enclosed++;
+    }
+  }
+  const pct = (a: number): string => (built > 0 ? Math.round((100 * a) / built) : 0) + '%';
+  return `  layout: built ${built}, alone ${pct(alone)}, in lines ${pct(lines)}, open tiles walled on 3+ sides ${enclosed}`;
+}
+
 function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const l = w.land;
-  let heaps = 0, granaries = 0, nests = 0, huts = 0, fires = 0, landCells = 0, worn = 0;
+  let heaps = 0, granaries = 0, nests = 0, huts = 0, fires = 0, landCells = 0, worn = 0, earthBuilt = 0, stoneBuilt = 0;
   const near = new Uint8Array(CELLS);
   for (let c = 0; c < CELLS; c++) {
     if (l.form[c] === FORM_HEAP) heaps++;
@@ -107,6 +148,7 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
     if (l.structure[c] === 1) huts++;
     if (l.fire[c] === 1) fires++;
     if (l.isWater[c] === 0) { landCells++; if (l.wear[c] >= 64) worn++; }
+    if (l.durability[c] > 0) { if (l.material[c] === 1) earthBuilt++; else stoneBuilt++; }
     if (isBuilt(w, c)) {
       const x = c & 255, y = c >> 8;
       for (let dy = -NEAR_RADIUS; dy <= NEAR_RADIUS; dy++) {
@@ -135,12 +177,12 @@ function statsLine(w: World, chronicle: Chronicle, year: number): string {
   const median = lives.length > 0 ? lives[Math.floor(lives.length / 2)].toFixed(1) : '0';
   const lasted = lives.filter((l) => l >= 10).length;
   return `Year ${String(year).padStart(3)}: people ${w.population}, adults outside camps ${100 - nearPct}%, ` +
-    `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}; ` +
+    `heaps ${heaps}, granaries ${granaries}, nests ${nests}, huts ${huts}, fires ${fires}, built earth ${earthBuilt} stone ${stoneBuilt}; ` +
     `worn land ${((100 * worn) / Math.max(1, landCells)).toFixed(1)}%, bands ${chronicle.tracker.bands.size} (largest ${largestBand}); ${tierText}; median life ${median}y of ${lives.length}, lasted 10y+ ${lasted}; top ${top}`;
 }
 
 function main(): void {
-  const { named, overrides } = parseArgs(process.argv.slice(2), ['seed', 'years', 'every', 'out', 'scale', 'save']);
+  const { named, overrides } = parseArgs(process.argv.slice(2), ['seed', 'years', 'every', 'out', 'scale', 'save', 'crop']);
   const seed = parseInt(named.seed ?? '3', 10);
   const years = parseInt(named.years ?? '20', 10);
   const every = parseInt(named.every ?? String(years), 10);
@@ -157,7 +199,16 @@ function main(): void {
     if (y % every === 0 || y === years) {
       const path = `${out}-y${String(y).padStart(2, '0')}.png`;
       render(world, scale, path);
+      if (named.crop) {
+        // --crop top (around the largest settlement) or --crop x,y; 20 tiles each way at 12 pixels a tile.
+        const top = chronicle.settlementViews()[0];
+        const [cx, cy] = named.crop === 'top' ? (top ? [top.x, top.y] : [128, 128]) : named.crop.split(',').map(Number);
+        const cropPath = `${out}-y${String(y).padStart(2, '0')}-crop.png`;
+        render(world, 12, cropPath, { x: cx, y: cy, r: 20 });
+        console.log(`  crop at ${cx},${cy} -> ${cropPath}`);
+      }
       console.log(`${statsLine(world, chronicle, y)} -> ${path}`);
+      console.log(layoutLine(world));
     }
     if (world.population === 0) { console.log(`Died out in year ${y}`); break; }
   }

@@ -489,6 +489,8 @@ export class World {
     h.updateFloatArray(land.compaction);
     h.updateIntArray(land.form);
     if (this.config.pathsEnabled !== false) h.updateIntArray(land.wear);
+    if (this.config.earthBuildingEnabled !== false) h.updateIntArray(land.material);
+    if (this.config.exposureEnabled === true) h.updateIntArray(land.exposure);
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);
     h.updateFloatArray(land.fish);

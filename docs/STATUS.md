@@ -1,3 +1,13 @@
+## Settlements plan: S3-pre and S3a (branch `settlements-s3`), stopped for review
+- **Merged first**: S2 into `main`, on top of the art-scaffold merge that had landed there.
+- **S3-pre packed earth (on)**: well-fed people with empty hands dig earth from trodden ground (`CARRY_EARTH`) and set it down where people rest together, like stone; it builds half as much and wears away faster; built tiles record their material. Switch `earthBuildingEnabled`.
+- **S3a layout test (off by default until you review)**: `exposureEnabled` (exposure field, refreshed in slices, saved, hashed when on) and `directionalBuildEnabled` (carriers build on the neighbouring tile that best keeps the seasonal wind off them, skipping occupied tiles and routes).
+- **Result**: with the test on, built tiles in lines go from 2 to 4% to 47%, and 42 to 44 open tiles end up walled on 3 or more sides; walls mostly line riverbanks and shores. See `docs/findings.md`. Images: `npm run map -- --seed 3 --years 30 --crop top --exposureEnabled true --directionalBuildEnabled true`.
+- **Known gap**: every wall tile at 60 durability is still a one-tile hut, so walls over-shelter until S3b ties shelter to exposure.
+- Tests `tests/exposure.test.ts`. The pinned-hash test now also turns packed earth off.
+- **Verify**: all 262 tests pass, but the last run also reported a vitest worker timeout (machine load about 8 on 4 cores from other work), so it has not passed cleanly; re-run on a quiet machine before merging. **Perf** 7.69 µs / person / tick under that load; at 3,000 people about 7.5 µs with the test off and 7.0 µs with it on. **Fingerprint** with packed earth off matches the S2 merge (`1a4ed95693eba06c`); with it on `2aa8639e2081a2f1`.
+- **Next**: your review of the layouts, then S3b to S3e.
+
 ## Settlements plan: S2 paths (branch `settlements-s2`)
 - **Built**: each step wears the tile (`Land.wear`, saved; hashed only while `pathsEnabled` is on); worn ground costs up to half as much to step onto, and people lean toward the more worn neighbour. Wear fades one point every 2 ticks. Paths reach the viewer as a new per-tile channel with the land overlay and draw as trodden earth; `npm run map` shows them and reports worn land. Tests `tests/paths.test.ts`.
 - **Result** (seeds 1 to 3, year 30): 7 to 11% of land worn, population 91 to 100% of paths-off at year 20. Hamlets or larger at 62% of off on seed 3 (target 80%, missed; tuning deferred to the combined pass). Worn ground mostly bands shores and settlements; few trails cross open land between camps. Tuned `wearStep` 16 to 4 and `wearDecaySlices` 8 to 2 (see `docs/findings.md`).

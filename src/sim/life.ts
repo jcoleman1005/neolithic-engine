@@ -1,6 +1,6 @@
 import type { SimulationConfig } from './types';
 import { seasonGrowthFactor, yearPhase } from './seasons';
-import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE } from './people';
+import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE, CARRY_EARTH } from './people';
 import { stageWork, GENE_STRENGTH } from './people';
 import { FORM_NEST } from './land';
 import {
@@ -52,6 +52,8 @@ export class LifeSystem {
     if (config.buildingEnabled !== false) land.erode(tick, config);
     const pathsOn = config.pathsEnabled !== false;
     if (pathsOn) land.wearDown(tick, config);
+    if (config.exposureEnabled === true || config.directionalBuildEnabled === true) land.setWind(yearPhase(tick, config));
+    if (config.exposureEnabled === true) land.updateExposure(tick, config);
     land.ageGraves();
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
@@ -336,6 +338,16 @@ export class LifeSystem {
     const dropCrowd = config.dropCrowd ?? 3;
     const storeUnloadOn = config.storeUnloadEnabled !== false;
     const pathCut = config.pathCostCut ?? 0.5;
+    // Earth is part of building, which (like stone) needs stockpiles on.
+    const earthOn = config.earthBuildingEnabled !== false && buildOn;
+    const earthAbove = (config.earthEnergy ?? 0.6) * maxEnergy;
+    const earthBite = config.earthBite ?? 1.0;
+    const earthCarryMax = config.earthCarryMax ?? 6.0;
+    const earthDigCost = config.earthDigCost ?? 0.05;
+    const earthGain = config.earthBuildGain ?? 2;
+    const stoneGain = config.buildGain ?? 4;
+    const directionalOn = config.directionalBuildEnabled === true;
+    const occupiedCell = (c: number): boolean => spatial.cellStarts[c + 1] - spatial.cellStarts[c] > 0;
     const dropWhenFull = config.dropWhenFull ?? false;
     const carryDrag = config.carryDrag ?? 0.5;
     const bodyMul = (slot: number): number =>
@@ -455,6 +467,21 @@ export class LifeSystem {
           carryKind[slot] = CARRY_STONE;
         }
       }
+      if (
+        earthOn && energy[slot] >= earthAbove && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_EARTH) &&
+        people.carry[slot] < earthCarryMax * cm
+      ) {
+        // S3: well fed with empty hands on trodden ground: dig packed earth (it costs a little work).
+        const c = (py[slot] << 8) | px[slot];
+        const got = land.dig(c, Math.min(earthBite * cm, earthCarryMax * cm - people.carry[slot]), config);
+        if (got > 0) {
+          const work = got * earthDigCost;
+          energy[slot] -= work;
+          ledger.move += work;
+          people.carry[slot] += got;
+          carryKind[slot] = CARRY_EARTH;
+        }
+      }
     }
 
     // 5. Movement (Climb rule or Wander fallback)
@@ -487,11 +514,20 @@ export class LifeSystem {
           carryKind[slot] = CARRY_NONE;
         }
       }
-      // A carrier resting where people congregate (off the rock) sets the stone down: it builds that tile up.
-      if (buildOn && dir === 4 && carryKind[slot] === CARRY_STONE && people.carry[slot] > 0) {
+      // A carrier resting where people congregate (off the rock) sets stone or earth down: it builds
+      // that tile up, or (S3a) the neighbouring tile that best keeps the wind off them.
+      const carryingStone = buildOn && carryKind[slot] === CARRY_STONE;
+      const carryingEarth = earthOn && carryKind[slot] === CARRY_EARTH;
+      if (dir === 4 && (carryingStone || carryingEarth) && people.carry[slot] > 0) {
         const c = (py[slot] << 8) | px[slot];
         if (land.stone[c] <= 0 && spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
-          land.build(px[slot], py[slot], people.carry[slot], config);
+          let bx = px[slot], by = py[slot];
+          if (directionalOn) {
+            const gain = people.carry[slot] * (carryingEarth ? earthGain : stoneGain);
+            const n = land.bestShelterNeighbour(px[slot], py[slot], gain, occupiedCell, config);
+            if (n >= 0) { bx = n & 0xff; by = n >> 8; }
+          }
+          land.build(bx, by, people.carry[slot], config, carryingEarth);
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;
         }
