@@ -838,3 +838,15 @@ Wounds still arrive faster than they can heal: a lost clash about every 55 ticks
 The target is met on every seed: losers leave and winners don't (years 16 to 20: losers 49 / 45 / 52% against 23 / 23 / 22% off). Scaling fear by wounds adds little.
 
 Guardrails: no seed dies out, and child deaths are not up (7,817 / 8,335 / 8,584 on against 8,270 / 8,300 / 8,690 off). **Population falls further, though**: at year 50 it is 2,714 / 2,948 / 2,863 with fear on against 4,611 / 4,531 / 4,751 off, about 38% lower. Deaths are lower, but births fall faster. Women fed enough to mate drop to 5 to 7% (11 to 15% off), and pregnancy to 17 to 21% (37 to 48% off). The wound load does not fall (84 to 90% wounded, against 86 to 92% off), so leaving does not escape fighting: refugees meet strangers elsewhere. Likely causes, not measured: frightened people keep walking instead of grazing still, which costs energy and skips tilling, and they leave the richer shore. Not measured yet: settlements lasting 10 years or more, and perf (the machine was loaded).
+
+**Why fear lowers population** (`scripts/fear-probe.ts`, seed 1, adults sampled every 30 ticks from year 10 to 35):
+
+| Adults | Share | Standing still | Plant food underfoot | Tile capacity | Steps from water | Energy |
+|---|---|---|---|---|---|---|
+| Fear on: inside their feared region | 36% | 25% | 5.7 | 11.5 | 4.9 | 55.5 |
+| Fear on: afraid, outside the region | 41% | 57% | 5.9 | 12.1 | 5.6 | 68.0 |
+| Fear on: no fear | 23% | 68% | 5.4 | 11.9 | 19.7 | 65.3 |
+| Fear on: all | 100% | 48% | 5.7 | 11.8 | 8.6 | 62.9 |
+| Fear off: all | 100% | 61% | 7.0 | 15.5 | 7.8 | 66.8 |
+
+Fear is far too widespread: 77% of adults carry some. Everyone fights, and nearly everyone loses sometimes, so "only losers" ends up meaning almost everyone, and fear inside the region lasts years (60 fear takes about 3,000 ticks to fade there). Those inside the region stand still a quarter of the time, against two thirds for the unafraid. Across the population people stand still less (48% against 61%) and stand on land with about a quarter less capacity (11.8 against 15.5). They are pushed off the best ground and nobody holds it, because the winners lose elsewhere too. The probe's losses-per-year column did not work (wounds near the cap and same-tick healing hide the jump) and is left out.
