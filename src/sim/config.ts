@@ -253,6 +253,16 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite
   graveTicks: 150, // how long a fresh grave mark stays visible
+  // Resource-motivated clashes with lethal stakes (Options B & C)
+  resourceClashEnabled: true, // clashes motivated by hunger, carried loot and scarce tiles with lethal stakes
+  clashHungerThreshold: 35.0, // energy below which a hungry person fights for food or steals
+  clashFlatDamage: 6.0, // flat energy damage inflicted by winner's strike (scaled by strength)
+  clashLethalInjury: 220, // severe injury threshold where sustained trauma triggers fatal collapse
+  clashContestedResourceBonus: 1.5, // belligerence multiplier on contested food or crowded cold shelter tiles
+  // Conflict & Looting Foundations (Phase 7 / Primitives 76 & 78)
+  clashLootEnabled: true, // victor loots loser's carried goods (Primitive 78)
+  clashCourageEnabled: true, // tactical retreat when outmatched and bravery is low (Primitive 76)
+  courageOddsThreshold: 0.35, // base odds ratio threshold below which a timid fighter disengages
   // Bodies (5g). Life stages: children and elders give less work (forage bite, carry, clash
   // strength). Strength gene scales carrying. Childcare: a child under adultAge costs its
   // mother (split with a mate beside them) childCare energy a tick while within careRadius.

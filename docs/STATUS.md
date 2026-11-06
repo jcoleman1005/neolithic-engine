@@ -1,3 +1,16 @@
+## Resource-Motivated Clashes & Battlefield Fatalities (branch `feat-resource-clashes`)
+- **Done**:
+  - Audited combat resolution and resolved the zero-casualty phenomenon:
+    - Replaced abstract personality friction with material stakes (hunger vs food/supplies, carried food, food heaps, and crowded cold shelter) via `resourceClashEnabled`, `clashHungerThreshold` (35.0), and `clashContestedResourceBonus` (1.5). Peaceful or moderately belligerent strangers without stakes no longer fight.
+    - Added strength-scaled flat strike energy damage (`clashFlatDamage: 6.0`, delivering 3.0 to 6.0 flat damage) and severe trauma collapse (`clashLethalInjury: 220`), enabling decisive fatal blows against starving or critically wounded combatants.
+    - Fallen combatants drop carried food to `land.pile`, mark death sites, and register casualties (`fell: 1`) in `Rules.clashLog`.
+    - Updated Chronicle battle reports (Option B): reports actual casualties when warriors fall (`"${fell} fell (${fellA} of the X, ${fellB} of the Y)"`) and distinguishes non-fatal engagements (`"driven off without fatalities"`).
+  - **Simulation Results** (5 years, seed 42): Clashes dropped from 19,078 constant bumping scuffles down to 3,008 meaningful engagements, while combat deaths increased from 3 (0.015%) to 412 (13.70% fatality rate when fighting over survival).
+  - **Invariants & Ledger**: Energy ledger verified with 0 violations (`ledger.violations === 0`) across 1,000+ ticks; exact off-switch parity with `resourceClashEnabled: false`.
+  - **Perf**: **6.44 µs / person / tick** at ~7,700–10,000 people (budget 15.0 µs).
+  - **Type Check & Build**: `tsc -b && vite build` passed cleanly in 3.39s.
+- **Next**: Merge branch to `main`.
+
 ## Settlements plan: S2 paths (branch `settlements-s2`)
 - **Built**: each step wears the tile (`Land.wear`, saved; hashed only while `pathsEnabled` is on); worn ground costs up to half as much to step onto, and people lean toward the more worn neighbour. Wear fades one point every 2 ticks. Paths reach the viewer as a new per-tile channel with the land overlay and draw as trodden earth; `npm run map` shows them and reports worn land. Tests `tests/paths.test.ts`.
 - **Result** (seeds 1 to 3, year 30): 7 to 11% of land worn, population 91 to 100% of paths-off at year 20. Hamlets or larger at 62% of off on seed 3 (target 80%, missed; tuning deferred to the combined pass). Worn ground mostly bands shores and settlements; few trails cross open land between camps. Tuned `wearStep` 16 to 4 and `wearDecaySlices` 8 to 2 (see `docs/findings.md`).
@@ -176,3 +189,4 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 3. Build 5e golden crops.
 4. Combined tuning pass: wounds, population, childcare share, nests with no limit; decide the starting population.
 5. Graphics work: use the `graphics` agent (`.claude/agents/graphics.md`), starting with an audit.
+6. Parked: Clash animation & visual combat feedback (drafted and added to Parking lot in `docs/ROADMAP.md`).

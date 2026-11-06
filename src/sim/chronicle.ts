@@ -210,7 +210,7 @@ export class Chronicle {
     } else {
       outcome = `the ${nameB} beat the ${nameA}`;
     }
-    const toll = fell === 0 ? 'no one fell'
+    const toll = fell === 0 ? 'driven off without fatalities'
       : `${fell} fell (${p.fellA} of the ${nameA}, ${p.fellB} of the ${nameB})`;
     const place = this.placeAt(world, p.x, p.y, p.tongueA!);
     const text = `${kind} near ${place}: ${outcome} after ${days} ${days === 1 ? 'day' : 'days'}, ${p.clashes} clashes, ${toll}`;

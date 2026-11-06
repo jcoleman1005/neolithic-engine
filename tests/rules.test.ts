@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { Rules } from '../src/sim/rules';
-import { People, GENE_COUNT, HABIT_COUNT, slotFromId } from '../src/sim/people';
+import { People, GENE_COUNT, HABIT_COUNT, slotFromId, CARRY_FOOD } from '../src/sim/people';
 import { Land } from '../src/sim/land';
 import { ScentFields } from '../src/sim/fields';
 import { SpatialIndex } from '../src/sim/spatial';
@@ -229,6 +229,8 @@ describe('Phase 3 Rules & Invariants', () => {
       clashLossShare: 0.25,
       clashLootEfficiency: 0.8,
       cultureTouchEnabled: false,
+      resourceClashEnabled: false,
+      clashCourageEnabled: false,
     };
     const people = new People(10);
     const land = new Land(config);
@@ -278,6 +280,74 @@ describe('Phase 3 Rules & Invariants', () => {
       const moved = people.x[slotWeak] !== 20 || people.y[slotWeak] !== 20;
       expect(moved).toBe(true);
     }
+  });
+
+  it('resource-driven clashes trigger on material stakes and can inflict lethal fatal strikes', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      elevationEnabled: false,
+      terrainEnabled: false,
+      resourceClashEnabled: true,
+      clashFlatDamage: 6.0,
+      clashHungerThreshold: 35.0,
+      cultureTouchEnabled: false,
+      clashCourageEnabled: false,
+    };
+    const people = new People(10);
+    const land = new Land(config);
+    const fields = new ScentFields();
+    const spatial = new SpatialIndex();
+    const ledger = new EnergyLedger();
+    const prng = new PRNG(12345);
+
+    // Strong warrior at (20, 20) with moderate-high belligerence (140 + cruelty 128 = 268)
+    const strongGenes = new Uint8Array(GENE_COUNT).fill(128);
+    strongGenes[0] = 250; // High strength
+    const strongHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    strongHabits[3] = 140;
+    const idStrong = people.spawn(20, 20, 80, 1, 0, 0, 0, strongGenes, strongHabits, 0);
+    const slotStrong = slotFromId(idStrong);
+
+    // Well-fed neutral person (40 energy, bell 80 + cruelty 128 = 208) on empty tile -> hasStakes is false, bell < 280, no fight
+    const fedGenes = new Uint8Array(GENE_COUNT).fill(128);
+    const fedHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    fedHabits[3] = 80;
+    const idFed = people.spawn(20, 20, 40, 0, 0, 0, 0, fedGenes, fedHabits, 0);
+    const slotFed = slotFromId(idFed);
+    spatial.build(people);
+
+    Rules.touch(slotStrong, slotFed, people, land, fields, spatial, ledger, config, prng);
+    expect(people.energy[slotFed]).toBe(40); // untouched!
+
+    // Now place food on the land (contested food heap stakes)
+    land.pile[(20 << 8) | 20] = 5.0;
+    Rules.touch(slotStrong, slotFed, people, land, fields, spatial, ledger, config, prng);
+    expect(people.energy[slotFed]).toBeLessThan(40); // now they clash over the food heap!
+
+    // Starving weak carrier with 5 energy carrying food
+    const weakGenes = new Uint8Array(GENE_COUNT).fill(128);
+    weakGenes[0] = 10;
+    const weakHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    weakHabits[3] = 150;
+    const idWeak = people.spawn(30, 30, 5, 0, 0, 0, 0, weakGenes, weakHabits, 0);
+    const slotWeak = slotFromId(idWeak);
+    people.carryKind[slotWeak] = CARRY_FOOD;
+    people.carry[slotWeak] = 12.0;
+
+    const idAttacker = people.spawn(30, 30, 80, 1, 0, 0, 0, strongGenes, strongHabits, 0);
+    const slotAttacker = slotFromId(idAttacker);
+    spatial.build(people);
+
+    const headBefore = Rules.clashLog.head;
+    Rules.touch(slotAttacker, slotWeak, people, land, fields, spatial, ledger, config, prng);
+
+    // Weak fighter should have fallen (died directly in clash)
+    expect(people.alive[slotWeak]).toBe(0);
+    // Victor claimed the carried food as loot (Primitive 78)
+    expect(people.carryKind[slotAttacker]).toBe(CARRY_FOOD);
+    expect(people.carry[slotAttacker]).toBe(12.0);
+    // clashLog should record a casualty (fell = 1)
+    expect(Rules.clashLog.fell[headBefore % 8192]).toBe(1);
   });
 
   describe('culture similarity in touch', () => {

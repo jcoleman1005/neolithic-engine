@@ -419,6 +419,14 @@ export interface SimulationConfig {
   clashEnergyCost: number;
   clashLossShare: number;
   clashLootEfficiency: number;
+  resourceClashEnabled?: boolean;
+  clashHungerThreshold?: number;
+  clashFlatDamage?: number;
+  clashLethalInjury?: number;
+  clashContestedResourceBonus?: number;
+  clashLootEnabled?: boolean;
+  clashCourageEnabled?: boolean;
+  courageOddsThreshold?: number;
   incumbencyBonus: number;
   rootLeaderSliceCount: number;
   shareEnergyMinSurplus: number;

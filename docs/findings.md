@@ -58,6 +58,14 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-03 | `fertilityActionGain` | 0 | 0.002 | Direct fertility enrichment per seed drop |
 | 2026-11-03 | `fertilityTampGain` | 0 | 0.0008 | Soil improvement per tamping event |
 | 2026-11-03 | `fertilityCompostGain` | 0 | 0.0005 | Fertility enrichment from spoiling organic food heaps |
+| 2026-11-05 | `resourceClashEnabled` | false | true | Option C: Material-motivated clashes (hunger, food heaps, shelter) with lethal combat stakes |
+| 2026-11-05 | `clashHungerThreshold` | 0 | 35.0 | Energy below which a hungry person will fight for food or mug strangers |
+| 2026-11-05 | `clashFlatDamage` | 0 | 6.0 | Flat energy damage inflicted by winner (scaled by strength 3-6) allowing decisive fatal strikes |
+| 2026-11-05 | `clashLethalInjury` | 0 | 220 | Cumulative trauma collapse ceiling where excessive injury triggers combat death |
+| 2026-11-05 | `clashContestedResourceBonus` | 0 | 1.5 | Escalation multiplier on contested food heaps, prey carcasses, or crowded cold shelters |
+| 2026-11-05 | `clashLootEnabled` | false | true | Phase 7 / Primitive 78: victor loots loser carried goods or knocks loose to land |
+| 2026-11-05 | `clashCourageEnabled` | false | true | Phase 7 / Primitive 76: outmatched timid fighters tactically retreat before blows land |
+| 2026-11-05 | `courageOddsThreshold` | 0 | 0.35 | Base combat power odds ratio below which timid fighters retreat |
 | 2026-11-04 | `birthHazardsEnabled` | false | true | Deterministic childbirth physical trauma and metabolic demands switch |
 | 2026-11-04 | `pregnancyUpkeepMul` | 1.0 | 1.25 | Extra upkeep multiplier during pregnancy (+25%) |
 | 2026-11-04 | `pregnancyMiscarriageEnergy` | 0 | 15.0 | Energy threshold below which severe starvation terminates pregnancy to protect mother |

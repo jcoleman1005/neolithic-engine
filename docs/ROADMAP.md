@@ -357,3 +357,4 @@ These ideas are deferred on purpose; revisit them after Phase 10 or when a phase
 - Small evolving brains, only for a few notable characters, borrowed from `artificial-life`
 - GPU diffusion and WebAssembly, only if the S21 benchmark demands them
 - Chronicle entries written by a language model (needs a server off the phone)
+- Clash animation and visual combat feedback: packed clash stream from `Rules.clashLog`, transient procedural impact sparks / dust puffs and fatal injury flecks in `CanvasRenderer`, optional macro-scale battle pings when skirmishes cluster
