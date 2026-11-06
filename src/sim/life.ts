@@ -1,7 +1,7 @@
 import type { SimulationConfig } from './types';
 import { seasonGrowthFactor, yearPhase } from './seasons';
 import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE } from './people';
-import { stageWork, GENE_STRENGTH } from './people';
+import { stageWork, GENE_STRENGTH, maxCarryCapacity } from './people';
 import { FORM_NEST } from './land';
 import {
   type People,
@@ -72,6 +72,21 @@ export class LifeSystem {
         const pile = land.pile;
         for (let i = 0; i < 65536; i++) {
           if (pile[i] > 1.0) foodCurr[i] = Math.min(255, foodCurr[i] + pile[i] * storeRate);
+        }
+      }
+      // Phase 6a: grazing herds emit prey scent so hungry human foragers and predators can track them.
+      if (config.herdScentEnabled !== false && herds && herds.count > 0) {
+        const herdRate = config.herdScentEmitRate ?? 0.2;
+        const hcap = herds.capacity;
+        const halive = herds.alive;
+        const hx = herds.x;
+        const hy = herds.y;
+        const henergy = herds.energy;
+        for (let s = 0; s < hcap; s++) {
+          if (halive[s] === 1) {
+            const idx = (hy[s] << 8) | hx[s];
+            foodCurr[idx] = Math.min(255, foodCurr[idx] + henergy[s] * herdRate);
+          }
         }
       }
       fields.step(config);
@@ -396,12 +411,28 @@ export class LifeSystem {
           if (prey >= 0) {
             energy[slot] -= huntCost;
             ledger.move += huntCost;
-            if (herds!.roll() < huntChance) {
-              land.dropFood(hx, hy, herds!.energy[prey] * meatFactor, config);
+            let effChance = huntChance;
+            if (config.huntScalingEnabled !== false) {
+              if (config.huntStrengthBonus) effChance += (genes[slot * 8 + 0] / 255) * config.huntStrengthBonus;
+              if (carryKind[slot] === CARRY_STONE) effChance += (config.huntStoneBonus ?? 0.15);
+            }
+            if (herds!.roll() < effChance) {
+              const meatAmt = herds!.energy[prey] * meatFactor;
+              land.dropFood(hx, hy, meatAmt, config);
               herds!.kill(prey);
               herds!.killed++;
               herds!.addCarcass(hx, hy, config.carcassTicks ?? 120);
               eaten += land.takePile(hx, hy, Math.min(pileEatBite, maxEnergy - curE - eaten));
+              // Carry fresh meat home if hands are free or already holding food
+              if (config.huntCarryMeatEnabled !== false && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_FOOD)) {
+                const maxCap = maxCarryCapacity(slot, CARRY_FOOD, people, config);
+                const canTake = Math.min(land.pile[(hy << 8) | hx], maxCap - people.carry[slot]);
+                if (canTake > 0) {
+                  const took = land.takePile(hx, hy, canTake);
+                  people.carry[slot] += took;
+                  carryKind[slot] = CARRY_FOOD;
+                }
+              }
             }
           }
         }

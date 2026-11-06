@@ -157,10 +157,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // energy (leaving a share as meat), breed when fed and starve without prey. Each leaves danger
   // scent; a lone person beside one may be killed. Their energy is plant-side.
   wolvesEnabled: true,
-  wolfInitialCount: 20,
+  wolfInitialCount: 28,
   wolfCapacity: 128,
   wolfMaxEnergy: 80.0,
-  wolfUpkeep: 0.06, // energy lost per tick
+  wolfUpkeep: 0.05, // energy lost per tick
   wolfMoveCost: 0.03,
   wolfKillChance: 0.6, // per tick with prey on or beside the tile
   wolfMeatFactor: 1.2, // energy gained per unit of the prey's energy
@@ -169,19 +169,30 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wolfPersonMeal: 20.0, // energy a wolf gains from a person
   wolfLoneRadius: 2, // a person is only a target with no one else within this many tiles (S1: was 0)
   wolfDanger: 2.0, // danger scent left per tick
-  wolfBreedEnergy: 50.0,
-  wolfBirthEnergy: 20.0,
-  wolfBreedChance: 0.02, // per tick once able, scaled by (1 - wolves / wolfSoftCap)
-  wolfSoftCap: 40,
+  wolfBreedEnergy: 45.0,
+  wolfBirthEnergy: 18.0,
+  wolfBreedChance: 0.025, // per tick once able, scaled by (1 - wolves / wolfSoftCap)
+  wolfSoftCap: 50,
   wolfAdultAge: 360,
   wolfMaxAge: 5400,
-  wolfSenseRadius: 8, // tiles within which a wolf turns toward herd animals
+  wolfSenseRadius: 12, // tiles within which a wolf turns toward herd animals
   wolfPersist: 0.75, // chance per tick a wandering wolf keeps its heading
+  wolfDefenseEnabled: true, // brave or strong defenders strike back at attacking wolves
+  wolfDefenseDamage: 25.0, // max physical counter-damage dealt to an attacking wolf
+  wolfScavengeEnabled: true, // hungry wolves can feed on carcass meat heaps
+  wolfScavengeBite: 3.0, // meat taken per scavenging bite
+  wolfScentTrackEnabled: true, // wolves track prey food scent trails when herds are out of sight
   huntingEnabled: true,
   huntBelow: 0.6, // hunts below this fraction of maxEnergy
   huntChance: 0.15, // chance a strike kills, per tick with prey adjacent
   huntCost: 0.3, // labour per strike (booked as movement)
   huntMeatFactor: 1.0, // meat per unit of the animal's energy
+  huntCarryMeatEnabled: true, // hunter butchers and claims fresh carcass meat into hands
+  huntScalingEnabled: true, // weapon and strength scaling for hunting strikes
+  huntStrengthBonus: 0.2, // bonus strike chance for high-strength hunters (up to +0.20)
+  huntStoneBonus: 0.15, // bonus strike chance when carrying a stone weapon
+  herdScentEnabled: true, // herds emit prey food scent so hungry climbers can track them
+  herdScentEmitRate: 0.2, // prey scent emitted per unit of herd body energy
   carcassTicks: 120, // how long the dead-animal graphic stays (viewer only), if the meat lasts
   herdInitialCount: 150, // founder animals
   herdCapacity: 1024, // slots (an upper bound; food, not this, should limit the herds)

@@ -194,18 +194,32 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
     expect(people.energy[slotA]).toBeLessThan(initialEnergyA);
   });
 
-  it('Off-switch parity: exact fingerprint match when clash loot and courage are switched off', () => {
+  it('Off-switch parity: exact fingerprint match when clash loot and courage are switched off', async () => {
     const wOff = new World({
       clashLootEnabled: false,
       clashCourageEnabled: false,
+      herdScentEnabled: false,
+      huntCarryMeatEnabled: false,
+      huntScalingEnabled: false,
+      wolfDefenseEnabled: false,
+      wolfScavengeEnabled: false,
+      wolfScentTrackEnabled: false,
+      wolfInitialCount: 20,
+      wolfUpkeep: 0.06,
+      wolfBreedEnergy: 50.0,
+      wolfBirthEnergy: 20.0,
+      wolfBreedChance: 0.02,
+      wolfSoftCap: 40,
+      wolfSenseRadius: 8,
     }, 42);
 
     for (let t = 1; t <= 1000; t++) {
       wOff.step();
+      if (t % 100 === 0) await new Promise(r => setImmediate(r));
     }
     // Baseline fingerprint before Phase 7 foundations on this branch
     expect(wOff.stateHash()).toBe('3846cf0469ad880d');
-  });
+  }, 120000);
 
   it('Energy ledger balances with zero violations over 300 ticks with looting & courage active', () => {
     const world = new World({

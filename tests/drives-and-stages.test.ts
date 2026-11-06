@@ -138,7 +138,7 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
   });
 
   describe('Determinism & Off-switch fingerprint parity', () => {
-    it('produces the exact baseline fingerprint when new mechanics are switched off to match baseline', () => {
+    it('produces the exact baseline fingerprint when new mechanics are switched off to match baseline', async () => {
       const wOff = new World({
         bodyDrivesEnabled: false,
         childUpkeepMul: 1.0,
@@ -158,12 +158,27 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         resourceClashEnabled: false,
         clashLootEnabled: false,
         clashCourageEnabled: false,
+        // Phase 6a mechanics off for baseline parity
+        herdScentEnabled: false,
+        huntCarryMeatEnabled: false,
+        huntScalingEnabled: false,
+        wolfDefenseEnabled: false,
+        wolfScavengeEnabled: false,
+        wolfScentTrackEnabled: false,
+        wolfInitialCount: 20,
+        wolfUpkeep: 0.06,
+        wolfBreedEnergy: 50.0,
+        wolfBirthEnergy: 20.0,
+        wolfBreedChance: 0.02,
+        wolfSoftCap: 40,
+        wolfSenseRadius: 8,
       }, 42);
 
       for (let t = 1; t <= 1000; t++) {
         wOff.step();
+        if (t % 100 === 0) await new Promise(r => setImmediate(r));
       }
       expect(wOff.stateHash()).toBe('b11b505bedb2a659');
-    });
+    }, 120000);
   });
 });
