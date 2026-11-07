@@ -192,3 +192,9 @@ Phase 5c (mounds and nests) on branch `phase-5c-stigmergy`, built, tested and wa
 3. Build 5e golden crops.
 4. Combined tuning pass: wounds, population, childcare share, nests with no limit; decide the starting population.
 5. Graphics work: use the `graphics` agent (`.claude/agents/graphics.md`), starting with an audit.
+
+## 2026-11-07: S3x turmoil (on `settlements-s3`)
+
+- **Done:** death, wound, fear and belligerence probes (`scripts/`). Slow healing built (wounds fall slightly). The first fear design was built, measured and replaced: it lowered population 38%. The contest was built: fights are weighed against a real stake, the odds and the cost, and the weaker side yields. Fights fall about 99%, wounded share from about 90% to about 5%, belligerence stops climbing, population at year 50 is about 35 to 40% higher. Perf 7.2 µs per person per tick at 13,924 people.
+- **Next:** the place-cost memory (S3x item 2), then the S3a re-run. Still open: full `npm run verify` on a quiet machine, the rule-13 watch, the inspector showing wounds and place cost, and the end-of-plan tuning, including whether the world is now too peaceful.
+

@@ -71,8 +71,8 @@ for (let t = 1; t <= years * tpy; t++) {
     const a = away[sWin[i]]; a[0]++; if (dx * dx + dy * dy > R * R) a[1]++;
   }
   if (t % (every * tpy) === 0) {
-    let bell = 0;
-    for (let s = 0; s < cap; s++) if (p.alive[s]) bell += p.habits[s * HABIT_COUNT + HABIT_BELLIGERENCE];
+    let bellSum = 0;
+    for (let s = 0; s < cap; s++) if (p.alive[s]) bellSum += p.habits[s * HABIT_COUNT + HABIT_BELLIGERENCE];
     const cs = Rules.clashStats;
     // With the contest off, every stranger pairing past the culture gate is a fight.
     const fights = (w.config.contestEnabled !== false ? cs.fights : cs.strangers) - (w.config.contestEnabled !== false ? lastFights : lastStrangers);
@@ -83,7 +83,7 @@ for (let t = 1; t <= years * tpy; t++) {
     const y = t / tpy;
     console.log([`${y - every + 1}-${y}`, n, (100 * wd / n).toFixed(0), wd ? (sum / wd).toFixed(0) : '-', wd ? (100 * heal / wd).toFixed(0) : '-',
       `${src.birth}/${src.clash}/${src.wolf}/${src.other}`, `${srcChild.bornCold}/${srcChild.clash}/${srcChild.other}`,
-      death.wounded, death.unwounded, death.sev.join('/'), `${death.child}/${death.adult}`, death.wounded ? (death.ageSum / death.wounded / tpy).toFixed(1) : '-', healedOut, `fights/person/yr ${(fights / Math.max(1, p.count) / every).toFixed(2)} yields/person/yr ${(yields / Math.max(1, p.count) / every).toFixed(2)} bell ${(bell / Math.max(1, p.count)).toFixed(0)} losersAway ${(100 * away[0][1] / Math.max(1, away[0][0])).toFixed(1)}% winnersAway ${(100 * away[1][1] / Math.max(1, away[1][0])).toFixed(1)}% adults ${(100*ad/n).toFixed(0)}% women ${adF} fed ${(100*adFed/Math.max(1,adF)).toFixed(0)}% preg ${(100*preg/Math.max(1,adF)).toFixed(0)}%`].join('\t'));
+      death.wounded, death.unwounded, death.sev.join('/'), `${death.child}/${death.adult}`, death.wounded ? (death.ageSum / death.wounded / tpy).toFixed(1) : '-', healedOut, `fights/person/yr ${(fights / Math.max(1, p.count) / every).toFixed(2)} yields/person/yr ${(yields / Math.max(1, p.count) / every).toFixed(2)} bell ${(bellSum / Math.max(1, p.count)).toFixed(0)} losersAway ${(100 * away[0][1] / Math.max(1, away[0][0])).toFixed(1)}% winnersAway ${(100 * away[1][1] / Math.max(1, away[1][0])).toFixed(1)}% adults ${(100*ad/n).toFixed(0)}% women ${adF} fed ${(100*adFed/Math.max(1,adF)).toFixed(0)}% preg ${(100*preg/Math.max(1,adF)).toFixed(0)}%`].join('\t'));
     Object.keys(src).forEach((k) => ((src as never)[k] = 0)); Object.keys(srcChild).forEach((k) => ((srcChild as never)[k] = 0));
     death.wounded = death.unwounded = death.child = death.adult = death.ageSum = 0; death.sev = [0, 0, 0, 0]; healedOut = 0; away[0][0] = away[0][1] = away[1][0] = away[1][1] = 0;
   }

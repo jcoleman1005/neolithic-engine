@@ -870,3 +870,18 @@ Seeds 1 to 3, 50 years, contest on against off, slow healing on in both, the rep
 - **Fewer wounds:** share wounded at years 26 to 30 lower than off.
 - **Belligerence drift:** the habit's climb (134 to 216 in 30 years off) is smaller.
 - **Guardrails:** no seed dies out; population at year 50 not below off; women fed enough to mate not below off; perf within budget.
+
+**S3x contest result** (seeds 1 to 3, 50 years, on against off, slow healing on and the replaced fear off in both):
+
+| Years 46 to 50 | Seed 1 off / on | Seed 2 off / on | Seed 3 off / on |
+|---|---|---|---|
+| Fights per person-year | 5.16 / 0.04 | 4.77 / 0.05 | 4.56 / 0.04 |
+| Yields per person-year | 0 / 3.17 | 0 / 3.22 | 0 / 3.11 |
+| Wounded | 92% / 5% | 88% / 5% | 86% / 4% |
+| Belligerence habit (126 to 138 at start) | 206 / 125 | 196 / 127 | 209 / 126 |
+| People | 4,611 / 6,203 | 4,531 / 6,160 | 4,751 / 6,631 |
+| Women fed enough to mate | 11% / 16% | 15% / 14% | 10% / 12% |
+
+All targets met. Fights fall by about 99%, and most contests end in a yield. Wounds almost vanish, belligerence stops climbing, and population at year 50 is about 35 to 40% higher, with no collapse through year 50 (it peaks at 6,100 to 7,200 around years 36 to 40, then dips 5 to 8%). Guardrails: no seed dies out. Fed women are not below off, except seed 2 at 14% against 15%. Perf: 7.2 µs per person per tick at 13,924 people.
+
+Deaths now come mostly from hunger without wounds: in years 46 to 50 there were 1,668 / 1,880 / 1,925 unwounded deaths against 280 / 284 / 268 wounded ones (old age left out). The limit is now the land. **Risk to watch:** the world may now be too peaceful. Fights are rare enough that clash deaths and chronicle battles nearly disappear, and later phases (raids, polities) need conflict to come from somewhere. That is left to the end-of-plan tuning (`contestRiskWeight`) and to the place cost, which makes yielding count.
