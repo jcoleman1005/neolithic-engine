@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x (healing and fear), then the S3a re-run. See `docs/STATUS.md`.
+**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x: slow healing is built; the place-cost memory replaces the first fear design and follows a review of belligerence. Then the S3a re-run. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
@@ -185,45 +185,48 @@ This answers the roadmap's closed-rooms question: no room detector and no wall t
 
 *Tests:* fetching only next to natural water and only on the chance; spill per step; drinking from a carry and from a store; pouring only far enough from natural water; evaporation faster when warm and slower when covered; findable hysteresis; `drinkDist` including stores and matching after a load; the thirst stop rule on a store tile; the carry byte round trip; off parity.
 
-**S3x Turmoil: healing and fear (planned 2026-11-06; build before S3b).** Why: the death probe (`scripts/death-probe.ts`, `docs/findings.md`) found no code bug, but wounds never heal at today's balance. From year 20, 95 to 97% of people are wounded, averaging 220 of 255. Wounds heal only above half energy, while clashes come about every 2 months per child. Wounds add upkeep and stop steps, so the wounded get hungrier, stop healing, and fewer women are fed enough to mate (43% falling to 13%). Nothing lets repeated defeat drive people away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step.
+**S3x Turmoil: healing and the cost of a place (planned 2026-11-06, revised 2026-11-07; build before S3b).** Why: the death probe (`scripts/death-probe.ts`, `docs/findings.md`) found no code bug, but wounds never heal at today's balance. From year 20, 95 to 97% of people are wounded, averaging 220 of 255. Wounds heal only above half energy, while clashes come about every 2 months per child. Wounds add upkeep and stop steps, so the wounded get hungrier, stop healing, and fewer women are fed enough to mate (43% falling to 13%). Nothing lets repeated defeat drive people away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step.
 
-Three switches, all on by default, built and compared in this order:
-1. **`slowHealEnabled`.** Wounds heal at any energy, at `healBase` per tick. That rate is scaled up by fed state (energy / maxEnergy) and by shelter (`healShelterMul` on a sheltered tile, using `Land.sheltered`; it will follow exposure once S3b is on). Healing costs no energy, so the ledger is unchanged. Off keeps today's rule (0.3 per tick, only above half energy).
-2. **`fearEnabled`.** New per-person state: `fear` (Uint8), `fearX`, `fearY` (Uint8, the centre of the place where the person was beaten).
-   - **Only losers gain it:** the loser of a clash, and someone bitten by a wolf, gain `fearPerLoss`. Winners, bystanders, band-mates and kin gain nothing.
-   - **It stacks:** a loss within `fearRadius` of the centre adds to `fear` and nudges the centre toward the new spot. A loss farther away starts a new centre and keeps half the old fear.
-   - **It lasts:** fear decays at `fearDecayInside` per tick (very slow) while inside the region and `fearDecayOutside` (faster) once out. At 0 the centre is cleared.
-   - **Children are calmed by adults:** a child (under `adultAge`) loses fear faster when near a parent, adding `fearChildParentDecay` per tick within `careRadius` of a living mother or father (an id lookup, no search). A child near another allied adult (band-mate or kin, using `Rules.isAllied`, on the child's tile or the 8 around it) gets the smaller `fearChildAdultDecay` instead. Strangers don't calm, so the adult who beat the child never does. This adds to the inside or outside decay, and the parent rate takes precedence over the adult rate. The adult check runs on the decision stagger (every 8 ticks), and only for children with fear.
-   - **What it does, inside the region only:**
-     - It raises the food the person needs before staying is worth it (in `worthStaying`, and in the old calm path when `stayValueEnabled` is off).
-     - It adds a push straight away from the centre, at full strength until the person is out. No momentum rule is added.
-3. **`fearWoundsEnabled`.** Injury raises how strongly fear pushes (`fearWoundMul` at full injury), so the badly hurt leave first. With this on, hunger no longer halves fear for a person who has fear.
+Two switches, on by default. Slow healing is built and measured; the place-cost memory replaces the first fear design (revised 2026-11-07, see below).
+1. **`slowHealEnabled`** (built). Wounds heal at any energy: the full `injuryHeal` above `injuryHealEnergy`, falling to `healFloor` of it at zero energy, and `healShelterMul` faster on a sheltered tile (`Land.sheltered`; it follows exposure once S3b is on). Healing costs no energy. Off keeps the old rule. Result: wounds fall a little on all 3 seeds, but wounds still arrive faster than they heal (`docs/findings.md`).
+2. **`placeCostEnabled`: people remember what a place costs them.** New per-person state: `placeCost` (Float32, energy), `costX`, `costY` (Uint8, the centre of the region it belongs to). It is a pressure, not an order: nothing tells anyone where to go.
+   - **Losses add what was actually lost:** the energy a clash loser loses, or a wolf takes. A heavy defeat counts more than a scratch.
+   - **Wins subtract what was gained:** a winner's loot comes off their own cost, so the memory tracks net loss. It never goes below 0, so raiding does not make a place more attractive than it is.
+   - **One region per person:** an event within `costRadius` of the centre adds to the memory and nudges the centre toward it, weighted by size. An event farther away starts a new memory there, and the old place's cost is dropped, since it belongs to a place the person has left.
+   - **It fades:** each tick the memory shrinks by 1 / `costMemoryTicks` (about a year), so a quiet stretch rebuilds trust.
+   - **It is counted as upkeep:** the expected cost of living in the region is `placeCost / costMemoryTicks` energy a tick. Inside the region, the stay check (`worthStaying`, and the old calm path when `stayValueEnabled` is off) adds it to the real upkeep of the tile. When the place no longer pays, the person moves the way any dissatisfied person moves (food scent, roaming, worn paths) and stops on the first tile that pays. There is no push and no direction.
+   - **Shelter is weighed, not overridden:** the cold rule's "stay sheltered" holds only while the cold upkeep a shelter saves is more than the place's expected cost.
+   - **Children learn from their parents:** a child (under `adultAge`) within `careRadius` of a living mother or father drifts toward that parent's view of the place (`costChildLearn` of the gap a tick), taking the parent's centre when the parent's memory is larger. If the family stays, the child stays. An orphan keeps their own memory, which fades as usual.
+   - **What should follow, unscripted:** outnumbered people lose more often (allies already raise clash scores) and leave first. Rich land can bear the cost of fighting and is held, while poor land is given up. Winners are paid by loot and stay.
+
+**Replaced: the first fear design.** Built and measured on 2026-11-06, then replaced: `fear` gained a fixed amount per loss, ignored wins, and pushed people away from the centre. Since nearly everyone loses sometimes, 77% of adults carried fear. Frightened people stood still a quarter of the time, so the good land was abandoned rather than held, and population at year 50 was about 38% lower (`docs/findings.md`). The code stays in git history (commit "S3x slow healing and fear from defeat").
+
+**Belligerence is reviewed separately.** Most people pass the clash threshold, so most encounters between strangers can become fights. That is an older balance question, looked at on its own before the place-cost runs.
 
 **Edge cases and how they are handled:**
 
 | Case | Handling |
 |---|---|
-| Hemmed in by water (small island, peninsula, a shore at the centre) | The push only picks passable neighbours, the way thirst does. The slow inside decay means a trapped person is not frightened forever. People eat wherever they stand, so a restless trapped person pays walking energy (about +20% upkeep), not lost meals. |
-| Standing exactly on the centre (zero vector) | Push along `prevDir`, else the first passable direction. No random draw. |
-| Thirst and cold return early in `climb` | Thirst stays first, or the frightened die of thirst. Fear goes before cold's "stay sheltered" check, so a hut inside the region does not hold a frightened person. Cold-seeking toward a shelter inside the region is skipped while the person has fear. |
-| Food, shelter or leader pulling people back at the edge | Expected: people hover at the edge of the region, which reads as keeping a safe distance. It is measured, not fixed. |
-| Leader inside the region pulls a follower back | At high fear the push must beat the strongest leader pull (1.6). Tuning target, checked in the first run. A comfortable follower is not comfortable while afraid, so `comfortableStayEnabled` does not hold them. |
-| Children lose most clashes | They gain fear like anyone (only losers), but parents and allied adults calm them, so a child near family stays with them, and the parents' own fear decides whether the family leaves. An orphan or a lone child keeps their fear and moves away. Childcare is a cost to the mother, not a benefit to the child, so a child who leaves only loses kin sharing. Child deaths are reported per run, and a jump is a stop-and-report. |
-| Refugees lose again elsewhere | A new centre, keeping half the old fear. Weak people may keep moving. That is accepted and reported as the share of people with fear and how far they moved. |
-| Everyone near full injury saturates `fearWoundMul` | Slow healing goes in and is measured first, so injury levels drop before fear builds on them. |
+| Hemmed in by water, or no tile nearby pays | No push, so nobody is driven into the shore. A person with nowhere better stays and pays, as with a poor tile today. |
+| Thirst returns early in `climb` | Thirst stays first, or people would die of thirst. |
+| A hut or nest inside a costly region | Weighed against cold upkeep saved, as above. Not skipped by rule. |
+| People wander back in (food scent, leader pull) | Expected: the cost then fails the stay check again. Measured as re-entries, not prevented. |
+| A leader inside the region | A follower who is not comfortable follows the leader as today; the band leaves when the leader's own cost fails. |
+| Refugees lose again elsewhere | A new memory there. Reported as the share of adults with a cost and how far they moved. |
+| Children lose most clashes | They learn their parents' view while near them. Child deaths are reported per run, and a jump is a stop-and-report. |
 | Wrap at the map edge | The centre is nudged with `wrapDiff`; Uint8 coordinates wrap with `& 255`. |
-| Slot reuse, growth, saves | Reset in `People.kill` and `spawn`; added to the capacity-growth copy; saved per person as optional fields defaulting to 0 (old saves load with no fear). |
-| Fingerprint parity | Fear and the new healing are hashed only when their switch is on; no random numbers; the three switches are added (off) to the pinned-hash test. |
-| Perf | Healing is one multiply in the existing upkeep loop. Fear is one wrap-aware distance check per decision. The child parent check is two id lookups; the allied-adult check scans 9 cells, every 8 ticks and only for children with fear. All well under 0.1 µs per person. |
+| Slot reuse, growth, saves | Reset in `People.kill` and `spawn`; in the capacity-growth copy; saved per person as optional fields defaulting to 0. Old saves with `fear` fields load and ignore them. |
+| Fingerprint parity | Hashed only when the switch is on; no random numbers; the switch is added (off) to the pinned-hash test. |
+| Perf | One wrap-aware distance check per decision, one multiply per tick for the fade, two id lookups per child. Well under 0.1 µs per person. |
 
-*On the map:* nothing new is drawn at first. The inspector shows fear and its centre, and the death probe and map dumps show whether fought-over ground empties of losers. Something visible (rule 13) to watch: a contested camp where beaten people leave and the winners stay, compared with the switches off.
+*On the map:* nothing new is drawn at first. The inspector gets wounds and the place cost with its region in the viewer pass. Something visible (rule 13) to watch: a contested camp where those who keep losing leave and those who hold their own stay, compared with the switch off.
 
 *How S3x is judged.* No target for where people go. Targets are written in `docs/findings.md` before running:
-- **Runs:** 3 seeds, 50 years, all on against all off and one off at a time; death probe plus wound probe.
-- **Measure:** share wounded and mean injury; deaths while wounded; births per head; share of losers who end more than `fearRadius` from where they lost, against winners; settlements lasting 10 years or more.
-- **Guardrails, reported and not targets:** no seed dies out; camps lasting 10 years or more not down by more than 25%; child deaths not up; perf within budget.
+- **Runs:** 3 seeds, 50 years, place cost on against off (slow healing on in both); wound probe and fear probe (adapted to place cost).
+- **Measure:** share of losers more than `costRadius` from the clash 90 days later, against winners; share of adults with a cost; share standing still; tile capacity underfoot; births per head; settlements lasting 10 years or more.
+- **Guardrails, reported and not targets:** no seed dies out; population at year 50 within 10% of off; camps lasting 10 years or more not down by more than 25%; child deaths not up; perf within budget.
 
-*Tests:* healing at any energy, faster when fed and sheltered; only the loser gains fear; stacking inside the radius and moving the centre; half carried to a new centre; decay inside slower than outside; a child near a parent loses fear faster than near an allied adult, faster than alone, and a stranger does not calm; push away from the centre and never into water; zero vector falls back to `prevDir`; fear reset on kill and slot reuse; save round trip; off parity.
+*Tests:* healing at any energy, faster when fed and sheltered; a loss adds the energy lost and a win subtracts the loot, never below 0; events inside the radius add and move the centre, events outside start a new memory; the memory fades by 1 / `costMemoryTicks`; the stay check counts the expected cost only inside the region; shelter holds only while the cold saving exceeds the cost; a child near a parent moves toward the parent's memory and an orphan's fades; reset on kill and slot reuse; save round trip; off parity.
 
 **S3-pre Packed earth.** Stone exists only on hill tiles and is picked up only by people standing there, so lowland camps could almost never build. Add earth, dug from any land tile: a new `CARRY_EARTH` kind (new carry kind plumbing, inspector), and a per-cell material for built cells, so earth gives less durability and wears faster than stone. Digging costs energy and is booked in the ledger. Stone becomes the upgrade near hills. Switch `earthBuildingEnabled`. No "go fetch stone" drive yet.
 
