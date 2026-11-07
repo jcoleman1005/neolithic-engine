@@ -850,3 +850,15 @@ Guardrails: no seed dies out, and child deaths are not up (7,817 / 8,335 / 8,584
 | Fear off: all | 100% | 61% | 7.0 | 15.5 | 7.8 | 66.8 |
 
 Fear is far too widespread: 77% of adults carry some. Everyone fights, and nearly everyone loses sometimes, so "only losers" ends up meaning almost everyone, and fear inside the region lasts years (60 fear takes about 3,000 ticks to fade there). Those inside the region stand still a quarter of the time, against two thirds for the unafraid. Across the population people stand still less (48% against 61%) and stand on land with about a quarter less capacity (11.8 against 15.5). They are pushed off the best ground and nobody holds it, because the winners lose elsewhere too. The probe's losses-per-year column did not work (wounds near the cap and same-tick healing hide the jump) and is left out.
+
+### Belligerence (2026-11-07)
+
+`scripts/bell-probe.ts`, seed 1, 30 years, everything on. A touch is one pairing of two people on a tile in one tick.
+
+| Years | People | Belligerence habit | Cruelty gene | Over the gate (habit + cruelty > 180) | Touches per person per year | Allied | Neither belligerent | Tolerated (culture) | Clash |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 to 5 | 1,860 | 134 | 126 | 83% | 37 | 79% | 1.8% | 13% | 5.2% |
+| 11 to 15 | 3,991 | 160 | 125 | 81% | 65 | 70% | 2.5% | 19% | 6.5% |
+| 26 to 30 | 5,234 | 216 | 126 | 94% | 79 | 62% | 0.6% | 27% | 8.4% |
+
+The belligerence gate filters almost nothing: under 3% of touches are stopped by it. Culture tolerance is the real filter. The belligerence habit climbs steadily, 134 to 216 in 30 years, while the cruelty gene stays flat. The winner gains 3 and the loser loses 3, so the drift must come from elsewhere. Likely, not isolated: followers copy their leaders' habits (leaders are strong, so winners), and losers die more often, removing low-belligerence people. As bands get diluted (allied touches 79% to 62%), more touches are between strangers and the clash share rises. Nothing in the decision to fight looks at food, hunger or the odds of winning.
