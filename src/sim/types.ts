@@ -348,6 +348,8 @@ export interface SimulationConfig {
   injuryHealEnergy: number;
   injuryHeal: number;
   slowHealEnabled: boolean;
+  contestEnabled: boolean;
+  contestRiskWeight: number;
   healFloor: number;
   healShelterMul: number;
   fearEnabled: boolean;

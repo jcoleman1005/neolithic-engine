@@ -41,7 +41,7 @@ import { GENE_COUNT, GENE_CRUELTY, HABIT_BELLIGERENCE, HABIT_COUNT } from '../sr
 
 /** An empty open world; people are placed by hand. */
 function empty(config: Record<string, number | boolean> = {}): World {
-  const w = new World({ initialPopulation: 0, wolfInitialCount: 0, thirstEnabled: false, coldEnabled: false, diseaseEnabled: false, ...config }, 4);
+  const w = new World({ initialPopulation: 0, wolfInitialCount: 0, thirstEnabled: false, coldEnabled: false, diseaseEnabled: false, fearEnabled: true, fearWoundsEnabled: true, contestEnabled: false, ...config }, 4);
   w.land.isWater.fill(0);
   w.land.food.fill(0);
   w.fields.reset();
@@ -53,7 +53,8 @@ function put(w: World, x: number, y: number, energy = 60, habits = new Uint8Arra
   return s;
 }
 
-describe('S3x fear', () => {
+// The first fear design, replaced by the place cost and off by default; tested with it switched on.
+describe('S3x fear (replaced, switched on here)', () => {
   it('only the loser of a clash gains fear, centred where they lost', () => {
     const w = empty();
     const hA = new Uint8Array(HABIT_COUNT).fill(0), hB = new Uint8Array(HABIT_COUNT).fill(255);
@@ -152,7 +153,7 @@ describe('S3x fear', () => {
   });
 
   it('survives a save round trip and the run continues identically', () => {
-    const a = new World({ initialPopulation: 300 }, 8);
+    const a = new World({ initialPopulation: 300, fearEnabled: true, contestEnabled: false }, 8);
     for (let t = 0; t < 400; t++) a.step();
     let afraid = 0;
     for (let s = 0; s < a.people.capacity; s++) if (a.people.alive[s] && a.people.fear[s] > 0) afraid++;
@@ -161,5 +162,72 @@ describe('S3x fear', () => {
     expect(b.stateHash()).toBe(a.stateHash());
     for (let t = 0; t < 150; t++) { a.step(); b.step(); }
     expect(b.stateHash()).toBe(a.stateHash());
+  });
+});
+
+describe('S3x contest', () => {
+  const two = (eA: number, eB: number, food: number, ageB = 8000): { w: World; a: number; b: number } => {
+    const w = empty({ fearEnabled: false, contestEnabled: true, stockpilesEnabled: false });
+    w.land.food[(60 << 8) | 50] = food;
+    const hA = new Uint8Array(HABIT_COUNT).fill(0), hB = new Uint8Array(HABIT_COUNT).fill(255);
+    const a = put(w, 50, 60, eA, hA), b = put(w, 50, 60, eB, hB, undefined, ageB);
+    return { w, a, b };
+  };
+
+  it('gives the exact odds of the noisy fight score', () => {
+    expect(Rules.winChance(0)).toBeCloseTo(0.5, 9);
+    expect(Rules.winChance(1)).toBeCloseTo(0.875, 9);
+    expect(Rules.winChance(-1)).toBeCloseTo(0.125, 9);
+    expect(Rules.winChance(2)).toBe(1);
+    expect(Rules.winChance(-3)).toBe(0);
+  });
+
+  it('nobody fights with nothing at stake, or over food neither can eat', () => {
+    const bare = two(30, 30, 0);
+    expect(Rules.contest(bare.a, bare.b, 8, 5, 400, 400, bare.w.people, bare.w.land, bare.w.config)).toBe(0);
+    const fed = two(100, 100, 30);
+    expect(Rules.contest(fed.a, fed.b, 8, 5, 400, 400, fed.w.people, fed.w.land, fed.w.config)).toBe(0);
+  });
+
+  it('a much weaker defender yields; an even match is fought', () => {
+    const { w, a, b } = two(30, 30, 40);
+    expect(Rules.contest(a, b, 9, 3, 300, 300, w.people, w.land, w.config)).toBe(-1);
+    expect(Rules.contest(a, b, 9, 8.8, 500, 500, w.people, w.land, w.config)).toBe(1);
+  });
+
+  it('risk appetite moves the threshold', () => {
+    const { w, a, b } = two(40, 40, 30);
+    expect(Rules.contest(a, b, 6, 6, 0, 0, w.people, w.land, w.config)).toBe(0);
+    expect(Rules.contest(a, b, 6, 6, 510, 510, w.people, w.land, w.config)).not.toBe(0);
+  });
+
+  it('counts the real cost of a wound, higher when hungry (slower healing)', () => {
+    const { w, a, b } = two(90, 10, 0);
+    expect(Rules.woundCost(b, 60, w.people, w.config)).toBeGreaterThan(Rules.woundCost(a, 60, w.people, w.config));
+    expect(Rules.woundCost(a, 60, w.people, w.config)).toBeCloseTo((0.25 * 0.3 * 3600) / (2 * 255 * 0.3), 6);
+  });
+
+  it('through a touch, a child gives way to an adult: steps off unhurt, nobody wounded', () => {
+    const { w, a, b } = two(30, 30, 40, 1000);
+    const g = new Uint8Array(GENE_COUNT).fill(255);
+    w.people.genes.set(g, a * GENE_COUNT);
+    w.spatial.build(w.people);
+    const y0 = Rules.clashStats.yields;
+    Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(1));
+    expect(Rules.clashStats.yields).toBe(y0 + 1);
+    expect(w.people.injury[a]).toBe(0);
+    expect(w.people.injury[b]).toBe(0);
+    expect(w.people.energy[b]).toBe(30);
+  });
+
+  it('with the switch off the old gate applies: two calm people never fight', () => {
+    const w = empty({ fearEnabled: false, contestEnabled: false });
+    w.land.food[(60 << 8) | 50] = 40;
+    const hA = new Uint8Array(HABIT_COUNT).fill(0), hB = new Uint8Array(HABIT_COUNT).fill(255);
+    hA[HABIT_BELLIGERENCE] = 0; hB[HABIT_BELLIGERENCE] = 0;
+    const a = put(w, 50, 60, 30, hA), b = put(w, 50, 60, 30, hB);
+    w.spatial.build(w.people);
+    for (let i = 0; i < 20; i++) Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(i));
+    expect(w.people.injury[a] + w.people.injury[b]).toBe(0);
   });
 });

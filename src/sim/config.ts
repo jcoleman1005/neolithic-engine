@@ -301,6 +301,12 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // (healFloor of injuryHeal at zero energy, rising to the full rate at injuryHealEnergy), and
   // healShelterMul faster on a sheltered tile (cave, fire, hut, nest). Healing costs no energy.
   slowHealEnabled: true,
+  // S3x contest: a fight is weighed, not gated. Each side compares the food at stake (what they could
+  // eat beyond the half they'd get by sharing) with the exact odds and the real cost of losing; the
+  // weaker side may yield and step off unhurt. Belligerence (habit + cruelty) sets risk appetite,
+  // from -contestRiskWeight to +contestRiskWeight. Replaces the habit + cruelty > 180 gate.
+  contestEnabled: true,
+  contestRiskWeight: 0.5,
   healFloor: 0.2, // fraction of injuryHeal at zero energy
   healShelterMul: 1.5, // healing multiplier on a sheltered tile
   // S3x fear: the loser of a clash, or someone bitten by a wolf, gains fearPerLoss, felt only within
@@ -309,7 +315,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // and pushes away from the centre (fearPush at full fear). It fades by fearDecayInside a tick inside
   // the region and fearDecayOutside once out. A child near a parent (careRadius) loses
   // fearChildParentDecay more a tick; near an allied adult (on or beside their tile), fearChildAdultDecay.
-  fearEnabled: true,
+  fearEnabled: false, // replaced by the place cost (S3x, 2026-11-07); off until that lands, then removed
   fearPerLoss: 60,
   fearRadius: 8,
   fearStayMul: 2.0,
@@ -320,7 +326,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   fearChildAdultDecay: 0.1,
   // S3x: wounds make fear push harder (x 1 + fearWoundMul at full injury), and hunger no longer
   // halves the danger aversion of someone who is afraid.
-  fearWoundsEnabled: true,
+  fearWoundsEnabled: false,
   fearWoundMul: 1.0,
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite

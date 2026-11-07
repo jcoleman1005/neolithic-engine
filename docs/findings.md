@@ -862,3 +862,11 @@ Fear is far too widespread: 77% of adults carry some. Everyone fights, and nearl
 | 26 to 30 | 5,234 | 216 | 126 | 94% | 79 | 62% | 0.6% | 27% | 8.4% |
 
 The belligerence gate filters almost nothing: under 3% of touches are stopped by it. Culture tolerance is the real filter. The belligerence habit climbs steadily, 134 to 216 in 30 years, while the cruelty gene stays flat. The winner gains 3 and the loser loses 3, so the drift must come from elsewhere. Likely, not isolated: followers copy their leaders' habits (leaders are strong, so winners), and losers die more often, removing low-belligerence people. As bands get diluted (allied touches 79% to 62%), more touches are between strangers and the clash share rises. Nothing in the decision to fight looks at food, hunger or the odds of winning.
+
+### S3x contest targets, set before running (2026-11-07)
+
+Seeds 1 to 3, 50 years, contest on against off, slow healing on in both, the replaced fear off in both. Wound probe. Reported, not tuned toward:
+- **Fewer fights:** fights per person-year lower than off on every seed, with yields making up part of the difference.
+- **Fewer wounds:** share wounded at years 26 to 30 lower than off.
+- **Belligerence drift:** the habit's climb (134 to 216 in 30 years off) is smaller.
+- **Guardrails:** no seed dies out; population at year 50 not below off; women fed enough to mate not below off; perf within budget.

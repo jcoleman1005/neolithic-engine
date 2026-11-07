@@ -229,6 +229,9 @@ describe('Phase 3 Rules & Invariants', () => {
       clashLossShare: 0.25,
       clashLootEfficiency: 0.8,
       cultureTouchEnabled: false,
+      // The fight's own accounting is checked here. With the S3x contest on, this much weaker
+      // defender gives way instead of fighting (covered in turmoil.test.ts), so the contest is off.
+      contestEnabled: false,
     };
     const people = new People(10);
     const land = new Land(config);

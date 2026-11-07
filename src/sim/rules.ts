@@ -40,6 +40,12 @@ export interface ClashStats {
   sameBand: number;
   leaderFollower: number;
   kin: number;
+  /** S3x contest: neither side thought a fight worth it. */
+  declined: number;
+  /** S3x contest: the defender gave way and stepped off. */
+  yields: number;
+  /** Fights actually fought. */
+  fights: number;
 }
 
 /** Observer counts of belligerent non-allied encounters, binned by habit distance (Agent rule 11) */
@@ -132,6 +138,9 @@ export class Rules {
     sameBand: 0,
     leaderFollower: 0,
     kin: 0,
+    declined: 0,
+    yields: 0,
+    fights: 0,
   };
 
   public static resetClashStats(): void {
@@ -139,6 +148,9 @@ export class Rules {
     Rules.clashStats.sameBand = 0;
     Rules.clashStats.leaderFollower = 0;
     Rules.clashStats.kin = 0;
+    Rules.clashStats.declined = 0;
+    Rules.clashStats.yields = 0;
+    Rules.clashStats.fights = 0;
   }
   /**
    * Rule 1: Climb
@@ -707,6 +719,82 @@ export class Rules {
   }
 
   /**
+   * S3x contest: is a fight worth it? Each side weighs the food at stake (what they could eat of it,
+   * beyond the half they'd get by sharing) against the exact odds and the real cost of losing (energy
+   * and the upkeep of a wound until it heals). Belligerence sets risk appetite. Returns 0 for no
+   * fight, 1 for a fight, -1 when A attacks and B yields, -2 when B attacks and A yields.
+   * No random numbers: the odds of the noisy fight score are computed exactly.
+   */
+  public static contest(
+    slotA: number, slotB: number, fixedA: number, fixedB: number, bellA: number, bellB: number,
+    people: People, land: Land, config: Readonly<SimulationConfig>
+  ): number {
+    const cell = (people.y[slotA] << 8) | people.x[slotA];
+    let stake = land.food[cell] - (config.landGrazingFloor ?? 1.0);
+    if (stake < 0) stake = 0;
+    if (config.stockpilesEnabled !== false) {
+      stake += config.adjacentStoresEnabled !== false ? land.pileInReach(people.x[slotA], people.y[slotA]) : land.pile[cell];
+    }
+    if (stake <= 0) return 0;
+    // Chance A wins: each score adds noise uniform on 0..2, so the difference of noises is triangular on -2..2.
+    const pA = Rules.winChance(fixedA - fixedB);
+    const maxE = config.maxEnergy ?? 100;
+    const lossShare = config.clashLossShare ?? 0.25;
+    const lootEff = config.clashLootEfficiency ?? 0.8;
+    const hurt = config.clashInjury ?? 60;
+    const hurtWin = hurt * (config.clashInjuryWinner ?? 0.25);
+    const w = config.contestRiskWeight ?? 0.5;
+    const eA = people.energy[slotA] > 0 ? people.energy[slotA] : 0;
+    const eB = people.energy[slotB] > 0 ? people.energy[slotB] : 0;
+    const headA = maxE - eA > 0 ? maxE - eA : 0;
+    const headB = maxE - eB > 0 ? maxE - eB : 0;
+    const half = stake * 0.5;
+    // What winning adds over sharing, for each side.
+    const keepA = Math.min(stake, headA) - Math.min(half, headA);
+    const keepB = Math.min(stake, headB) - Math.min(half, headB);
+    const lootA = Math.min(eB * lossShare * lootEff, headA);
+    const lootB = Math.min(eA * lossShare * lootEff, headB);
+    // Losing costs energy, a wound, and the share of the stake, since the loser is driven off.
+    const lossA = eA * lossShare + Rules.woundCost(slotA, hurt, people, config) + Math.min(half, headA);
+    const lossB = eB * lossShare + Rules.woundCost(slotB, hurt, people, config) + Math.min(half, headB);
+    const gainA = keepA + lootA - Rules.woundCost(slotA, hurtWin, people, config);
+    const gainB = keepB + lootB - Rules.woundCost(slotB, hurtWin, people, config);
+    const rA = w * (bellA / 255 - 1);
+    const rB = w * (bellB / 255 - 1);
+    // How far each side's expected fight beats leaving things as they are (sharing).
+    const marginA = keepA > 0 ? (1 + rA) * pA * gainA - (1 - rA) * (1 - pA) * lossA : -1;
+    const marginB = keepB > 0 ? (1 + rB) * (1 - pA) * gainB - (1 - rB) * pA * lossB : -1;
+    if (marginA <= 0 && marginB <= 0) return 0;
+    const aAttacks = marginA >= marginB;
+    // The defender fights back if fighting beats giving up their half of the stake.
+    const defYield = aAttacks ? Math.min(half, headB) : Math.min(half, headA);
+    const defFight = aAttacks
+      ? (1 + rB) * (1 - pA) * gainB - (1 - rB) * pA * lossB
+      : (1 + rA) * pA * gainA - (1 - rA) * (1 - pA) * lossA;
+    if (defFight > -defYield) return 1;
+    return aAttacks ? -1 : -2;
+  }
+
+  /** S3x: chance that the side ahead by d in fixed fight score wins, when each adds noise uniform on 0..2. */
+  public static winChance(d: number): number {
+    return d <= -2 ? 0 : d >= 2 ? 1 : d < 0 ? ((d + 2) * (d + 2)) / 8 : 1 - ((2 - d) * (2 - d)) / 8;
+  }
+
+  /** S3x: the energy a wound of size inj costs in extra upkeep until it heals at this person's current rate. */
+  public static woundCost(slot: number, inj: number, people: People, config: Readonly<SimulationConfig>): number {
+    if (config.injuryEnabled === false) return 0;
+    const maxE = config.maxEnergy ?? 100;
+    const heal = config.injuryHeal ?? 0.3;
+    const healAbove = (config.injuryHealEnergy ?? 0.5) * maxE;
+    const floor = config.healFloor ?? 0.2;
+    const e = people.energy[slot] > 0 ? people.energy[slot] : 0;
+    const fed = e >= healAbove ? 1 : config.slowHealEnabled !== false ? floor + (1 - floor) * (e / healAbove) : floor;
+    const rate = heal * fed;
+    // Upkeep falls linearly as the wound heals, so the total is the mean upkeep times the healing time.
+    return ((config.metabolismCost ?? 0.25) * (config.injuryUpkeep ?? 0.3) * inj * inj) / (2 * 255 * rate);
+  }
+
+  /**
    * Counts nearby allies within 1 cell without heap allocations.
    */
   public static countNearbyAllies(
@@ -852,7 +940,8 @@ export class Rules {
       const bellA = people.habits[hOffA + HABIT_BELLIGERENCE] + people.genes[gOffA + GENE_CRUELTY];
       const bellB = people.habits[hOffB + HABIT_BELLIGERENCE] + people.genes[gOffB + GENE_CRUELTY];
 
-      if (bellA > 180 || bellB > 180) {
+      const contestOn = config.contestEnabled !== false;
+      if (contestOn || bellA > 180 || bellB > 180) {
         // Culture similarity: near habits tolerate; far habits clash with rising chance
         if (config.cultureTouchEnabled ?? true) {
           const dist = Rules.habitDistance(slotA, slotB, people);
@@ -909,6 +998,18 @@ export class Rules {
           strA *= stageWork(people.age[slotA], adultAge, elderAge, config.childWork ?? 0.6, config.elderWork ?? 0.8);
           strB *= stageWork(people.age[slotB], adultAge, elderAge, config.childWork ?? 0.6, config.elderWork ?? 0.8);
         }
+
+        if (contestOn) {
+          const fight = Rules.contest(slotA, slotB, strA * 10 + alliesA * 3, strB * 10 + alliesB * 3, bellA, bellB, people, land, config);
+          if (fight === 0) { Rules.clashStats.declined++; return; }
+          if (fight < 0) {
+            // The defender gives way: steps off the tile unhurt and leaves the stake.
+            Rules.clashStats.yields++;
+            Rules.retreatStep(fight === -1 ? slotB : slotA, people, land, prng);
+            return;
+          }
+        }
+        Rules.clashStats.fights++;
 
         const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
         const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;
