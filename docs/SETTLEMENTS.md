@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x: slow healing is built; the place-cost memory replaces the first fear design and follows a review of belligerence. Then the S3a re-run. See `docs/STATUS.md`.
+**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x: slow healing is built; next the contest (fights over a real stake), then the place-cost memory that replaces the first fear design. Then the S3a re-run. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
@@ -187,7 +187,7 @@ This answers the roadmap's closed-rooms question: no room detector and no wall t
 
 **S3x Turmoil: healing and the cost of a place (planned 2026-11-06, revised 2026-11-07; build before S3b).** Why: the death probe (`scripts/death-probe.ts`, `docs/findings.md`) found no code bug, but wounds never heal at today's balance. From year 20, 95 to 97% of people are wounded, averaging 220 of 255. Wounds heal only above half energy, while clashes come about every 2 months per child. Wounds add upkeep and stop steps, so the wounded get hungrier, stop healing, and fewer women are fed enough to mate (43% falling to 13%). Nothing lets repeated defeat drive people away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step.
 
-Two switches, on by default. Slow healing is built and measured; the place-cost memory replaces the first fear design (revised 2026-11-07, see below).
+Three switches, on by default. Slow healing is built and measured. The contest is built next, then the place-cost memory, which replaces the first fear design (revised 2026-11-07, see below).
 1. **`slowHealEnabled`** (built). Wounds heal at any energy: the full `injuryHeal` above `injuryHealEnergy`, falling to `healFloor` of it at zero energy, and `healShelterMul` faster on a sheltered tile (`Land.sheltered`; it follows exposure once S3b is on). Healing costs no energy. Off keeps the old rule. Result: wounds fall a little on all 3 seeds, but wounds still arrive faster than they heal (`docs/findings.md`).
 2. **`placeCostEnabled`: people remember what a place costs them.** New per-person state: `placeCost` (Float32, energy), `costX`, `costY` (Uint8, the centre of the region it belongs to). It is a pressure, not an order: nothing tells anyone where to go.
    - **Losses add what was actually lost:** the energy a clash loser loses, or a wolf takes. A heavy defeat counts more than a scratch.
@@ -199,9 +199,32 @@ Two switches, on by default. Slow healing is built and measured; the place-cost 
    - **Children learn from their parents:** a child (under `adultAge`) within `careRadius` of a living mother or father drifts toward that parent's view of the place (`costChildLearn` of the gap a tick), taking the parent's centre when the parent's memory is larger. If the family stays, the child stays. An orphan keeps their own memory, which fades as usual.
    - **What should follow, unscripted:** outnumbered people lose more often (allies already raise clash scores) and leave first. Rich land can bear the cost of fighting and is held, while poor land is given up. Winners are paid by loot and stay.
 
-**Replaced: the first fear design.** Built and measured on 2026-11-06, then replaced: `fear` gained a fixed amount per loss, ignored wins, and pushed people away from the centre. Since nearly everyone loses sometimes, 77% of adults carried fear. Frightened people stood still a quarter of the time, so the good land was abandoned rather than held, and population at year 50 was about 38% lower (`docs/findings.md`). The code stays in git history (commit "S3x slow healing and fear from defeat").
+3. **`contestEnabled`: a fight is a contest over something real** (planned 2026-11-07; built before the place cost, which depends on how often people really fight). It replaces the belligerence gate (habit + cruelty > 180, which stops under 3% of touches) and keeps everything before it. Allies still share, and pairs whose cultures are close still tolerate each other. Only a pair that would reach the clash today goes through the contest, so the contest can only remove fights, never add them.
+   - **The stake** is the food both could eat here: standing plants above the grazing floor, plus heaps in reach when stockpiles are on. A person values it as `min(their share, maxEnergy − energy)`, so a fed person cannot use food and has no motive. With no fight, the two share the tile and each gets about half. **The gain** from winning is the value of all of it minus the value of half, plus the usual loot. **Yielding** loses the value of half.
+   - **The odds:** each side's fight score has a fixed part (strength × life stage × 10, plus allies × 3, as today) and noise uniform on 0 to 2. The chance of winning is therefore exact: the triangular distribution of the difference. No random draw is needed to judge it.
+   - **The costs** are the real ones: the energy a loser loses (`clashLossShare`), plus the energy-equivalent of the wound. That is the upkeep a wound of `clashInjury` costs until it heals at the person's current healing rate, computed from config, so there is no new magic number. The winner's smaller wound is costed the same way.
+   - **Belligerence becomes risk appetite:** `r = contestRiskWeight × ((habit + cruelty) / 255 − 1)`, from −w to +w. A person attacks when `(1 + r) × pWin × gain > (1 − r) × (1 − pWin) × loss`. Each of the pair is checked as attacker, the more eager first.
+   - **The defender chooses:** fight back if `(1 + r) × pWin × (keep + loot) − (1 − r) × (1 − pWin) × loss` beats yielding, which costs half the stake. A defender who yields steps off the tile (the existing retreat step). Nobody is wounded and no habit changes, and the attacker keeps the tile.
+   - **What should follow, unscripted:** fed people on rich ground don't fight. The hungry fight over scarce food, so contests gather on worn ground and around heaps. The weak, children included, yield instead of being wounded. Two strangers no longer fight every tick, because once one yields nothing is left to contest. The climb of belligerence should slow, since yields replace most defeats.
 
-**Belligerence is reviewed separately.** Most people pass the clash threshold, so most encounters between strangers can become fights. That is an older balance question, looked at on its own before the place-cost runs.
+**Contest edge cases:**
+
+| Case | Handling |
+|---|---|
+| Nothing at stake (bare rock, fully fed pair) | No motive, no fight. |
+| A starving person against a stronger one | High value with low odds: they may attack anyway. That is desperation, and it is accepted and reported. |
+| The yielder cannot step (water all round) | They stay. Next tick the same contest yields again, with no harm done. |
+| A crowd of strangers at a heap | Each pairing in the cell is judged on its own, as today. The ally count is the same 9-cell scan the clash already does, and it runs only for pairs that pass the culture gate (about 8% of touches today). |
+| Children | No child rule. They are weak (life-stage strength), so they rarely attack and usually yield. |
+| Chronicle battles | Battles are built from clashes, so fewer may be reported. That is an outcome of this change, and the chronicle is not tuned for it. |
+| Off parity, saves | No new per-person state. With the switch off, no extra random numbers are drawn and today's gate is used. The switch is added (off) to the pinned-hash test. |
+| Observers | Contests, yields and clashes are counted in `Rules.clashStats` (observer only) for the probes. |
+
+**Contest tests:** no fight with nothing at stake; a fed pair does not fight over food they cannot eat; pWin matches the triangular formula; risk appetite moves the threshold; a weaker defender yields with no wound and steps off; a stronger defender fights back; a child yields to an adult; the switch off keeps the old gate; off parity.
+
+**Contest is judged by:** 3 seeds, 50 years, contest on against off (slow healing on, place cost not built). Measure: clashes and yields per person-year, share wounded, belligerence drift, births per head, women fed enough to mate, population at year 50, and settlements lasting 10 years or more. Guardrails: no seed dies out; perf within budget. Targets are written in `docs/findings.md` before running.
+
+**Replaced: the first fear design.** Built and measured on 2026-11-06, then replaced: `fear` gained a fixed amount per loss, ignored wins, and pushed people away from the centre. Since nearly everyone loses sometimes, 77% of adults carried fear. Frightened people stood still a quarter of the time, so the good land was abandoned rather than held, and population at year 50 was about 38% lower (`docs/findings.md`). The code stays in git history (commit "S3x slow healing and fear from defeat").
 
 **Edge cases and how they are handled:**
 
