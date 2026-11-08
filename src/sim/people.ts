@@ -70,6 +70,9 @@ export interface PackedPerson {
   readonly fear?: number;
   readonly fearX?: number;
   readonly fearY?: number;
+  readonly restTicks?: number;
+  readonly confidence?: number;
+  readonly confTick?: number;
   readonly rootLeaderId?: number;
 }
 
@@ -117,6 +120,11 @@ export class People {
   public fear: Float32Array;
   public fearX: Uint8Array;
   public fearY: Uint8Array;
+  /** S3x residence: ticks standing still on the current tile, capped at 255; any step resets it. */
+  public restTicks: Uint8Array;
+  /** S3x self-assessment: how much stronger (in fight-score units) a person believes they are; fades from confTick. */
+  public confidence: Float32Array;
+  public confTick: Uint32Array;
   public genes: Uint8Array; // capacity * GENE_COUNT
   public habits: Uint8Array; // capacity * HABIT_COUNT
 
@@ -149,6 +157,9 @@ export class People {
     this.fear = new Float32Array(this.capacity);
     this.fearX = new Uint8Array(this.capacity);
     this.fearY = new Uint8Array(this.capacity);
+    this.restTicks = new Uint8Array(this.capacity);
+    this.confidence = new Float32Array(this.capacity);
+    this.confTick = new Uint32Array(this.capacity);
     this.genes = new Uint8Array(this.capacity * GENE_COUNT);
     this.habits = new Uint8Array(this.capacity * HABIT_COUNT);
 
@@ -171,6 +182,9 @@ export class People {
       this.fatigue[i] = 0;
       this.sick[i] = 0;
       this.fear[i] = 0;
+      this.restTicks[i] = 0;
+      this.confidence[i] = 0;
+      this.confTick[i] = 0;
     }
   }
 
@@ -238,6 +252,9 @@ export class People {
     this.fear = copyF32(this.fear);
     this.fearX = copyU8(this.fearX);
     this.fearY = copyU8(this.fearY);
+    this.restTicks = copyU8(this.restTicks);
+    this.confidence = copyF32(this.confidence);
+    this.confTick = copyU32(this.confTick);
     this.genes = copyGenes(this.genes);
     this.habits = copyHabits(this.habits);
 
@@ -289,6 +306,9 @@ export class People {
     this.fatigue[slot] = 0;
     this.sick[slot] = 0;
     this.fear[slot] = 0;
+    this.restTicks[slot] = 0;
+    this.confidence[slot] = 0;
+    this.confTick[slot] = 0;
     const personId = makePersonId(slot, slotGen);
     this.rootLeaderId[slot] = leaderId !== 0 ? leaderId : personId;
 
@@ -329,6 +349,9 @@ export class People {
     this.fatigue[slot] = 0;
     this.sick[slot] = 0;
     this.fear[slot] = 0;
+    this.restTicks[slot] = 0;
+    this.confidence[slot] = 0;
+    this.confTick[slot] = 0;
     this.leaderId[slot] = 0;
     this.rootLeaderId[slot] = 0;
     this.freeList[this.freeCount++] = slot;
@@ -449,6 +472,9 @@ export class People {
           fear: this.fear[slot],
           fearX: this.fearX[slot],
           fearY: this.fearY[slot],
+          restTicks: this.restTicks[slot],
+          confidence: this.confidence[slot],
+          confTick: this.confTick[slot],
           genes: Array.from(this.genes.subarray(gOff, gOff + GENE_COUNT)),
           habits: Array.from(this.habits.subarray(hOff, hOff + HABIT_COUNT)),
         });
@@ -507,6 +533,9 @@ export class People {
       this.fear[slot] = p.fear ?? 0;
       this.fearX[slot] = p.fearX ?? 0;
       this.fearY[slot] = p.fearY ?? 0;
+      this.restTicks[slot] = p.restTicks ?? 0;
+      this.confidence[slot] = p.confidence ?? 0;
+      this.confTick[slot] = p.confTick ?? 0;
       this.carryKind[slot] = p.carryKind ?? ((p.carry ?? 0) > 0 ? 1 : 0);
       this.rootLeaderId[slot] = p.rootLeaderId ?? p.leaderId ?? makePersonId(slot, genFromId(p.id));
 

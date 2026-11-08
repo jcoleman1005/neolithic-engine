@@ -428,6 +428,9 @@ export class World {
     const habits = people.habits;
 
     const fearOn = this.config.fearEnabled !== false;
+    const contestOn = this.config.contestEnabled !== false;
+    const residenceOn = contestOn && this.config.residenceEnabled !== false;
+    const selfAssessOn = contestOn && this.config.selfAssessEnabled !== false;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 1) {
         h.updateInt(slot);
@@ -451,6 +454,11 @@ export class World {
         h.updateFloat(people.injury[slot]);
         h.updateInt(people.fatigue[slot]);
         h.updateInt(people.sick[slot]);
+        if (residenceOn) h.updateInt(people.restTicks[slot]);
+        if (selfAssessOn) {
+          h.updateFloat(people.confidence[slot]);
+          h.updateInt(people.confTick[slot]);
+        }
         if (fearOn) {
           h.updateFloat(people.fear[slot]);
           h.updateInt(people.fearX[slot]);

@@ -49,8 +49,10 @@ export interface ClashStats {
   kin: number;
   /** S3x contest: neither side thought a fight worth it. */
   declined: number;
-  /** S3x contest: the defender gave way and stepped off. */
+  /** S3x contest: the defender gave way (stepped off, or conceded food). */
   yields: number;
+  /** S3x concession: of the yields, those where the defender stayed and the other took food away. */
+  concessions: number;
   /** Fights actually fought. */
   fights: number;
 }
@@ -147,6 +149,7 @@ export class Rules {
     kin: 0,
     declined: 0,
     yields: 0,
+    concessions: 0,
     fights: 0,
   };
 
@@ -157,6 +160,7 @@ export class Rules {
     Rules.clashStats.kin = 0;
     Rules.clashStats.declined = 0;
     Rules.clashStats.yields = 0;
+    Rules.clashStats.concessions = 0;
     Rules.clashStats.fights = 0;
   }
   /**
@@ -729,14 +733,16 @@ export class Rules {
 
   /**
    * S3x contest: is a fight worth it? Each side weighs the food at stake (what they could eat of it,
-   * beyond the half they'd get by sharing) against the exact odds and the real cost of losing (energy
-   * and the upkeep of a wound until it heals). Belligerence sets risk appetite. Returns 0 for no
-   * fight, 1 for a fight, -1 when A attacks and B yields, -2 when B attacks and A yields.
-   * No random numbers: the odds of the noisy fight score are computed exactly.
+   * beyond the half they'd get by sharing) against their own estimate of the odds and the real cost
+   * of losing (energy, the upkeep of a wound until it heals, and their share of the stake).
+   * Belligerence sets risk appetite. Refinements (each with a switch): residents value the stake more;
+   * each side judges the odds from their own confidence; close matches cost more.
+   * Returns 0 for no fight, 1 for a fight, -1 when A attacks and B gives way, -2 when B attacks and
+   * A gives way. No random numbers: the odds of the noisy fight score are computed exactly.
    */
   public static contest(
-    slotA: number, slotB: number, fixedA: number, fixedB: number, bellA: number, bellB: number,
-    people: People, land: Land, config: Readonly<SimulationConfig>
+    slotA: number, slotB: number, fixedA: number, fixedB: number, strA: number, strB: number,
+    bellA: number, bellB: number, people: People, land: Land, config: Readonly<SimulationConfig>
   ): number {
     const cell = (people.y[slotA] << 8) | people.x[slotA];
     let stake = land.food[cell] - (config.landGrazingFloor ?? 1.0);
@@ -745,43 +751,108 @@ export class Rules {
       stake += config.adjacentStoresEnabled !== false ? land.pileInReach(people.x[slotA], people.y[slotA]) : land.pile[cell];
     }
     if (stake <= 0) return 0;
-    // Chance A wins: each score adds noise uniform on 0..2, so the difference of noises is triangular on -2..2.
-    const pA = Rules.winChance(fixedA - fixedB);
+    // Each side's own view of their chance (the noise difference is triangular on -2..2).
+    const pA = Rules.winChance(fixedA + Rules.confidenceNow(slotA, people, config) - fixedB);
+    const pB = Rules.winChance(fixedB + Rules.confidenceNow(slotB, people, config) - fixedA);
     const maxE = config.maxEnergy ?? 100;
     const lossShare = config.clashLossShare ?? 0.25;
     const lootEff = config.clashLootEfficiency ?? 0.8;
     const hurt = config.clashInjury ?? 60;
     const hurtWin = hurt * (config.clashInjuryWinner ?? 0.25);
     const w = config.contestRiskWeight ?? 0.5;
+    // main's strike damage, which a contest fight always carries (there is always a stake).
+    const flat = config.resourceClashEnabled !== false ? config.clashFlatDamage ?? 6.0 : 0;
+    const resOn = config.residenceEnabled !== false;
+    const resTicks = config.residentTicks ?? 10;
+    const resMul = config.residentValueMul ?? 1.5;
     const eA = people.energy[slotA] > 0 ? people.energy[slotA] : 0;
     const eB = people.energy[slotB] > 0 ? people.energy[slotB] : 0;
     const headA = maxE - eA > 0 ? maxE - eA : 0;
     const headB = maxE - eB > 0 ? maxE - eB : 0;
+    const valA = resOn && people.restTicks[slotA] >= resTicks ? resMul : 1;
+    const valB = resOn && people.restTicks[slotB] >= resTicks ? resMul : 1;
+    const mulA = Rules.matchMul(pA, config);
+    const mulB = Rules.matchMul(pB, config);
     const half = stake * 0.5;
     // What winning adds over sharing, for each side.
-    const keepA = Math.min(stake, headA) - Math.min(half, headA);
-    const keepB = Math.min(stake, headB) - Math.min(half, headB);
-    const lootA = Math.min(eB * lossShare * lootEff, headA);
-    const lootB = Math.min(eA * lossShare * lootEff, headB);
+    const keepA = valA * (Math.min(stake, headA) - Math.min(half, headA));
+    const keepB = valB * (Math.min(stake, headB) - Math.min(half, headB));
+    const shareA = valA * Math.min(half, headA);
+    const shareB = valB * Math.min(half, headB);
+    const drainA = Math.min(eA, (eA * lossShare + flat * (0.5 + 0.5 * strB)) * mulA);
+    const drainB = Math.min(eB, (eB * lossShare + flat * (0.5 + 0.5 * strA)) * mulB);
+    const lootA = Math.min(Math.min(eB, (eB * lossShare + flat * (0.5 + 0.5 * strA)) * mulA) * lootEff, headA);
+    const lootB = Math.min(Math.min(eA, (eA * lossShare + flat * (0.5 + 0.5 * strB)) * mulB) * lootEff, headB);
     // Losing costs energy, a wound, and the share of the stake, since the loser is driven off.
-    const lossA = eA * lossShare + Rules.woundCost(slotA, hurt, people, config) + Math.min(half, headA);
-    const lossB = eB * lossShare + Rules.woundCost(slotB, hurt, people, config) + Math.min(half, headB);
-    const gainA = keepA + lootA - Rules.woundCost(slotA, hurtWin, people, config);
-    const gainB = keepB + lootB - Rules.woundCost(slotB, hurtWin, people, config);
+    const lossA = drainA + Rules.woundCost(slotA, hurt * mulA, people, config) + shareA;
+    const lossB = drainB + Rules.woundCost(slotB, hurt * mulB, people, config) + shareB;
+    const gainA = keepA + lootA - Rules.woundCost(slotA, hurtWin * mulA, people, config);
+    const gainB = keepB + lootB - Rules.woundCost(slotB, hurtWin * mulB, people, config);
     const rA = w * (bellA / 255 - 1);
     const rB = w * (bellB / 255 - 1);
     // How far each side's expected fight beats leaving things as they are (sharing).
-    const marginA = keepA > 0 ? (1 + rA) * pA * gainA - (1 - rA) * (1 - pA) * lossA : -1;
-    const marginB = keepB > 0 ? (1 + rB) * (1 - pA) * gainB - (1 - rB) * pA * lossB : -1;
+    const fightA = (1 + rA) * pA * gainA - (1 - rA) * (1 - pA) * lossA;
+    const fightB = (1 + rB) * pB * gainB - (1 - rB) * (1 - pB) * lossB;
+    const marginA = keepA > 0 ? fightA : -1;
+    const marginB = keepB > 0 ? fightB : -1;
     if (marginA <= 0 && marginB <= 0) return 0;
     const aAttacks = marginA >= marginB;
-    // The defender fights back if fighting beats giving up their half of the stake.
-    const defYield = aAttacks ? Math.min(half, headB) : Math.min(half, headA);
-    const defFight = aAttacks
-      ? (1 + rB) * (1 - pA) * gainB - (1 - rB) * pA * lossB
-      : (1 + rA) * pA * gainA - (1 - rA) * (1 - pA) * lossA;
-    if (defFight > -defYield) return 1;
+    // The defender fights back if fighting beats giving up their share of the stake.
+    if (aAttacks ? fightB > -shareB : fightA > -shareA) return 1;
     return aAttacks ? -1 : -2;
+  }
+
+  /** S3x: the tick touches are being judged on, for the confidence fade (set by touchCell). */
+  public static nowTick = 0;
+
+  /** S3x self-assessment: a person's current belief in how much stronger they are, faded since it last changed. */
+  public static confidenceNow(slot: number, people: People, config: Readonly<SimulationConfig>): number {
+    if (config.selfAssessEnabled === false) return 0;
+    const c = people.confidence[slot];
+    if (c === 0) return 0;
+    const dt = Rules.nowTick - people.confTick[slot];
+    return dt > 0 ? c * Math.exp(-dt / (config.confFadeTicks ?? 360)) : c;
+  }
+
+  /** S3x self-assessment: a win or loss moves belief in one's own strength, clamped to +-confMax. */
+  public static shiftConfidence(slot: number, delta: number, people: People, config: Readonly<SimulationConfig>): void {
+    const m = config.confMax ?? 5;
+    const v = Rules.confidenceNow(slot, people, config) + delta;
+    people.confidence[slot] = v > m ? m : v < -m ? -m : v;
+    people.confTick[slot] = Rules.nowTick;
+  }
+
+  /** S3x match cost: how much of a fight's harm lands, from matchCostFloor (certain outcome) to 1 (even match). */
+  public static matchMul(p: number, config: Readonly<SimulationConfig>): number {
+    if (config.matchCostEnabled === false) return 1;
+    const f = config.matchCostFloor ?? 0.25;
+    return f + (1 - f) * (1 - Math.abs(2 * p - 1));
+  }
+
+  /**
+   * S3x concession (tolerated theft): the one who won the standoff takes food away in hand, from the
+   * plants here and then the heaps in reach, up to what they can carry and eat. Plant food is outside
+   * the energy ledger until eaten, as with any gathering. Returns how much was taken.
+   */
+  public static concede(taker: number, people: People, land: Land, config: Readonly<SimulationConfig>): number {
+    // Food is only ever carried with stockpiles on; without them the defender steps off instead.
+    if (config.stockpilesEnabled === false) return 0;
+    const kind = people.carryKind[taker];
+    if (kind !== CARRY_NONE && kind !== CARRY_FOOD) return 0;
+    const room = maxCarryCapacity(taker, CARRY_FOOD, people, config) - (kind === CARRY_FOOD ? people.carry[taker] : 0);
+    const head = (config.maxEnergy ?? 100) - people.energy[taker];
+    const want = room < head ? room : head;
+    if (want <= 0) return 0;
+    const x = people.x[taker], y = people.y[taker];
+    let got = land.graze(x, y, want, config, false);
+    if (got < want) {
+      got += config.adjacentStoresEnabled !== false ? land.takePileInReach(x, y, want - got) : land.takePile(x, y, want - got);
+    }
+    if (got > 0) {
+      people.carry[taker] = (kind === CARRY_FOOD ? people.carry[taker] : 0) + got;
+      people.carryKind[taker] = CARRY_FOOD;
+    }
+    return got;
   }
 
   /** S3x: chance that the side ahead by d in fixed fight score wins, when each adds noise uniform on 0..2. */
@@ -856,6 +927,7 @@ export class Rules {
     if (count < 2) return;
 
     // Rotating offset to vary pairing order across ticks
+    Rules.nowTick = tick;
     const rot = (tick + start) % count;
 
     for (let i = 0; i + 1 < count; i += 2) {
@@ -1046,11 +1118,17 @@ export class Rules {
         }
 
         if (contestOn) {
-          const fight = Rules.contest(slotA, slotB, strA * 10 + alliesA * 3, strB * 10 + alliesB * 3, bellA, bellB, people, land, config);
+          const fight = Rules.contest(slotA, slotB, strA * 10 + alliesA * 3, strB * 10 + alliesB * 3, strA, strB, bellA, bellB, people, land, config);
           if (fight === 0) { Rules.clashStats.declined++; return; }
           if (fight < 0) {
-            // The defender gives way: steps off the tile unhurt and leaves the stake.
             Rules.clashStats.yields++;
+            // Concession: the defender stays, unhurt, and lets the other take food away in hand.
+            // If nothing can be taken (hands full of something else), the defender steps off instead.
+            if (config.concedeEnabled !== false && Rules.concede(fight === -1 ? slotA : slotB, people, land, config) > 0) {
+              Rules.clashStats.concessions++;
+              return;
+            }
+            // The defender gives way: steps off the tile unhurt and leaves the stake.
             // Walking away is an ordinary step, paid as one (no sprint, no parting blow: there was no fight).
             const yielder = fight === -1 ? slotB : slotA;
             const step = config.moveCost ?? 0.05;
@@ -1061,7 +1139,6 @@ export class Rules {
             return;
           }
         }
-        Rules.clashStats.fights++;
         // Primitive 76: Courage / tactical retreat before clash
         if (!contestOn && config.clashCourageEnabled !== false) {
           const powerA = strA * 10 + alliesA * 3;
@@ -1126,8 +1203,13 @@ export class Rules {
           }
         }
 
+        Rules.clashStats.fights++;
         const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
         const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;
+        // S3x: a contest fight always has a stake, so main's strike damage and lethal collapse apply;
+        // close matches cost more (true odds, not either side's belief).
+        const stakesHere = hasStakes || contestOn;
+        const harm = contestOn ? Rules.matchMul(Rules.winChance(strA * 10 + alliesA * 3 - (strB * 10 + alliesB * 3)), config) : 1;
 
         const winnerSlot = scoreA >= scoreB ? slotA : slotB;
         const loserSlot = winnerSlot === slotA ? slotB : slotA;
@@ -1138,11 +1220,11 @@ export class Rules {
         const lootEfficiency = config.clashLootEfficiency ?? 0.8;
         const maxEnergy = config.maxEnergy ?? 100.0;
 
-        let loserLoss = people.energy[loserSlot] * lossShare;
+        let loserLoss = people.energy[loserSlot] * lossShare * harm;
         if (resourceOn) {
-          if (hasStakes) {
+          if (stakesHere) {
             // Flat damage from strike, scaled by winner strength (3.0 to 6.0)
-            const flatDmg = (config.clashFlatDamage ?? 6.0) * (0.5 + 0.5 * winnerStr);
+            const flatDmg = (config.clashFlatDamage ?? 6.0) * (0.5 + 0.5 * winnerStr) * harm;
             loserLoss = Math.min(people.energy[loserSlot], loserLoss + flatDmg);
           } else {
             if (loserLoss < 0.5) loserLoss = Math.min(people.energy[loserSlot], 0.5);
@@ -1165,12 +1247,12 @@ export class Rules {
         let loserFell = people.energy[loserSlot] <= 0;
 
         if (config.injuryEnabled !== false) {
-          const hurt = config.clashInjury ?? 60;
+          const hurt = (config.clashInjury ?? 60) * harm;
           const newInjuryLoser = Math.min(255, people.injury[loserSlot] + hurt);
           people.injury[loserSlot] = newInjuryLoser;
           people.injury[winnerSlot] = Math.min(255, people.injury[winnerSlot] + hurt * (config.clashInjuryWinner ?? 0.25));
 
-          if (resourceOn && hasStakes && newInjuryLoser >= (config.clashLethalInjury ?? 220)) {
+          if (resourceOn && stakesHere && newInjuryLoser >= (config.clashLethalInjury ?? 220)) {
             loserFell = true;
           }
         }
@@ -1210,7 +1292,12 @@ export class Rules {
           }
         }
 
-        if (config.experienceHabitsEnabled ?? true) {
+        if (contestOn && config.selfAssessEnabled !== false) {
+          // S3x: winning and losing change belief in one's own strength, not belligerence.
+          const step = config.confStep ?? 0.5;
+          Rules.shiftConfidence(winnerSlot, step, people, config);
+          Rules.shiftConfidence(loserSlot, -step, people, config);
+        } else if (config.experienceHabitsEnabled ?? true) {
           Rules.nudgeHabit(people, winnerSlot, HABIT_BELLIGERENCE, config.habitWinStep ?? 3);
           Rules.nudgeHabit(people, loserSlot, HABIT_BELLIGERENCE, -(config.habitLoseStep ?? 3));
         }
@@ -1287,6 +1374,7 @@ export class Rules {
     else if (rDir === 3) ny = (py - 1) & 0xff;
 
     if (!land.isWaterAt(nx, ny)) {
+      people.restTicks[slot] = 0;
       people.x[slot] = nx;
       people.y[slot] = ny;
     }

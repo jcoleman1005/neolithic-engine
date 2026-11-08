@@ -564,8 +564,11 @@ export class LifeSystem {
 
     // 5. Movement (Climb rule or Wander fallback)
     const climbOn = config.climbEnabled ?? true;
+    const residenceOn = config.contestEnabled !== false && config.residenceEnabled !== false;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
+      // S3x residence: count ticks standing still here (reset below by any step).
+      if (residenceOn && people.restTicks[slot] < 255) people.restTicks[slot]++;
 
       let dir = 4; // Stay
       if (climbOn) {
@@ -666,6 +669,7 @@ export class LifeSystem {
         if (!land.isWaterAt(nx, ny)) {
           px[slot] = nx;
           py[slot] = ny;
+          if (residenceOn) people.restTicks[slot] = 0;
           // Carrying food is heavy: the more carried, the dearer each step.
           const stepCost =
             carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / (foodCarryMax * bodyMul(slot)))

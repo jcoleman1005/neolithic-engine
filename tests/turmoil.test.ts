@@ -184,21 +184,21 @@ describe('S3x contest', () => {
 
   it('nobody fights with nothing at stake, or over food neither can eat', () => {
     const bare = two(30, 30, 0);
-    expect(Rules.contest(bare.a, bare.b, 8, 5, 400, 400, bare.w.people, bare.w.land, bare.w.config)).toBe(0);
+    expect(Rules.contest(bare.a, bare.b, 8, 5, 0.5, 0.5, 400, 400, bare.w.people, bare.w.land, bare.w.config)).toBe(0);
     const fed = two(100, 100, 30);
-    expect(Rules.contest(fed.a, fed.b, 8, 5, 400, 400, fed.w.people, fed.w.land, fed.w.config)).toBe(0);
+    expect(Rules.contest(fed.a, fed.b, 8, 5, 0.5, 0.5, 400, 400, fed.w.people, fed.w.land, fed.w.config)).toBe(0);
   });
 
   it('a much weaker defender yields; an even match is fought', () => {
     const { w, a, b } = two(30, 30, 40);
-    expect(Rules.contest(a, b, 9, 3, 300, 300, w.people, w.land, w.config)).toBe(-1);
-    expect(Rules.contest(a, b, 9, 8.8, 500, 500, w.people, w.land, w.config)).toBe(1);
+    expect(Rules.contest(a, b, 9, 3, 0.5, 0.5, 300, 300, w.people, w.land, w.config)).toBe(-1);
+    expect(Rules.contest(a, b, 9, 8.8, 0.5, 0.5, 500, 500, w.people, w.land, w.config)).toBe(1);
   });
 
   it('risk appetite moves the threshold', () => {
     const { w, a, b } = two(40, 40, 30);
-    expect(Rules.contest(a, b, 6, 6, 0, 0, w.people, w.land, w.config)).toBe(0);
-    expect(Rules.contest(a, b, 6, 6, 510, 510, w.people, w.land, w.config)).not.toBe(0);
+    expect(Rules.contest(a, b, 6, 6, 0.5, 0.5, 0, 0, w.people, w.land, w.config)).toBe(0);
+    expect(Rules.contest(a, b, 6, 6, 0.5, 0.5, 510, 510, w.people, w.land, w.config)).not.toBe(0);
   });
 
   it('counts the real cost of a wound, higher when hungry (slower healing)', () => {
@@ -207,8 +207,9 @@ describe('S3x contest', () => {
     expect(Rules.woundCost(a, 60, w.people, w.config)).toBeCloseTo((0.25 * 0.3 * 3600) / (2 * 255 * 0.3), 6);
   });
 
-  it('through a touch, a child gives way to an adult: steps off unhurt, nobody wounded', () => {
+  it('through a touch, a child gives way to an adult: steps off unhurt, nobody wounded (concession off)', () => {
     const { w, a, b } = two(30, 30, 40, 1000);
+    (w.config as { concedeEnabled: boolean }).concedeEnabled = false;
     const g = new Uint8Array(GENE_COUNT).fill(255);
     w.people.genes.set(g, a * GENE_COUNT);
     w.spatial.build(w.people);
@@ -229,5 +230,129 @@ describe('S3x contest', () => {
     w.spatial.build(w.people);
     for (let i = 0; i < 20; i++) Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(i));
     expect(w.people.injury[a] + w.people.injury[b]).toBe(0);
+  });
+});
+
+describe('S3x contest refinements', () => {
+  const pair = (cfg: Record<string, number | boolean>, eA = 40, eB = 40, food = 30): { w: World; a: number; b: number } => {
+    const w = empty({ fearEnabled: false, contestEnabled: true, stockpilesEnabled: false, ...cfg });
+    w.land.food[(60 << 8) | 50] = food;
+    const a = put(w, 50, 60, eA, new Uint8Array(HABIT_COUNT).fill(0)), b = put(w, 50, 60, eB, new Uint8Array(HABIT_COUNT).fill(255));
+    return { w, a, b };
+  };
+
+  it('residence: a resident defender fights back where a newcomer would give way (Bourgeois)', () => {
+    // A is clearly stronger and attacks; B, the defender, weighs fighting back against giving up their share.
+    const nr = pair({ selfAssessEnabled: false, residentValueMul: 3 });
+    expect(Rules.contest(nr.a, nr.b, 7, 6, 0.6, 0.5, 400, 255, nr.w.people, nr.w.land, nr.w.config)).toBe(-1);
+    const res = pair({ selfAssessEnabled: false, residentValueMul: 3 });
+    res.w.people.restTicks[res.b] = 50; // B has been resting here
+    expect(Rules.contest(res.a, res.b, 7, 6, 0.6, 0.5, 400, 255, res.w.people, res.w.land, res.w.config)).toBe(1);
+  });
+
+  it('residence: the rest counter grows while standing and resets on a step', () => {
+    const w = empty({ fearEnabled: false, contestEnabled: true, climbEnabled: false });
+    const s = put(w, 50, 50);
+    w.people.restTicks[s] = 7;
+    w.step();
+    const moved = w.people.x[s] !== 50 || w.people.y[s] !== 50;
+    expect(w.people.restTicks[s]).toBe(moved ? 0 : 8);
+  });
+
+  it('concession: the taker carries food away from plants then heaps, the defender stays unhurt, the ledger is untouched', () => {
+    const w = empty({ fearEnabled: false, contestEnabled: true, stockpilesEnabled: true });
+    const c = (60 << 8) | 50;
+    w.land.food[c] = 4; // 3 above the grazing floor
+    w.land.pile[c] = 5;
+    const taker = put(w, 50, 60, 50);
+    const meal0 = w.ledger.plantMeal;
+    const got = Rules.concede(taker, w.people, w.land, w.config);
+    expect(got).toBeCloseTo(8, 5);
+    expect(w.people.carry[taker]).toBeCloseTo(8, 5);
+    expect(w.land.food[c]).toBeCloseTo(1, 5);
+    expect(w.land.pile[c]).toBeCloseTo(0, 5);
+    expect(w.ledger.plantMeal).toBe(meal0);
+  });
+
+  it('concession: through a touch the weaker defender stays put and the attacker leaves carrying food', () => {
+    const { w, a, b } = pair({ selfAssessEnabled: false, residenceEnabled: false, stockpilesEnabled: true }, 30, 30, 40);
+    w.people.genes.set(new Uint8Array(GENE_COUNT).fill(255), a * GENE_COUNT);
+    w.people.age[b] = 1000;
+    w.spatial.build(w.people);
+    const c0 = Rules.clashStats.concessions;
+    Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(1));
+    expect(Rules.clashStats.concessions).toBe(c0 + 1);
+    expect([w.people.x[b], w.people.y[b]]).toEqual([50, 60]);
+    expect(w.people.injury[b]).toBe(0);
+    expect(w.people.carry[a]).toBeGreaterThan(0);
+  });
+
+  it('match cost: harm is full for an even match and falls to the floor for a certain one', () => {
+    const w = empty({});
+    expect(Rules.matchMul(0.5, w.config)).toBeCloseTo(1, 9);
+    expect(Rules.matchMul(1, w.config)).toBeCloseTo(0.25, 9);
+    expect(Rules.matchMul(0, w.config)).toBeCloseTo(0.25, 9);
+    expect(Rules.matchMul(1, empty({ matchCostEnabled: false }).config)).toBe(1);
+  });
+
+  it('match cost: a one-sided fight wounds the loser less than an even one', () => {
+    const fightInjury = (strongA: number): number => {
+      const { w, a, b } = pair({ selfAssessEnabled: false, residenceEnabled: false, concedeEnabled: false, contestEnabled: false, resourceClashEnabled: false, clashCourageEnabled: false }, 60, 60, 30);
+      const g = new Uint8Array(GENE_COUNT).fill(128); g[GENE_CRUELTY] = 255;
+      w.people.genes.set(g, a * GENE_COUNT); w.people.genes.set(g, b * GENE_COUNT);
+      w.people.genes[a * GENE_COUNT] = strongA; w.people.genes[b * GENE_COUNT] = 128;
+      w.people.habits[a * HABIT_COUNT + HABIT_BELLIGERENCE] = 255;
+      w.spatial.build(w.people);
+      Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(2));
+      return w.people.injury[a] + w.people.injury[b];
+    };
+    // With the contest off, match cost does not apply: both fights wound the same.
+    expect(fightInjury(255)).toBeCloseTo(fightInjury(128), 5);
+  });
+
+  it('self-assessment: wins raise and losses lower confidence, which fades as computed and is clamped', () => {
+    const w = empty({ fearEnabled: false, contestEnabled: true });
+    const s = put(w, 50, 50);
+    Rules.nowTick = 1000;
+    Rules.shiftConfidence(s, 0.5, w.people, w.config);
+    expect(Rules.confidenceNow(s, w.people, w.config)).toBeCloseTo(0.5, 9);
+    Rules.nowTick = 1360;
+    expect(Rules.confidenceNow(s, w.people, w.config)).toBeCloseTo(0.5 * Math.exp(-1), 6);
+    Rules.shiftConfidence(s, -0.5, w.people, w.config);
+    expect(Rules.confidenceNow(s, w.people, w.config)).toBeCloseTo(0.5 * Math.exp(-1) - 0.5, 6);
+    Rules.shiftConfidence(s, 50, w.people, w.config);
+    expect(Rules.confidenceNow(s, w.people, w.config)).toBe(5);
+  });
+
+  it('self-assessment: confidence moves the judged odds but not the fight itself', () => {
+    const { w, a, b } = pair({ residenceEnabled: false });
+    // Even match: a very confident A sees good odds and attacks; without confidence, A holds back.
+    expect(Rules.contest(a, b, 6, 6, 0.5, 0.5, 255, 255, w.people, w.land, w.config)).toBe(0);
+    Rules.nowTick = 0; w.people.confidence[a] = 5; w.people.confTick[a] = 0;
+    expect(Rules.contest(a, b, 6, 6, 0.5, 0.5, 255, 255, w.people, w.land, w.config)).not.toBe(0);
+  });
+
+  it('self-assessment replaces the belligerence nudges on a fight', () => {
+    const { w, a, b } = pair({ residenceEnabled: false, concedeEnabled: false, contestRiskWeight: 0.5 }, 30, 30, 40);
+    const g = new Uint8Array(GENE_COUNT).fill(128); g[GENE_CRUELTY] = 255;
+    w.people.genes.set(g, a * GENE_COUNT); w.people.genes.set(g, b * GENE_COUNT);
+    w.people.habits[a * HABIT_COUNT + HABIT_BELLIGERENCE] = 255; w.people.habits[b * HABIT_COUNT + HABIT_BELLIGERENCE] = 255;
+    const bellA = w.people.habits[a * HABIT_COUNT + HABIT_BELLIGERENCE], bellB = w.people.habits[b * HABIT_COUNT + HABIT_BELLIGERENCE];
+    w.spatial.build(w.people);
+    const f0 = Rules.clashStats.fights;
+    Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(5));
+    expect(Rules.clashStats.fights).toBe(f0 + 1);
+    expect(w.people.habits[a * HABIT_COUNT + HABIT_BELLIGERENCE]).toBe(bellA);
+    expect(w.people.habits[b * HABIT_COUNT + HABIT_BELLIGERENCE]).toBe(bellB);
+    expect(Math.abs(w.people.confidence[a]) + Math.abs(w.people.confidence[b])).toBeGreaterThan(0);
+  });
+
+  it('refinement state survives a save round trip and the run continues identically', () => {
+    const a = new World({ initialPopulation: 300 }, 8);
+    for (let t = 0; t < 400; t++) a.step();
+    const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
+    expect(b.stateHash()).toBe(a.stateHash());
+    for (let t = 0; t < 150; t++) { a.step(); b.step(); }
+    expect(b.stateHash()).toBe(a.stateHash());
   });
 });

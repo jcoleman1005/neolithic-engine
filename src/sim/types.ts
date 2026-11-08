@@ -367,6 +367,16 @@ export interface SimulationConfig {
   slowHealEnabled: boolean;
   contestEnabled: boolean;
   contestRiskWeight: number;
+  residenceEnabled: boolean;
+  residentTicks: number;
+  residentValueMul: number;
+  concedeEnabled: boolean;
+  matchCostEnabled: boolean;
+  matchCostFloor: number;
+  selfAssessEnabled: boolean;
+  confStep: number;
+  confMax: number;
+  confFadeTicks: number;
   healFloor: number;
   healShelterMul: number;
   fearEnabled: boolean;

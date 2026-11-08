@@ -325,6 +325,23 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // from -contestRiskWeight to +contestRiskWeight. Replaces the habit + cruelty > 180 gate.
   contestEnabled: true,
   contestRiskWeight: 0.5,
+  // S3x contest refinements (contest literature; docs/SETTLEMENTS.md S3x item 4). Residence: someone
+  // who has stood residentTicks on a tile values its food residentValueMul times more (they expect to
+  // keep using it). Concession: a defender who gives way lets the attacker take food away in hand
+  // instead of stepping off. Match cost: fight losses and wounds scale with how even the match was,
+  // from matchCostFloor (certain) to 1 (even). Self-assessment: a win adds confStep to a person's
+  // belief in their own fight score and a loss takes it away (clamped to +-confMax), fading with
+  // time constant confFadeTicks; it replaces the belligerence nudges on wins and losses.
+  residenceEnabled: true,
+  residentTicks: 10,
+  residentValueMul: 1.5,
+  concedeEnabled: true,
+  matchCostEnabled: true,
+  matchCostFloor: 0.25,
+  selfAssessEnabled: true,
+  confStep: 0.5,
+  confMax: 5.0,
+  confFadeTicks: 360,
   healFloor: 0.2, // fraction of injuryHeal at zero energy
   healShelterMul: 1.5, // healing multiplier on a sheltered tile
   // S3x fear: the loser of a clash, or someone bitten by a wolf, gains fearPerLoss, felt only within

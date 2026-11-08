@@ -19,7 +19,7 @@ const src = { birth: 0, clash: 0, wolf: 0, other: 0 };
 const srcChild = { bornCold: 0, clash: 0, other: 0 };
 const death = { wounded: 0, unwounded: 0, sev: [0, 0, 0, 0], child: 0, adult: 0, hungry: 0, ageSum: 0 };
 let healedOut = 0;
-let lastFights = 0, lastYields = 0, lastStrangers = 0;
+let lastFights = 0, lastYields = 0, lastStrangers = 0, lastConc = 0, fightDeaths = 0;
 // Where losers and winners are 90 days after a clash: spotted from the wound jump (+clashInjury for
 // the loser, + a quarter of it for the winner), so it measures the same with fear on or off.
 const LATER = 90, R = 8, MAXS = 1 << 20;
@@ -29,6 +29,7 @@ const away = [[0, 0], [0, 0]]; // [loser, winner] x [checked, away]
 const hurtL = w.config.clashInjury ?? 60, hurtW = hurtL * (w.config.clashInjuryWinner ?? 0.25);
 const origKill = p.kill.bind(p);
 p.kill = (s: number) => {
+  if (p.alive[s] === 1 && (new Error().stack ?? '').includes('rules.ts')) fightDeaths++;
   if (p.alive[s] === 1 && p.age[s] < (w.config.maxAge ?? 21600)) {
     const inj = p.injury[s];
     if (inj > 0) {
@@ -77,14 +78,18 @@ for (let t = 1; t <= years * tpy; t++) {
     // With the contest off, every stranger pairing past the culture gate is a fight.
     const fights = (w.config.contestEnabled !== false ? cs.fights : cs.strangers) - (w.config.contestEnabled !== false ? lastFights : lastStrangers);
     const yields = cs.yields - lastYields;
-    lastFights = cs.fights; lastYields = cs.yields; lastStrangers = cs.strangers;
+    const conc = cs.concessions - lastConc;
+    lastFights = cs.fights; lastYields = cs.yields; lastStrangers = cs.strangers; lastConc = cs.concessions;
+    let cn = 0, cs1 = 0, cs2 = 0;
+    for (let s = 0; s < cap; s++) if (p.alive[s] && p.age[s] >= adultAge) { const c = Rules.confidenceNow(s, p, w.config); cn++; cs1 += c; cs2 += c * c; }
+    const confSd = cn ? Math.sqrt(Math.max(0, cs2 / cn - (cs1 / cn) ** 2)) : 0;
     let n = 0, wd = 0, sum = 0, heal = 0, ad = 0, adF = 0, adFed = 0, preg = 0;
     for (let s = 0; s < cap; s++) if (p.alive[s]) { n++; if (p.age[s] >= adultAge) { ad++; if (p.sex[s] === 0) { adF++; if (p.energy[s] >= 65) adFed++; if (p.pregnant[s] >= 0) preg++; } } if (p.injury[s] > 0) { wd++; sum += p.injury[s]; if (p.energy[s] >= 50) heal++; } }
     const y = t / tpy;
     console.log([`${y - every + 1}-${y}`, n, (100 * wd / n).toFixed(0), wd ? (sum / wd).toFixed(0) : '-', wd ? (100 * heal / wd).toFixed(0) : '-',
       `${src.birth}/${src.clash}/${src.wolf}/${src.other}`, `${srcChild.bornCold}/${srcChild.clash}/${srcChild.other}`,
-      death.wounded, death.unwounded, death.sev.join('/'), `${death.child}/${death.adult}`, death.wounded ? (death.ageSum / death.wounded / tpy).toFixed(1) : '-', healedOut, `fights/person/yr ${(fights / Math.max(1, p.count) / every).toFixed(2)} yields/person/yr ${(yields / Math.max(1, p.count) / every).toFixed(2)} bell ${(bellSum / Math.max(1, p.count)).toFixed(0)} losersAway ${(100 * away[0][1] / Math.max(1, away[0][0])).toFixed(1)}% winnersAway ${(100 * away[1][1] / Math.max(1, away[1][0])).toFixed(1)}% adults ${(100*ad/n).toFixed(0)}% women ${adF} fed ${(100*adFed/Math.max(1,adF)).toFixed(0)}% preg ${(100*preg/Math.max(1,adF)).toFixed(0)}%`].join('\t'));
+      death.wounded, death.unwounded, death.sev.join('/'), `${death.child}/${death.adult}`, death.wounded ? (death.ageSum / death.wounded / tpy).toFixed(1) : '-', healedOut, `concessions/person/yr ${(conc / Math.max(1, p.count) / every).toFixed(2)} fightDeaths ${fightDeaths} confSd ${confSd.toFixed(2)} fights/person/yr ${(fights / Math.max(1, p.count) / every).toFixed(2)} yields/person/yr ${(yields / Math.max(1, p.count) / every).toFixed(2)} bell ${(bellSum / Math.max(1, p.count)).toFixed(0)} losersAway ${(100 * away[0][1] / Math.max(1, away[0][0])).toFixed(1)}% winnersAway ${(100 * away[1][1] / Math.max(1, away[1][0])).toFixed(1)}% adults ${(100*ad/n).toFixed(0)}% women ${adF} fed ${(100*adFed/Math.max(1,adF)).toFixed(0)}% preg ${(100*preg/Math.max(1,adF)).toFixed(0)}%`].join('\t'));
     for (const k of Object.keys(src) as (keyof typeof src)[]) src[k] = 0; for (const k of Object.keys(srcChild) as (keyof typeof srcChild)[]) srcChild[k] = 0;
-    death.wounded = death.unwounded = death.child = death.adult = death.ageSum = 0; death.sev = [0, 0, 0, 0]; healedOut = 0; away[0][0] = away[0][1] = away[1][0] = away[1][1] = 0;
+    death.wounded = death.unwounded = death.child = death.adult = death.ageSum = 0; death.sev = [0, 0, 0, 0]; healedOut = 0; fightDeaths = 0; away[0][0] = away[0][1] = away[1][0] = away[1][1] = 0;
   }
 }
