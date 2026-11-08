@@ -102,6 +102,12 @@ export interface SimulationConfig {
   wearDecaySlices: number;
   pathCostCut: number;
   pathPull: number;
+  jitterEnabled: boolean;
+  jitterMinAmp: number;
+  jitterDashLog2: number;
+  jitterEpochShift: number;
+  jitterDashWeightPct: number;
+  jitterRoadDampPct: number;
   stayValueEnabled: boolean;
   stayRefFood: number;
   roamStayWeight: number;

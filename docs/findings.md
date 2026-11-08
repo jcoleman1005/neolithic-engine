@@ -776,3 +776,6 @@ Round 1 wore most of the land, so it read as worn ground everywhere rather than 
 - **Energy Ledger & Invariants**: Conserves energy with 0 violations across 500+ simulation ticks (`ledger.violations === 0`).
 - **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
 - **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).
+
+## Persistent-walk jitter (src/sim/jitter.ts, not yet called from rules.ts)
+New tunables, all in `config.ts`, switch `jitterEnabled` (default true): `jitterMinAmp` 24, `jitterDashLog2` 3 (12.5% dash epochs), `jitterEpochShift` 4 (16 ticks), `jitterDashWeightPct` 150, `jitterRoadDampPct` 50. No old values; first introduction. Dash weight now also takes road damping. Nothing consumes it yet, so there is no behaviour change and no perf cost.
