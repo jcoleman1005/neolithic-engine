@@ -1,0 +1,11 @@
+import { World } from '../../src/sim/world';
+import { Rules } from '../../src/sim/rules';
+const seed = +process.argv[2];
+const G:any = (globalThis as any).__j = { calls:0, reached:0, zeroW:0, pushSum:0, preSum:0, preQuiet:0, jitterMoves:0, pushDominates:0, pushMinor:0, hist:new Array(10).fill(0), stay:0, moveNoJ:0 };
+const orig = Rules.climb;
+(Rules as any).climb = function(...a:any[]) { const d = (orig as any).apply(Rules, a); if (d===4) G.stay++; return d; };
+const w = new World({}, seed);
+for (let t=0;t<1800;t++) w.step();
+for (const k of Object.keys(G)) if (k!=='hist') G[k]=0; G.hist.fill(0);
+for (let t=0;t<300;t++) w.step();
+console.log(JSON.stringify({seed, ...G, pctReached:(G.reached/G.calls*100).toFixed(1), pctStay:(G.stay/G.calls*100).toFixed(1), meanPush:(G.pushSum/G.reached).toFixed(3), meanPre:(G.preSum/G.reached).toFixed(3)}));
