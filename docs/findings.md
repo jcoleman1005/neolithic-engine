@@ -804,3 +804,16 @@ Expectation was that persistence cuts reversals and widens ranging. **Missed**: 
 Control: `jitterMinAmp` 256 (jitter code runs, never pushes) gives population 1040, reversals 47.5%, unique cells 17.6, standing still 82.8%. That matches jitter on (1043, 48.1%, 15.8, 84.5%) and not jitter off (1107, 46.7%, 16.2, 84.6%). So the new jitter is behaviourally a no-op, and the earlier population gap (about -6%) comes from removing the old exploration nudge (or from the changed PRNG stream; 5 seeds cannot separate those, per-seed spread is about +/-100).
 
 Causes: (1) the mechanism was gated by the calm-stay branch, where most people stand; (2) the product `roaming x curiosity` is far smaller than the old sum `(curiosity + roaming) x 0.2`, so most people sit under the cutoff; (3) a push of at most 0.8 is tiny next to gradients of about 4.5; (4) reversals near 48% come from the gradient step, not from jitter. Not tried: scaling push to the gradient, the sum instead of the product, or moving the jitter ahead of the calm-stay return.
+
+### Tile depletion under adults (jitter off, seeds 1 to 3, 300 ticks after 5 years; probe script, not committed)
+| Measure | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Stationary share of adult ticks | 85.6% | 81.8% | 82.9% |
+| Food / capacity on a tile someone stays on (mean) | 0.53 | 0.55 | 0.55 |
+| Stay ticks on a tile under the 0.5 stay fraction | 36.8% | 34.5% | 34.8% |
+| Food change per stay tick on that tile | -0.49 | -0.51 | -0.47 |
+| Stay run length: median / 90th percentile (ticks) | 2 / 27 | 2 / 19 | 2 / 19 |
+| Stays that end on a depleted tile (< 0.5) | 93.8% | 92.1% | 93.8% |
+| Mean food / capacity: occupied vs unoccupied tiles | 0.60 / 0.99 | 0.61 / 0.99 | 0.60 / 0.99 |
+
+Grazing does deplete tiles (about half a unit per stay tick, and nearly every stay ends on a depleted tile), so the earlier guess that regrowth outpaces eating was wrong. But unoccupied land sits at 99% of capacity: about 1,000 adults on 65,536 tiles. A depleted forager only needs the next tile along, so the environment forces short foraging hops, not wandering. Movement is local and the 85% standing share is the long tail of stays (90th percentile 19 to 27 ticks), not people sitting on rich ground. Not measured: why the 35% of stays below the threshold stay (leader pull, hut or heap value, thirst, cold).
