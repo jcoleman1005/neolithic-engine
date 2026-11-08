@@ -4,12 +4,12 @@
  *   npm run map -- --seed 1 --years 20 --save scratch/w/world.json   (prints the largest cluster's x,y)
  *   PLAYWRIGHT_DIR=/path/to/throwaway npm run capture -- --world scratch/w/world.json --at 120,80 --out scratch/shots
  *
- * Playwright is not a project dependency: install it outside the repo (npm i playwright, then
- * npx playwright install chromium with PLAYWRIGHT_BROWSERS_PATH set) and point PLAYWRIGHT_DIR at
- * that folder. The server runs paused on a scratch copy of the world, never the default data folder.
+ * Playwright is a dev dependency now; PLAYWRIGHT_DIR still works and takes precedence if set. The
+ * server runs paused on a scratch copy of the world, never the default data folder. For repeatable
+ * screenshots and baselines see scripts/visual-check.ts.
  */
 import { spawn, execSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { parseArgs } from './args';
@@ -37,9 +37,14 @@ async function main(): Promise<void> {
   const { named } = parseArgs(process.argv.slice(2), ['world', 'at', 'out', 'zooms', 'port'], []);
   if (!named.world || !named.at) throw new Error('usage: --world <world.json> --at x,y [--out dir] [--zooms 3,6,12,20] [--port 8097]');
   const pwDir = process.env.PLAYWRIGHT_DIR;
-  if (!pwDir) throw new Error('Set PLAYWRIGHT_DIR to a throwaway folder holding playwright (see the top of this file).');
-  process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(pwDir, 'browsers');
-  const { chromium } = createRequire(join(resolve(pwDir), 'package.json'))('playwright');
+  let chromium;
+  if (pwDir) {
+    process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(pwDir, 'browsers');
+    ({ chromium } = createRequire(join(resolve(pwDir), 'package.json'))('playwright'));
+  } else {
+    ({ chromium } = await import('playwright'));
+  }
+  const executablePath = process.env.VISUAL_CHROMIUM ?? (existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined);
 
   const [x, y] = named.at.split(',').map(Number);
   const zooms = (named.zooms ?? '3,6,12,20').split(',').map(Number);
@@ -54,7 +59,7 @@ async function main(): Promise<void> {
   execSync('npm run -s build && npm run -s build:server', { stdio: 'ignore' });
   const server = spawn('node', ['dist-server/main.js', '--port', port, '--host', '127.0.0.1', '--data', data], { stdio: 'ignore' });
   const errors: string[] = [];
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(executablePath && !pwDir ? { executablePath } : {});
   try {
     const url = `http://127.0.0.1:${port}/`;
     await waitForServer(url);

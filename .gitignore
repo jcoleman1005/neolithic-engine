@@ -13,3 +13,5 @@ dist-server/
 data/
 .worktrees/
 scratch/
+visual/out/
+visual/.cache/
