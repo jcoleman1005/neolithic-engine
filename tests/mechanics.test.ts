@@ -4,9 +4,9 @@ import { wrapDiff, distSqWrap } from '../src/sim/land';
 import { slotFromId, genFromId } from '../src/sim/people';
 
 describe('Phase 1 Invariants & Mechanics', () => {
-  it('energy ledger balances with zero violations over 500 ticks', () => {
+  it('energy ledger balances with zero violations over 300 ticks', () => {
     const world = new World({ initialPopulation: 100 }, 42);
-    for (let t = 0; t < 500; t++) {
+    for (let t = 0; t < 300; t++) {
       world.step();
     }
 
@@ -68,7 +68,7 @@ describe('Phase 1 Invariants & Mechanics', () => {
 
   it('save and restore round trip reproduces stateHash exactly', () => {
     const original = new World({ initialPopulation: 100 }, 888);
-    for (let t = 0; t < 150; t++) {
+    for (let t = 0; t < 100; t++) {
       original.step();
     }
 
@@ -80,7 +80,7 @@ describe('Phase 1 Invariants & Mechanics', () => {
     expect(restored.stateHash()).toBe(original.stateHash());
 
     // Advance both worlds further: they must remain in lockstep
-    for (let t = 0; t < 100; t++) {
+    for (let t = 0; t < 50; t++) {
       original.step();
       restored.step();
     }

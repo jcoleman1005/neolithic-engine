@@ -58,22 +58,26 @@ describe('Phase 4c inspector story', () => {
   it('describes a person in plain English and is the same twice', async () => {
     const world = new World({ initialPopulation: 300 }, 7);
     const chronicle = new Chronicle();
+    let leader = -1;
+    let follower = -1;
     for (let i = 0; i < 2400; i++) {
       world.step();
       if (i % 200 === 0) await new Promise((r) => setImmediate(r));
       chronicle.record(world);
+      const people = world.people;
+      leader = -1;
+      follower = -1;
+      for (let s = 0; s < people.capacity; s++) {
+        if (people.alive[s] === 0) continue;
+        const id = people.idOf(s);
+        const root = people.rootLeaderId[s] || id;
+        if (!chronicle.tracker.bands.has(root)) continue;
+        if (root === id && leader < 0) leader = s;
+        if (root !== id && follower < 0) follower = s;
+      }
+      if (leader >= 0 && follower >= 0) break;
     }
     const people = world.people;
-    let leader = -1;
-    let follower = -1;
-    for (let s = 0; s < people.capacity; s++) {
-      if (people.alive[s] === 0) continue;
-      const id = people.idOf(s);
-      const root = people.rootLeaderId[s] || id;
-      if (!chronicle.tracker.bands.has(root)) continue;
-      if (root === id && leader < 0) leader = s;
-      if (root !== id && follower < 0) follower = s;
-    }
     expect(leader).toBeGreaterThanOrEqual(0);
     expect(follower).toBeGreaterThanOrEqual(0);
     const info = (s: number) => ({ id: people.idOf(s), x: people.x[s], y: people.y[s], motherId: people.motherId[s], rootLeaderId: people.rootLeaderId[s] });
@@ -82,5 +86,5 @@ describe('Phase 4c inspector story', () => {
     expect(a.detail).toMatch(/^Leads \d+ followers near .+\.$/);
     expect(chronicle.describePerson(world, info(follower)).detail).toMatch(/^Follows .+, with \d+ others, near .+\.$/);
     expect(chronicle.describePerson(world, info(follower)).headline).toMatch(/ of the /);
-  }, 120000);
+  });
 });

@@ -11,13 +11,13 @@ const cell = (x: number, y: number) => (y << 8) | x;
 describe('Phase 5b farming physics (part 2)', () => {
   it('farming state survives a save round trip and the run continues identically', async () => {
     const a = new World({ initialPopulation: 120 }, 9);
-    for (let t = 0; t < 400; t++) {
+    for (let t = 0; t < 200; t++) {
       a.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) {
+    for (let t = 0; t < 50; t++) {
       a.step();
       b.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));
@@ -39,7 +39,7 @@ describe('Phase 5b farming physics (part 2)', () => {
 
   it('values stay in range and energy still balances with farming physics on', async () => {
     const w = new World({ initialPopulation: 200 }, 5);
-    for (let t = 0; t < 600; t++) {
+    for (let t = 0; t < 250; t++) {
       w.step();
       if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }

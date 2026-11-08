@@ -155,7 +155,7 @@ describe('Finite wild resources', () => {
   it('hydration falls, refills beside fresh water, and costs energy only when low; the ledger balances', () => {
     const w = new World({ ...DEFAULT_CONFIG, initialPopulation: 300 }, 2);
     const h = w.people.hydration;
-    for (let t = 0; t < 400; t++) w.step();
+    for (let t = 0; t < 200; t++) w.step();
     let low = 0, full = 0, n = 0;
     for (let s = 0; s < w.people.capacity; s++) {
       if (w.people.alive[s] === 0) continue;

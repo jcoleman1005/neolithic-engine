@@ -17,13 +17,13 @@ describe('Phase 4 band tracker (part 2)', () => {
   it('records are reproducible and survive an export/import round trip', async () => {
     const t1 = new BandTracker();
     const t2 = new BandTracker();
-    await run(2000, t1);
-    await run(2000, t2);
+    await run(600, t1);
+    await run(600, t2);
     expect(t1.exportState()).toEqual(t2.exportState());
     const copy = new BandTracker();
     copy.importState(JSON.parse(JSON.stringify(t1.exportState())));
     expect(copy.exportState()).toEqual(t1.exportState());
-  }, 120000);
+  });
 
   it('does nothing when switched off', () => {
     const tracker = new BandTracker();

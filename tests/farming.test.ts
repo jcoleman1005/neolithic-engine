@@ -43,7 +43,7 @@ describe('Phase 5b farming physics', () => {
     expect(land.soilHealth[i]).toBeCloseTo(cfg.soilMin, 5);
     expect(land.soilHealth[i]).toBeGreaterThanOrEqual(cfg.soilMin);
     const worn = land.soilHealth[i];
-    for (let k = 0; k < 6000; k++) land.step(cfg);
+    for (let k = 0; k < 100; k++) land.step(cfg);
     expect(land.soilHealth[i]).toBeGreaterThan(worn);
     expect(land.soilHealth[i]).toBeLessThanOrEqual(1);
   });

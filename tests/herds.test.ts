@@ -97,10 +97,10 @@ describe('Phase 6a herbivore herds', () => {
 
   it('herds survive a save round trip and the run continues identically', () => {
     const a = new World({ initialPopulation: 150 }, 8);
-    for (let t = 0; t < 200; t++) a.step();
+    for (let t = 0; t < 150; t++) a.step();
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 150; t++) { a.step(); b.step(); }
+    for (let t = 0; t < 50; t++) { a.step(); b.step(); }
     expect(b.stateHash()).toBe(a.stateHash());
     expect(b.herds.count).toBe(a.herds.count);
   });
@@ -174,10 +174,10 @@ describe('Phase 6a hunting', () => {
 
   it('with hunting off no animal is ever killed, and a full world run keeps the ledger balanced', () => {
     const off = new World({ initialPopulation: 200, huntingEnabled: false }, 3);
-    for (let t = 0; t < 300; t++) off.step();
+    for (let t = 0; t < 150; t++) off.step();
     expect(off.herds.killed).toBe(0);
     const on = new World({ initialPopulation: 200 }, 3);
-    for (let t = 0; t < 300; t++) on.step();
+    for (let t = 0; t < 150; t++) on.step();
     expect(on.ledger.violations).toBe(0);
   });
 

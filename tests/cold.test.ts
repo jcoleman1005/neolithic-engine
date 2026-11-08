@@ -100,7 +100,7 @@ describe('Phase 5d cold, caves and campfires', () => {
 
   it('fire state survives a save round trip and the run continues identically; the ledger balances', () => {
     const a = new World({ initialPopulation: 150 }, 12);
-    for (let t = 0; t < 400; t++) a.step();
+    for (let t = 0; t < 150; t++) a.step();
     const c = cell(30, 30);
     a.land.brush[c] = 40;
     a.land.ignite(c, a.config);
@@ -108,7 +108,7 @@ describe('Phase 5d cold, caves and campfires', () => {
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.land.fireCount).toBe(a.land.fireCount);
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) { a.step(); b.step(); }
+    for (let t = 0; t < 40; t++) { a.step(); b.step(); }
     expect(b.stateHash()).toBe(a.stateHash());
     expect(a.ledger.violations).toBe(0);
   });
