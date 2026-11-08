@@ -779,3 +779,14 @@ Round 1 wore most of the land, so it read as worn ground everywhere rather than 
 
 ## Persistent-walk jitter (src/sim/jitter.ts, not yet called from rules.ts)
 New tunables, all in `config.ts`, switch `jitterEnabled` (default true): `jitterMinAmp` 24, `jitterDashLog2` 3 (12.5% dash epochs), `jitterEpochShift` 4 (16 ticks), `jitterDashWeightPct` 150, `jitterRoadDampPct` 50. No old values; first introduction. Dash weight now also takes road damping. Nothing consumes it yet, so there is no behaviour change and no perf cost.
+
+### Jitter on vs off, `npm run movement`, seeds 1 to 5 (5-year warm-up, 300-tick window, adults)
+| Metric (mean of 5 seeds) | off | on | seeds where on > off |
+|---|---|---|---|
+| Reversal % of moves | 46.7 | 48.1 | 3 of 5 |
+| Standing still % | 84.6 | 84.5 | 2 of 5 |
+| Unique cells per 300 ticks | 16.2 | 15.8 | 2 of 5 |
+| Food per move | 5.12 | 5.35 | 4 of 5 |
+| Population at window end | 1107 | 1043 | 1 of 5 (**-5.7%**) |
+
+Expectation was that persistence cuts reversals and widens ranging. **Missed**: reversals are about 48% either way and unique cells are flat. The jitter push (0.8 x weight) is small next to the gradient and calm-stay terms in `climb`, and 85% of adult ticks are still, so the heading rarely gets a chance to persist. Population is lower with it on in 4 of 5 seeds; effect size small and unexplained (no energy-cost change was made, so check whether it is movement cost from slightly more moving). No tuning done, per rule 10. Not covered: share of time on worn paths and settlement counts (`movement.ts` does not report them), and no watched run on the map.
