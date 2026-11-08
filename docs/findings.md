@@ -790,3 +790,17 @@ New tunables, all in `config.ts`, switch `jitterEnabled` (default true): `jitter
 | Population at window end | 1107 | 1043 | 1 of 5 (**-5.7%**) |
 
 Expectation was that persistence cuts reversals and widens ranging. **Missed**: reversals are about 48% either way and unique cells are flat. The jitter push (0.8 x weight) is small next to the gradient and calm-stay terms in `climb`, and 85% of adult ticks are still, so the heading rarely gets a chance to persist. Population is lower with it on in 4 of 5 seeds; effect size small and unexplained (no energy-cost change was made, so check whether it is movement cost from slightly more moving). No tuning done, per rule 10. Not covered: share of time on worn paths and settlement counts (`movement.ts` does not report them), and no watched run on the map.
+
+### Why the jitter changed almost nothing (instrumented, seeds 1 to 3, 300 ticks after 5 years; instrumentation reverted)
+| Measure | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| `climb` calls that return Stay before the jitter block | 86% | 82% | 79% |
+| Calls reaching the jitter | 14% | 18% | 21% |
+| Of those, weight exactly 0 (`rawAmp` < 24) | 95% | 89% | 91% |
+| Mean jitter push (0.8 x weight) | 0.004 | 0.010 | 0.007 |
+| Mean pre-jitter velocity (food, danger, leader) | 4.5 | 5.0 | 4.5 |
+| Times the push exceeded the pre-jitter velocity | 0 | 3 | 3 |
+
+Control: `jitterMinAmp` 256 (jitter code runs, never pushes) gives population 1040, reversals 47.5%, unique cells 17.6, standing still 82.8%. That matches jitter on (1043, 48.1%, 15.8, 84.5%) and not jitter off (1107, 46.7%, 16.2, 84.6%). So the new jitter is behaviourally a no-op, and the earlier population gap (about -6%) comes from removing the old exploration nudge (or from the changed PRNG stream; 5 seeds cannot separate those, per-seed spread is about +/-100).
+
+Causes: (1) the mechanism was gated by the calm-stay branch, where most people stand; (2) the product `roaming x curiosity` is far smaller than the old sum `(curiosity + roaming) x 0.2`, so most people sit under the cutoff; (3) a push of at most 0.8 is tiny next to gradients of about 4.5; (4) reversals near 48% come from the gradient step, not from jitter. Not tried: scaling push to the gradient, the sum instead of the product, or moving the jitter ahead of the calm-stay return.
