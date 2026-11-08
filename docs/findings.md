@@ -955,3 +955,24 @@ Seeds 1 to 3, 50 years, on the merged code (`main` merged in). Runs: all on; eac
 - **Self-assessment off:** belligerence drifts again (it did not with the contest alone, since most contests end without a fight); confidence spread 0.
 - **Contest off (`main`'s resource clashes):** more fights and fight deaths than with the contest; the wound share is the main comparison.
 - **Guardrails:** no seed dies out; perf within budget.
+
+**S3x contest refinements result** (seeds 1 to 3, 50 years, merged code, wound probe; years 46 to 50, deaths in fights summed over those 5 years):
+
+| Run | People (s1 / s2 / s3) | Wounded | Fights per person-year | Deaths in fights | Yields per person-year | Concessions per person-year |
+|---|---|---|---|---|---|---|
+| All on | 6,073 / 5,673 / 5,737 | 3 / 4 / 3% | 0.03 / 0.04 / 0.05 | 6 / 3 / 6 | 1.80 / 1.46 / 1.86 | 0.37 / 0.27 / 0.43 |
+| Residence off | 5,350 / 5,308 / 5,804 | 2 / 3 / 2% | 0.03 / 0.02 / 0.03 | 4 / 1 / 4 | 1.43 / 1.04 / 1.90 | 0.30 / 0.21 / 0.43 |
+| Concession off | 5,903 / 5,394 / 5,839 | 3 / 3 / 3% | 0.05 / 0.03 / 0.05 | 11 / 7 / 12 | 1.95 / 1.34 / 1.87 | 0 |
+| Match cost off | 5,348 / 5,567 / 5,837 | 2 / 3 / 2% | 0.01 / 0.01 / 0.01 | 2 / 2 / 2 | 1.85 / 1.66 / 1.45 | 0.40 / 0.34 / 0.32 |
+| Self-assessment off | 5,879 / 5,077 / 5,632 | 2 / 3 / 3% | 0.02 / 0.03 / 0.03 | 3 / 11 / 4 | 1.43 / 1.22 / 1.59 | 0.27 / 0.22 / 0.35 |
+| Contest off (`main`'s resource clashes) | 3,548 / 3,183 / 4,423 | 24 / 23 / 18% | 0.77 / 0.63 / 0.58 | 616 / 495 / 488 | 0 | 0 |
+
+- **The contest against `main`'s resource clashes is the big effect.** About 15 to 25 times fewer fights, about 100 times fewer deaths in fights, a wounded share of 3 to 4% against 18 to 24%, and 30 to 80% more people at year 50. With fewer people, `main`'s women are better fed (22 to 34% against 13 to 17%). Belligerence climbs a little under `main` (147 to 153) and stays flat with the contest (124 to 131).
+- **Each refinement on its own is small**, and some go against expectation:
+  - **Concession off:** as expected, concessions vanish, and deaths in fights roughly double on every seed (11 / 7 / 12 against 6 / 3 / 6).
+  - **Match cost off:** against expectation, fights fall to about a third, and so do deaths in fights. Without the discount for one-sided fights, every fight looks costly, so fewer are started. Match cost works mainly through the decision, not through the harm of a fight.
+  - **Self-assessment off:** confidence spread is 0, as expected. Belligerence does not drift either way, because fights are too rare for the old nudges to matter. My expectation of drift was wrong.
+  - **Residence off:** fewer yields on two seeds and lower population on two. The direction is not consistent across seeds.
+- **Population with any one refinement off** is between 12% lower and 2% higher than all on. That is within the spread between seeds, so no single refinement clearly helps or hurts population.
+- **Guardrails:** no seed dies out. Perf on the merged code is 7.4 µs per person per tick at about 13,900 people.
+- **Still open: the world is very peaceful.** About one death in a fight a year among 6,000 people, against about 100 under `main`'s rules. Conflict for later phases (raids, polities) will have to come from scarcer land, the place cost, and the end-of-plan tuning of `contestRiskWeight`.
