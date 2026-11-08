@@ -1,0 +1,67 @@
+diff --git a/src/sim/life.ts b/src/sim/life.ts
+index 3b40054..0c5754c 100644
+--- a/src/sim/life.ts
++++ b/src/sim/life.ts
+@@ -496,7 +496,7 @@ export class LifeSystem {
+       let dir = 4; // Stay
+       if (climbOn) {
+         const hc = (py[slot] << 8) | px[slot];
+-        dir = Rules.climb(slot, people, land, fields, config, prng, stayValueOn ? spatial.cellStarts[hc + 1] - spatial.cellStarts[hc] : 1);
++        dir = Rules.climb(slot, people, land, fields, config, prng, stayValueOn ? spatial.cellStarts[hc + 1] - spatial.cellStarts[hc] : 1, tick);
+       } else {
+         dir = prng.nextInt(0, 5);
+       }
+diff --git a/src/sim/rules.ts b/src/sim/rules.ts
+index 2d365e7..b4b3fbf 100644
+--- a/src/sim/rules.ts
++++ b/src/sim/rules.ts
+@@ -1,4 +1,5 @@
+ import type { SimulationConfig } from './types';
++import { computeUnifiedJitter, jitterDir, jitterWeight } from './jitter';
+ import {
+   type People,
+   GENE_STRENGTH,
+@@ -158,7 +159,8 @@ export class Rules {
+     fields: ScentFields,
+     config: Readonly<SimulationConfig>,
+     prng: PRNG,
+-    crowdHere = 1
++    crowdHere = 1,
++    tick = 0
+   ): number {
+     const px = people.x[slot];
+     const py = people.y[slot];
+@@ -301,13 +303,26 @@ export class Rules {
+     }
+ 
+     // Roaming / curiosity jitter
+-    const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
+-    if (prng.next() < exploreChance) {
+-      const jDir = prng.nextInt(0, 4);
+-      if (jDir === 0) vx += 0.8;
+-      else if (jDir === 1) vx -= 0.8;
+-      else if (jDir === 2) vy += 0.8;
+-      else if (jDir === 3) vy -= 0.8;
++    if (config.jitterEnabled !== false) {
++      // Persistent walk: wandering keeps its heading, with intermittent straight dashes (src/sim/jitter.ts).
++      if (!(drivesOn && suppressRoam)) {
++        const j = computeUnifiedJitter(slot, tick, people, land, prng, config.seed, config);
++        const push = 0.8 * jitterWeight(j);
++        const jd = jitterDir(j);
++        if (jd === 0) vx += push;
++        else if (jd === 1) vx -= push;
++        else if (jd === 2) vy += push;
++        else vy -= push;
++      }
++    } else {
++      const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
++      if (prng.next() < exploreChance) {
++        const jDir = prng.nextInt(0, 4);
++        if (jDir === 0) vx += 0.8;
++        else if (jDir === 1) vx -= 0.8;
++        else if (jDir === 2) vy += 0.8;
++        else if (jDir === 3) vy -= 0.8;
++      }
+     }
+ 
+     // If movement desire is negligible, stay

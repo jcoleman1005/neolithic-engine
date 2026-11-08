@@ -361,3 +361,4 @@ These ideas are deferred on purpose; revisit them after Phase 10 or when a phase
 - GPU diffusion and WebAssembly, only if the S21 benchmark demands them
 - Chronicle entries written by a language model (needs a server off the phone)
 - Clash animation and visual combat feedback: packed clash stream from `Rules.clashLog`, transient procedural impact sparks / dust puffs and fatal injury flecks in `CanvasRenderer`, optional macro-scale battle pings when skirmishes cluster
+- Roaming pressure (jitter shelved, wiring in `scripts/probes/jitter-wiring.patch`): today unoccupied land is 99% full with about 1,000 adults on 65,536 tiles, so foragers only hop to the next tile. Try slower regrowth, lower `landFoodMax` or seasonal food swings, then revisit the persistent-walk jitter (`src/sim/jitter.ts`, currently a behavioural no-op). Notes and probes in `scripts/probes/README.md`; numbers in `docs/findings.md`
