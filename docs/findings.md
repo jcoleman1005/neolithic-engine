@@ -945,3 +945,13 @@ Deaths now come mostly from hunger without wounds: in years 46 to 50 there were 
 - **Energy Ledger & Invariants**: Conserves energy with 0 violations across 500+ simulation ticks (`ledger.violations === 0`).
 - **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
 - **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).
+
+### S3x contest refinements: expectations, set before running (2026-11-08)
+
+Seeds 1 to 3, 50 years, on the merged code (`main` merged in). Runs: all on; each refinement off in turn; and the contest off, which leaves `main`'s resource gate and courage retreat in charge. Wound probe. Per rule 10, these are directional expectations across seeds, reported either way:
+- **Residence off:** fewer fights-back by defenders, so slightly fewer fights and more yields.
+- **Concession off:** yields become step-offs; concessions 0; heaps change hands less.
+- **Match cost off:** more wounds and deaths per fight.
+- **Self-assessment off:** belligerence drifts again (it did not with the contest alone, since most contests end without a fight); confidence spread 0.
+- **Contest off (`main`'s resource clashes):** more fights and fight deaths than with the contest; the wound share is the main comparison.
+- **Guardrails:** no seed dies out; perf within budget.
