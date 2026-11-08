@@ -1,6 +1,6 @@
 # Agent rules
 
-Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it stands.
+Fourteen rules for the coding agent; paste this section into `AGENTS.md` as it stands.
 
 1. At the start of a session, read `AGENTS.md`, active status in `docs/STATUS.md`, and only the current phase in `docs/ROADMAP.md`. At the end, update `docs/STATUS.md`: what was done, what is next.
 2. Work one phase at a time, on a branch per task off `main`. Merge when `npm run verify` passes; tick a phase's checks only when a run or the S21 confirms them. (During iteration, use targeted tests e.g. `npx vitest run tests/foo.test.ts` or `VERIFY_TESTS="tests/foo.test.ts" npm run verify` to conserve time and output).
@@ -15,3 +15,4 @@ Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it s
 11. Observers (chronicle, tribes, city-state detection, names) only read the world, draw no random numbers, and change no outcome.
 12. Ideas outside the current phase go to the Parking lot. Agree bigger changes with the user first and record them in `docs/decisions.md`. Keep chat output short: summary tables, not logs.
 13. Every phase names a visible consequence, something you can point at on the map, and closes only when someone has watched it happen. Metrics alone do not close a phase.
+14. Several sessions work in this repo. Before starting a task, read `docs/WORKBOARD.md` and claim the task there (branch, worktree, files); when you finish or stop, update your row. Never commit to another session's branch or work in its checkout, and don't start a parallel version of something already claimed: ask the user.
