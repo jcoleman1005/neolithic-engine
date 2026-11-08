@@ -496,7 +496,7 @@ export class LifeSystem {
       let dir = 4; // Stay
       if (climbOn) {
         const hc = (py[slot] << 8) | px[slot];
-        dir = Rules.climb(slot, people, land, fields, config, prng, stayValueOn ? spatial.cellStarts[hc + 1] - spatial.cellStarts[hc] : 1);
+        dir = Rules.climb(slot, people, land, fields, config, prng, stayValueOn ? spatial.cellStarts[hc + 1] - spatial.cellStarts[hc] : 1, tick);
       } else {
         dir = prng.nextInt(0, 5);
       }
