@@ -1,5 +1,7 @@
 # Probes for the persistent-walk jitter work
 
+**Status: shelved.** The wiring into `Rules.climb` and `life.ts` was reverted and `jitterEnabled` is `false`. To retry: `git apply scripts/probes/jitter-wiring.patch`, set `jitterEnabled: true`, and add `jitterEnabled: false` to the two off-switch parity tests (`tests/clash.test.ts`, `tests/drives-and-stages.test.ts`).
+
 Throwaway analysis scripts, kept for the next iteration. Results are in `docs/findings.md` (sections "Jitter on vs off", "Why the jitter changed almost nothing", "Tile depletion under adults").
 
 Run with `npx vite-node scripts/probes/<name>.ts <seed>`; use seeds 1 to 5, in parallel (4 cores), about 90 s each.

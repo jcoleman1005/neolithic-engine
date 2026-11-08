@@ -1,5 +1,4 @@
 import type { SimulationConfig } from './types';
-import { computeUnifiedJitter, jitterDir, jitterWeight } from './jitter';
 import {
   type People,
   GENE_STRENGTH,
@@ -159,8 +158,7 @@ export class Rules {
     fields: ScentFields,
     config: Readonly<SimulationConfig>,
     prng: PRNG,
-    crowdHere = 1,
-    tick = 0
+    crowdHere = 1
   ): number {
     const px = people.x[slot];
     const py = people.y[slot];
@@ -303,26 +301,13 @@ export class Rules {
     }
 
     // Roaming / curiosity jitter
-    if (config.jitterEnabled !== false) {
-      // Persistent walk: wandering keeps its heading, with intermittent straight dashes (src/sim/jitter.ts).
-      if (!(drivesOn && suppressRoam)) {
-        const j = computeUnifiedJitter(slot, tick, people, land, prng, config.seed, config);
-        const push = 0.8 * jitterWeight(j);
-        const jd = jitterDir(j);
-        if (jd === 0) vx += push;
-        else if (jd === 1) vx -= push;
-        else if (jd === 2) vy += push;
-        else vy -= push;
-      }
-    } else {
-      const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
-      if (prng.next() < exploreChance) {
-        const jDir = prng.nextInt(0, 4);
-        if (jDir === 0) vx += 0.8;
-        else if (jDir === 1) vx -= 0.8;
-        else if (jDir === 2) vy += 0.8;
-        else if (jDir === 3) vy -= 0.8;
-      }
+    const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
+    if (prng.next() < exploreChance) {
+      const jDir = prng.nextInt(0, 4);
+      if (jDir === 0) vx += 0.8;
+      else if (jDir === 1) vx -= 0.8;
+      else if (jDir === 2) vy += 0.8;
+      else if (jDir === 3) vy -= 0.8;
     }
 
     // If movement desire is negligible, stay

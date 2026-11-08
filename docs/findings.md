@@ -817,3 +817,5 @@ Causes: (1) the mechanism was gated by the calm-stay branch, where most people s
 | Mean food / capacity: occupied vs unoccupied tiles | 0.60 / 0.99 | 0.61 / 0.99 | 0.60 / 0.99 |
 
 Grazing does deplete tiles (about half a unit per stay tick, and nearly every stay ends on a depleted tile), so the earlier guess that regrowth outpaces eating was wrong. But unoccupied land sits at 99% of capacity: about 1,000 adults on 65,536 tiles. A depleted forager only needs the next tile along, so the environment forces short foraging hops, not wandering. Movement is local and the 85% standing share is the long tail of stays (90th percentile 19 to 27 ticks), not people sitting on rich ground. Not measured: why the 35% of stays below the threshold stay (leader pull, hut or heap value, thirst, cold).
+
+Jitter shelved: `Rules.climb` and `life.ts` reverted to the original, `jitterEnabled` set to false (it was true during the runs above), wiring saved in `scripts/probes/jitter-wiring.patch`. Default fingerprints are back to their pre-jitter values.

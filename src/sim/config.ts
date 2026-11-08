@@ -65,7 +65,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   pathCostCut: 0.5, // a fully worn tile costs this much less to step onto
   pathPull: 0.3, // how strongly people lean toward the more worn neighbour
   // Persistent-walk jitter (src/sim/jitter.ts): wandering keeps its heading, with intermittent straight dashes.
-  jitterEnabled: true,
+  jitterEnabled: false, // off: the wiring was reverted (scripts/probes/jitter-wiring.patch); the jitter measured as a no-op
   jitterMinAmp: 24, // roaming x curiosity x rest below this (0 to 255) kills the jitter
   jitterDashLog2: 3, // an epoch is a dash with chance 1 / 2^this (3 = 12.5%)
   jitterEpochShift: 4, // an epoch is 2^this ticks (4 = 16), staggered per slot

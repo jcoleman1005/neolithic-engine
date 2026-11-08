@@ -155,7 +155,6 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         fireDetersWolvesEnabled: false,
         wolfLoneRadius: 0,
         pathsEnabled: false,
-        jitterEnabled: false,
         resourceClashEnabled: false,
         clashLootEnabled: false,
         clashCourageEnabled: false,

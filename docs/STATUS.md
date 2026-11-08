@@ -2,9 +2,9 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
-## Persistent-walk jitter (branch `ccr-72645d63-0n3gjg`, not merged)
-- **Done**: `src/sim/jitter.ts` (CRW turns, staggered dash epochs, seed-keyed hash, one PRNG draw per call, packed-int result); wired into `Rules.climb` behind `jitterEnabled` (default true); six tunables in `config.ts`. Off-switch parity tests (`clash`, `drives-and-stages`) now set `jitterEnabled: false`. Full suite passes (277/277). Perf: **2.57 µs / person / tick** at 8,395 people.
-- **Next**: nothing agreed. The jitter measured as a no-op (see `docs/findings.md`); roaming pressure and probe stubs are in the Parking lot and `scripts/probes/README.md`. Decide with the user whether to leave `jitterEnabled` on.
+## Persistent-walk jitter (branch `ccr-72645d63-0n3gjg`, shelved)
+- **State**: `src/sim/jitter.ts`, its test and six `jitter*` tunables stay in the tree, **unused and off** (`jitterEnabled: false`). `Rules.climb` and `life.ts` are back to the original; the wiring is saved as `scripts/probes/jitter-wiring.patch` (`git apply` it to retry). Default fingerprints are unchanged.
+- **Why shelved**: measured as a behavioural no-op (see `docs/findings.md`); roaming pressure from the land is in the Parking lot. Probes and ideas: `scripts/probes/README.md`.
 
 ## AI Context & Token Reduction Pass (merged to `main`)
 - **Done**:
