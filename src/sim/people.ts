@@ -182,6 +182,8 @@ export class People {
       this.fatigue[i] = 0;
       this.sick[i] = 0;
       this.fear[i] = 0;
+      this.fearX[i] = 0;
+      this.fearY[i] = 0;
       this.restTicks[i] = 0;
       this.confidence[i] = 0;
       this.confTick[i] = 0;
@@ -306,6 +308,8 @@ export class People {
     this.fatigue[slot] = 0;
     this.sick[slot] = 0;
     this.fear[slot] = 0;
+    this.fearX[slot] = 0;
+    this.fearY[slot] = 0;
     this.restTicks[slot] = 0;
     this.confidence[slot] = 0;
     this.confTick[slot] = 0;
@@ -349,6 +353,8 @@ export class People {
     this.fatigue[slot] = 0;
     this.sick[slot] = 0;
     this.fear[slot] = 0;
+    this.fearX[slot] = 0;
+    this.fearY[slot] = 0;
     this.restTicks[slot] = 0;
     this.confidence[slot] = 0;
     this.confTick[slot] = 0;
