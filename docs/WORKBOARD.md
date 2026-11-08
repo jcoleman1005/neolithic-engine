@@ -17,7 +17,7 @@ The board says who is working on what, so sessions don't build the same thing tw
 |---|---|---|---|---|---|
 | Settlements S3: structures, carried water, turmoil (healing, contest, place cost), and the S3b to S3d port | `settlements-s3` | `neolithic-engine-structures` | Neolithic Engine 11/5/26 | `src/sim/rules.ts`, `life.ts`, `land.ts`, `people.ts`, `config.ts`, `types.ts`, `world.ts`; `tests/turmoil.test.ts`, `exposure.test.ts`, `water-carry.test.ts`; `scripts/*-probe.ts` | Active. `main` (through the work board) merged in on 2026-11-08, verify green. Next: the place-cost memory, then port the Phase 5f ideas (below). Not merged to `main`; needs a quiet-machine verify, your review and a rule-13 watch. |
 | Faster verify: parallel test files, calibrated test loops | `main` (d2832f8, dce6b48) | n/a | made by an earlier session; verified and pushed by Neolithic Engine 11/5/26 | `vitest.config.ts`, `scripts/verify.sh`, `tests/*` | Done on `main`. |
-| Phase 5f structures (ray enclosure, wind shadow, doorways, wall crossing, hearth anchor) | `phase-5f-exposure` (d38588c, not pushed) | main checkout `neolithic-engine` | unknown (no active session claims it) | `src/sim/land.ts`, `life.ts`, `rules.ts`, `seasons.ts`, `settlements.ts`, `config.ts`; `tests/exposure.test.ts` | **Retired by the user's decision of 2026-11-08:** `settlements-s3` is the one structures branch. Don't merge it to `main`. Its ideas are queued below. The main checkout is left mid-merge (conflict in `docs/STATUS.md`, plus `REBASE_HEAD` and `stash@{0}`), for the user to finish or abort. |
+| Phase 5f structures (ray enclosure, wind shadow, doorways, wall crossing, hearth anchor) | `phase-5f-exposure` (d38588c, not pushed) | main checkout `neolithic-engine` | unknown (no active session claims it) | `src/sim/land.ts`, `life.ts`, `rules.ts`, `seasons.ts`, `settlements.ts`, `config.ts`; `tests/exposure.test.ts` | **Retired by the user's decision of 2026-11-08:** `settlements-s3` is the one structures branch. Don't merge it to `main`. Its ideas are queued below. The main checkout's half-done merge was aborted on 2026-11-08 at the user's request; it is clean on d38588c. |
 | Merge of `main` into the S3 work (parallel copy) | `settlements-s3-b` | `.claude/worktrees/bridge-cse_01RaXxaJwZqqG6mXpDarUq92` | Neolithic Engine 11/6/26 | none now | Paused by its owner. Everything on it is now on `settlements-s3` (the fearX/fearY fix and the chronicle battle-test pin included), so its owner can retire it. |
 
 ## Queue: Phase 5f ideas to port into S3, one at a time, each with a switch and measured
@@ -33,5 +33,5 @@ Taken from `phase-5f-exposure` (commit d38588c), whose perf was 14.2 µs per per
 ## Needs a person
 
 - A rule-13 watch of the S0 to S3 features in a browser.
-- The main checkout's mid-merge on `phase-5f-exposure`: finish or abort.
+- `stash@{0}` ("WIP on chore/faster-verify"): an older draft of the faster-verify tests, superseded by what is on `main`. Drop it if you agree; it is shared by all worktrees.
 - Whether `data/` (the saved world) is backed up.
