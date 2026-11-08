@@ -196,6 +196,7 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
 
   it('Off-switch parity: exact fingerprint match when clash loot and courage are switched off', async () => {
     const wOff = new World({
+      jitterEnabled: false,
       clashLootEnabled: false,
       clashCourageEnabled: false,
       tendingEnabled: false,

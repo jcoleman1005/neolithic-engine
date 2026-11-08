@@ -2,6 +2,10 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## Persistent-walk jitter (branch `ccr-72645d63-0n3gjg`, not merged)
+- **Done**: `src/sim/jitter.ts` (CRW turns, staggered dash epochs, seed-keyed hash, one PRNG draw per call, packed-int result); wired into `Rules.climb` behind `jitterEnabled` (default true); six tunables in `config.ts`. Off-switch parity tests (`clash`, `drives-and-stages`) now set `jitterEnabled: false`. Full suite passes (277/277). Perf: **2.57 µs / person / tick** at 8,395 people.
+- **Next**: multi-seed run, on vs off (displacement per person, share of time on worn paths, settlement count) and a watched run on the map (rule 13); no phase closes until then. Tune `jitterMinAmp` and the 0.8 push scale only after that.
+
 ## AI Context & Token Reduction Pass (merged to `main`)
 - **Done**:
   - Eliminated root `Roadmap.md` duplicate (canonical roadmap remains `docs/ROADMAP.md`).
