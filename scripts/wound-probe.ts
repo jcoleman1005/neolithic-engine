@@ -78,13 +78,13 @@ for (let t = 1; t <= years * tpy; t++) {
     const fights = (w.config.contestEnabled !== false ? cs.fights : cs.strangers) - (w.config.contestEnabled !== false ? lastFights : lastStrangers);
     const yields = cs.yields - lastYields;
     lastFights = cs.fights; lastYields = cs.yields; lastStrangers = cs.strangers;
-    let n = 0, wd = 0, sum = 0, heal = 0, ad = 0, adF = 0, adFed = 0, preg = 0, bell = 0;
+    let n = 0, wd = 0, sum = 0, heal = 0, ad = 0, adF = 0, adFed = 0, preg = 0;
     for (let s = 0; s < cap; s++) if (p.alive[s]) { n++; if (p.age[s] >= adultAge) { ad++; if (p.sex[s] === 0) { adF++; if (p.energy[s] >= 65) adFed++; if (p.pregnant[s] >= 0) preg++; } } if (p.injury[s] > 0) { wd++; sum += p.injury[s]; if (p.energy[s] >= 50) heal++; } }
     const y = t / tpy;
     console.log([`${y - every + 1}-${y}`, n, (100 * wd / n).toFixed(0), wd ? (sum / wd).toFixed(0) : '-', wd ? (100 * heal / wd).toFixed(0) : '-',
       `${src.birth}/${src.clash}/${src.wolf}/${src.other}`, `${srcChild.bornCold}/${srcChild.clash}/${srcChild.other}`,
       death.wounded, death.unwounded, death.sev.join('/'), `${death.child}/${death.adult}`, death.wounded ? (death.ageSum / death.wounded / tpy).toFixed(1) : '-', healedOut, `fights/person/yr ${(fights / Math.max(1, p.count) / every).toFixed(2)} yields/person/yr ${(yields / Math.max(1, p.count) / every).toFixed(2)} bell ${(bellSum / Math.max(1, p.count)).toFixed(0)} losersAway ${(100 * away[0][1] / Math.max(1, away[0][0])).toFixed(1)}% winnersAway ${(100 * away[1][1] / Math.max(1, away[1][0])).toFixed(1)}% adults ${(100*ad/n).toFixed(0)}% women ${adF} fed ${(100*adFed/Math.max(1,adF)).toFixed(0)}% preg ${(100*preg/Math.max(1,adF)).toFixed(0)}%`].join('\t'));
-    Object.keys(src).forEach((k) => ((src as never)[k] = 0)); Object.keys(srcChild).forEach((k) => ((srcChild as never)[k] = 0));
+    for (const k of Object.keys(src) as (keyof typeof src)[]) src[k] = 0; for (const k of Object.keys(srcChild) as (keyof typeof srcChild)[]) srcChild[k] = 0;
     death.wounded = death.unwounded = death.child = death.adult = death.ageSum = 0; death.sev = [0, 0, 0, 0]; healedOut = 0; away[0][0] = away[0][1] = away[1][0] = away[1][1] = 0;
   }
 }

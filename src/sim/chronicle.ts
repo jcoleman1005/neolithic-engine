@@ -6,7 +6,7 @@ import { CLASH_RING, Rules } from './rules';
 import { slotFromId, GENE_STRENGTH, GENE_CRUELTY, GENE_CHARISMA, GENE_WISDOM, GENE_BRAVERY, GENE_COUNT } from './people';
 import {
   bandName, epithet, landformFor, makeTongue, personName, placeName, placeRoot, type EpithetFacts, type Tongue,
-} from '../core/naming';
+} from './naming';
 
 /**
  * The chronicle: turns band changes, clash streaks and population swings into
@@ -210,7 +210,7 @@ export class Chronicle {
     } else {
       outcome = `the ${nameB} beat the ${nameA}`;
     }
-    const toll = fell === 0 ? 'no one fell'
+    const toll = fell === 0 ? 'driven off without fatalities'
       : `${fell} fell (${p.fellA} of the ${nameA}, ${p.fellB} of the ${nameB})`;
     const place = this.placeAt(world, p.x, p.y, p.tongueA!);
     const text = `${kind} near ${place}: ${outcome} after ${days} ${days === 1 ? 'day' : 'days'}, ${p.clashes} clashes, ${toll}`;

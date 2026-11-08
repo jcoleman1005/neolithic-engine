@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   TONGUE_SIZE, bandName, driftTongue, epithet, fullName, hash32, landformFor, makeTongue, personName, placeName,
   type EpithetFacts,
-} from '../src/core/naming';
+} from '../src/sim/naming';
 
 const calm: EpithetFacts = {
   strength: 100, cruelty: 100, charisma: 100, wisdom: 100, bravery: 100, departures: 0, peakFollowers: 0, ageYears: 20,

@@ -139,7 +139,7 @@ Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it s
 7. The tick loop uses typed arrays and allocates nothing per person.
 8. Run `npm run perf` at 10,000 people before merging. Stay at or under 15 µs per person per tick on desktop; report the number in `docs/STATUS.md`.
 9. New mechanics go in on by default, with a switch in `config.ts` so an off run can be compared.
-10. Tests check mechanisms and invariants: energy balances, wrapping, slot reuse, save round trip, same seed gives the same fingerprint. Never assert that a behavior emerges.
+10. Tests check mechanisms and invariants: energy balances, wrapping, slot reuse, save round trip, same seed gives the same fingerprint. Never assert that a behavior emerges. When proving a mechanic in runs, test directional hypotheses and macroscopic effect sizes across multiple seeds (not arbitrary target cutoffs or bare p-values); report missed expectations as findings rather than tuning to force arbitrary numbers.
 11. Observers (chronicle, tribes, city-state detection, names) only read the world, draw no random numbers, and change no outcome.
 12. Ideas outside the current phase go to the Parking lot. Agree bigger changes with the user first and record them in `docs/decisions.md`. Keep chat output short: summary tables, not logs.
 13. Every phase names a visible consequence, something you can point at on the map, and closes only when someone has watched it happen. Metrics alone do not close a phase.
@@ -243,7 +243,7 @@ The architectural arc, and where each piece lives:
 | 1 Nomadic | Cave shelters | Natural caves in hills; sheltered cells cut the cold | 5d | built, not watched |
 | 1 Nomadic | Campfire hearths | Fuel (brush) carried to where people gather in the cold and burned; warmth radius, glow | 5d | built, not watched |
 | 2 Domestic | Trampled crop clearings | Tilled soil and dropped seeds regrow faster; overgrazed soil goes to desert | 5b | built |
-| 2 Domestic | Golden ripe crops | Ripeness drawn on worked cells; communal hearths persist where people settle | 5e | planned |
+| 2 Domestic | Golden ripe crops | Ripeness drawn on worked cells; communal hearths persist where people settle | 5e | built, not watched |
 | 3 Dry-stone | Preserved granaries | Compacted food heaps become a granary floor that spoils slowly; stone granary later | 5c / 5f | floor built |
 | 3 Dry-stone | Dry-stone huts, closed rooms | Planned: stone gathered, dumped and tamped into wall cells; shelter grows with the walls around a cell. Built so far: stone set down on a tile until it reaches 60 durability and becomes a one-tile hut; no walls or rooms yet (see the open question) | 5f | huts built, not watched; rooms open |
 | 3 Dry-stone | Defensive barricades | Walls against raiders | Phase 7 | planned |
@@ -274,8 +274,8 @@ Goal: hunter-gatherers have something to hunt, and something that hunts them.
 - Prototype exists on `exp-finite-resources` (herds as animals in the people arrays, grazing, breeding, hunting, meat yield, herd sprites); port it onto the current code first, then add wolves.
 - Dumb herbivores that wander and flee, and leave a meat pile (food on the land) when they die; simple wolves that wander and emit danger scent. Rules stay at wander-and-flee: no pack tactics, no scripted hunts. Promoted ahead of weather so the Stone Age start has meat.
 
-* [ ] Herds and wolves persist for 50 years or more without taking over the map.
-* [ ] Hunting and wolf danger visibly change where people go.
+* [x] Herds and wolves persist for 50 years or more without taking over the map.
+* [ ] Hunting and wolf danger visibly change where people go. (Needs visual browser watch per Rule 13)
 
 ### Phase 6b: Weather and disaster
 
@@ -352,6 +352,7 @@ These ideas are deferred on purpose; revisit them after Phase 10 or when a phase
 - More biomes: today the land is only grass, forest, hills, mountain, snow and sand. Later add desert, tundra, savanna, jungle, marsh and so on, as physical differences in rainfall, temperature and soil (so they change food, wood, water and cold), not as labels. Needs real climate fields first, which the weather phase (6b) and the cold of 5d begin to supply.
 - Wells: a dug tile that becomes a fresh-water source where ground water is near the surface (low ground near rivers and lakes, by elevation), with a limited flow, built with labour and packed earth. It would let camps sit far from rivers without carrying water. Revisit after carried water (`docs/SETTLEMENTS.md` S3w) and the village economy (S5).
 - Waterskins from hides: a personal water container made from hunted animals, so a person can range further from water on their own. Considered for S3w and not chosen, because it breaks the one-carry rule and needs hides to exist first.
+- Group odds in fights between bands (Lanchester's laws; Wrangham's imbalance of power): chimpanzees join a fight between groups only with about a 1.5 to 1 advantage, and lethal raids happen when the attacker's cost is low. The S3x contest counts allies as a flat +3 each. Revisit for raids and polities (Phase 8). Human war data fit the square law poorly, so treat it as a starting point.
 - Seas, rivers you can sail, and boats
 - Trade, markets and debt networks
 - Healing, teaching and burying the dead
@@ -359,3 +360,4 @@ These ideas are deferred on purpose; revisit them after Phase 10 or when a phase
 - Small evolving brains, only for a few notable characters, borrowed from `artificial-life`
 - GPU diffusion and WebAssembly, only if the S21 benchmark demands them
 - Chronicle entries written by a language model (needs a server off the phone)
+- Clash animation and visual combat feedback: packed clash stream from `Rules.clashLog`, transient procedural impact sparks / dust puffs and fatal injury flecks in `CanvasRenderer`, optional macro-scale battle pings when skirmishes cluster

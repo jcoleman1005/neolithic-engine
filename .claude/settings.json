@@ -21,7 +21,9 @@
       "Read(./data/**)",
       "Read(./coverage/**)",
       "Read(./package-lock.json)",
-      "Read(./docs/experiments/*.json)"
+      "Read(./docs/experiments/*.json)",
+      "Read(./scratch/**)",
+      "Read(./.worktrees/**)"
     ]
   },
   "hooks": {

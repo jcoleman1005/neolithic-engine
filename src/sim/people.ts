@@ -1,3 +1,5 @@
+import type { SimulationConfig } from './types';
+
 export const INITIAL_PEOPLE_CAPACITY = 2048;
 export const SLOT_MASK = 0xfffff; // 20 bits: up to 1,048,575 slots
 export const GEN_MASK = 0xfff; // 12 bits: 0..4095
@@ -567,4 +569,34 @@ export class People {
 /** How much work a body gives at this age: children and elders manage less than adults. */
 export function stageWork(age: number, adultAge: number, elderAge: number, childWork: number, elderWork: number): number {
   return age < adultAge ? childWork : age >= elderAge ? elderWork : 1;
+}
+
+/**
+ * Calculates maximum carry capacity for a specific item kind based on
+ * body strength scaling and life stage work capability.
+ */
+export function maxCarryCapacity(
+  slot: number,
+  kind: number,
+  people: People,
+  config: Readonly<SimulationConfig>
+): number {
+  const stagesOn = config.stagesEnabled !== false;
+  const strengthOn = config.strengthScalingEnabled !== false;
+  const adultAge = config.adultAge ?? 5760;
+  const elderAge = Math.floor((config.maxAge ?? 21600) * 0.75);
+  const childWork = config.childWork ?? 0.6;
+  const elderWork = config.elderWork ?? 0.8;
+  const strengthCarry = config.strengthCarry ?? 0.6;
+  const cm =
+    (stagesOn ? stageWork(people.age[slot], adultAge, elderAge, childWork, elderWork) : 1) *
+    (strengthOn ? 1 + strengthCarry * (people.genes[slot * GENE_COUNT + GENE_STRENGTH] / 255 - 0.5) : 1);
+
+  if (kind === CARRY_FOOD) return (config.foodCarryMax ?? 15) * cm;
+  if (kind === CARRY_BRUSH) return (config.brushCarryMax ?? 10) * cm;
+  if (kind === CARRY_SEED) return (config.seedCarryMax ?? 30) * cm;
+  if (kind === CARRY_STONE) return (config.stoneCarryMax ?? 5) * cm;
+  if (kind === CARRY_EARTH) return (config.earthCarryMax ?? 6) * cm;
+  if (kind === CARRY_WATER) return (config.waterCarryMax ?? 20) * cm;
+  return 15 * cm;
 }

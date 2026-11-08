@@ -58,6 +58,25 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-03 | `fertilityActionGain` | 0 | 0.002 | Direct fertility enrichment per seed drop |
 | 2026-11-03 | `fertilityTampGain` | 0 | 0.0008 | Soil improvement per tamping event |
 | 2026-11-03 | `fertilityCompostGain` | 0 | 0.0005 | Fertility enrichment from spoiling organic food heaps |
+| 2026-11-05 | `resourceClashEnabled` | false | true | Option C: Material-motivated clashes (hunger, food heaps, shelter) with lethal combat stakes |
+| 2026-11-05 | `clashHungerThreshold` | 0 | 35.0 | Energy below which a hungry person will fight for food or mug strangers |
+| 2026-11-05 | `clashFlatDamage` | 0 | 6.0 | Flat energy damage inflicted by winner (scaled by strength 3-6) allowing decisive fatal strikes |
+| 2026-11-05 | `clashLethalInjury` | 0 | 220 | Cumulative trauma collapse ceiling where excessive injury triggers combat death |
+| 2026-11-05 | `clashContestedResourceBonus` | 0 | 1.5 | Escalation multiplier on contested food heaps, prey carcasses, or crowded cold shelters |
+| 2026-11-05 | `clashLootEnabled` | false | true | Phase 7 / Primitive 78: victor loots loser carried goods or knocks loose to land |
+| 2026-11-05 | `clashCourageEnabled` | false | true | Phase 7 / Primitive 76: outmatched timid fighters tactically retreat before blows land |
+| 2026-11-05 | `courageOddsThreshold` | 0 | 0.35 | Base combat power odds ratio below which timid fighters retreat |
+| 2026-11-05 | `clashRetreatMoveMul` | 0 | 1.5 | Movement energy multiplier for retreat sprint (1.5x moveCost booked to ledger.move) |
+| 2026-11-05 | `clashRetreatFatigue` | 0 | 6 | Fatigue increment sustained by retreating coward (adrenaline exhaustion) |
+| 2026-11-05 | `clashRetreatInjuryMul` | 0 | 0.20 | Fractional clash injury taken as a glancing blow/scrape during flight |
+| 2026-11-05 | `clashRetreatDropThreshold` | 0 | 3.0 | Heavy cargo threshold where panicking coward drops carried goods to flee faster |
+| 2026-11-05 | `goldenCropsEnabled` | false | true | Phase 5e: cultivated cells ripen into visible golden fields when food approaches capacity |
+| 2026-11-05 | `cropRipenThreshold` | 0 | 0.70 | Fraction of capacityAt above which cultivated cells are encoded as ripe golden grain |
+| 2026-11-06 | `cropRipenMinFarmLevel` | 1 | 2 | Minimum farmLevel (worked soil >= 2) required for golden crops ripening; prevents single wild bites turning yellow |
+| 2026-11-06 | `stoneBarrenEnabled` | false | true | Rock/stone cells are barren mineral: zero plant food, zero fertility, cannot be grazed or farmed |
+| 2026-11-05 | `tendingEnabled` | false | true | Primitive 5: gentle harvesting without stripping boosts cultivation and regrowth |
+| 2026-11-05 | `tendingGain` | 0 | 0.03 | Extra cultivation (tilled) gained per gentle harvest on healthy soil |
+| 2026-11-05 | `tendingRegrowBoost` | 0 | 0.40 | Regrowth multiplier bonus for well-tended cultivated soil |
 | 2026-11-04 | `birthHazardsEnabled` | false | true | Deterministic childbirth physical trauma and metabolic demands switch |
 | 2026-11-04 | `pregnancyUpkeepMul` | 1.0 | 1.25 | Extra upkeep multiplier during pregnancy (+25%) |
 | 2026-11-04 | `pregnancyMiscarriageEnergy` | 0 | 15.0 | Energy threshold below which severe starvation terminates pregnancy to protect mother |
@@ -65,6 +84,24 @@ Record every tuned value, old and new, and the reason for the change here.
 | 2026-11-04 | `birthShelterInjuryMul` | 1.0 | 0.35 | Trauma multiplier when delivering in shelter (nest, cave, stone hut, campfire aura) |
 | 2026-11-04 | `birthColdInjuryMul` | 1.0 | 1.5 | Trauma multiplier when delivering unsheltered in freezing cold |
 | 2026-11-04 | `birthExhaustionInjury` | 0 | 20.0 | Trauma inflicted when delivery fails at term due to severe maternal exhaustion |
+| 2026-11-05 | `wolfInitialCount` | 20 | 28 | Phase 6a: Increase starting wolves to sustain packs across 256x256 map |
+| 2026-11-05 | `wolfSenseRadius` | 8 | 12 | Phase 6a: Broaden prey perception radius to prevent early wolf starvation |
+| 2026-11-05 | `wolfSoftCap` | 40 | 50 | Phase 6a: Ecosystem stabilization soft cap |
+| 2026-11-05 | `wolfBreedEnergy` | 50.0 | 45.0 | Phase 6a: Lower wolf breeding threshold to sustain reproduction on kills |
+| 2026-11-05 | `wolfBirthEnergy` | 20.0 | 18.0 | Phase 6a: Accompanying pup initial energy endowment |
+| 2026-11-05 | `wolfBreedChance` | 0.02 | 0.025 | Phase 6a: Slight increase in reproduction chance when fed |
+| 2026-11-05 | `wolfUpkeep` | 0.06 | 0.05 | Phase 6a: Moderate wolf metabolism to allow tracking time between prey kills |
+| 2026-11-05 | `herdScentEnabled` | false | true | Phase 6a: Grazing herbivores emit prey food scent |
+| 2026-11-05 | `herdScentEmitRate` | 0 | 0.05 | Phase 6a: Prey food scent diffusion emission rate |
+| 2026-11-05 | `huntCarryMeatEnabled` | false | true | Phase 6a: Successful hunters butcher and carry fresh meat into hands |
+| 2026-11-05 | `huntScalingEnabled` | false | true | Phase 6a: Hunting strike success scales with strength gene and carried stone weapons |
+| 2026-11-05 | `huntStrengthBonus` | 0 | 0.35 | Phase 6a: Maximum hunting strike bonus from strength |
+| 2026-11-05 | `huntStoneBonus` | 0 | 0.25 | Phase 6a: Hunting strike bonus for carrying stone tools/weapons |
+| 2026-11-05 | `wolfScavengeEnabled` | false | true | Phase 6a: Wolves scavenge fresh meat heaps on or adjacent to their tile |
+| 2026-11-05 | `wolfScavengeBite` | 0 | 2.0 | Phase 6a: Energy gained per wolf scavenging bite |
+| 2026-11-05 | `wolfScentTrackEnabled` | false | true | Phase 6a: Wolves track prey food scent trails when herds are out of line of sight |
+| 2026-11-05 | `wolfDefenseEnabled` | false | true | Phase 6a: Human defenders strike back dealing physical combat injury to attacking wolves |
+| 2026-11-05 | `wolfDefenseDamage` | 0 | 15.0 | Phase 6a: Base physical injury inflicted on wolf by defending human |
 
 ## Experiment Log
 
@@ -885,3 +922,26 @@ Seeds 1 to 3, 50 years, contest on against off, slow healing on in both, the rep
 All targets met. Fights fall by about 99%, and most contests end in a yield. Wounds almost vanish, belligerence stops climbing, and population at year 50 is about 35 to 40% higher, with no collapse through year 50 (it peaks at 6,100 to 7,200 around years 36 to 40, then dips 5 to 8%). Guardrails: no seed dies out. Fed women are not below off, except seed 2 at 14% against 15%. Perf: 7.2 µs per person per tick at 13,924 people.
 
 Deaths now come mostly from hunger without wounds: in years 46 to 50 there were 1,668 / 1,880 / 1,925 unwounded deaths against 280 / 284 / 268 wounded ones (old age left out). The limit is now the land. **Risk to watch:** the world may now be too peaceful. Fights are rare enough that clash deaths and chronicle battles nearly disappear, and later phases (raids, polities) need conflict to come from somewhere. That is left to the end-of-plan tuning (`contestRiskWeight`) and to the place cost, which makes yielding count.
+## Combat Courage & Battlefield Looting (Primitives 76 & 78)
+- **Primitive 76 (Tactical Courage & Physical Retreat Costs)**: added `clashCourageEnabled` (default true), `courageOddsThreshold` (0.35), `clashRetreatMoveMul` (1.5), `clashRetreatFatigue` (6), `clashRetreatInjuryMul` (0.20), and `clashRetreatDropThreshold` (3.0). Outmatched combatants calculate power odds from strength and nearby allies; if odds are below `courageOddsThreshold * (1.2 - bravery)`, they disengage early via a retreat step. Fleeing imposes realistic physical costs: sprint movement energy (`1.5 * moveCost` booked to `ledger.move`), an adrenaline fatigue spike (+6), glancing scrapes/scratches from the aggressor's parting swipe (`20%` clash injury scaled by cruelty and belligerence), and panic-dropping heavy cargo (> 3.0 units) directly onto the land tile.
+- **Primitive 78 (Battlefield Looting)**: added `clashLootEnabled` (default true). The victor claims the loser's carried item (`people.carryKind`, `people.carry`). When the victor already carries a different resource or exceeds body capacity, excess drops directly to the tile as a ground heap.
+- **Energy Ledger Balance**: lethal combat deaths caused by trauma collapse preserve energy balance by crediting the victim's remaining body energy to `ledger.deathFat`, and retreat sprint exertion correctly credits `ledger.move`, yielding 0 ledger violations across 300+ simulation ticks.
+- **Determinism & Parity**: exact bit-for-bit stateHash match with switches disabled (`3846cf0469ad880d` at 1,000 ticks, seed 42).
+- **Performance**: 12.72 µs / person / tick at ~8,548 people (under desktop budget of 15.0 µs).
+
+## Phase 5e: Golden Crops & Farming Tending (Primitives 5, 9, 41)
+- **Phase 5e (Golden Crops)**: added `goldenCropsEnabled` (default true) and `cropRipenThreshold` (0.70). Cultivated cells (`tilled >= 0.15` or `seeds > 0`) ripen to golden fields as plant food approaches cell capacity. In `Land.packOverlay`, ripe cells are encoded as `seedLevel = 3`, blitting as brilliant golden grain (`COLOR_SEEDS_RGB = 0x28c8f0` at 230 alpha) on the 256×256 land overlay. When foragers graze crops down below threshold, the overlay immediately drops to dark brown tilled earth (`farmLevel >= 2`, `COLOR_FARM_RGB`), establishing a visually legible ripening-and-harvesting cycle on the map.
+- **Primitive 5 (Active Tending)**: added `tendingEnabled` (default true), `tendingGain` (0.03), and `tendingRegrowBoost` (0.40). Gentle harvesting that preserves at least 25% of cell capacity raises soil cultivation (`tilled`) via `tendingGain * (1 - tilled)`. Well-tended fields (`tilled > 0.25`) enjoy an active regrowth bonus (`tendingRegrowBoost * tilled`), boosting agricultural output in settled regions while untended fallow fields naturally decay back to wild grassland.
+- **Invariants & Ledger**: Energy ledger verified with zero residual violations across 300+ simulation ticks (`ledger.violations === 0`). Strict off-switch fingerprint parity verified (`b11b505bedb2a659`).
+- **Performance**: **5.70 µs / person / tick** at ~8,800 people (well within desktop budget of 15.0 µs).
+
+## Phase 6a: Hunting & Fauna Dynamics (Ecosystem Coexistence & Emergent Hunting)
+- **Predator-Prey Stabilization**: Resolved early wolf extinction collapse (previously wolves starved to extinction before Year 10 due to small perception radius and high upkeep). Tuning `wolfSenseRadius: 12`, `wolfUpkeep: 0.05`, `wolfInitialCount: 28`, and introducing carcass scavenging enables wolves, herds, and humans to sustainably coexist across 50 continuous years (18,000 ticks) across multiple seeds with zero extinctions.
+- **Emergent Hunting via Food Scent Physics**: Grazing herds emit prey food scent (`fields.foodCurrent`) during diffusion passes (`herdScentEnabled: true`, `herdScentEmitRate: 0.05`). Hungry humans ascending food scent gradients naturally detect and track migrating herds without any scripted group hunting behavior.
+- **Strength & Tool Scaling**: Hunting strike success scales with worker `GENE_STRENGTH` and carrying stone tools/weapons (`huntStrengthBonus: 0.35`, `huntStoneBonus: 0.25`).
+- **Fresh Carcass Meat Butchering**: Successful hunting strikes drop fresh meat carcasses onto the land and butcher food directly into the hunter's carried hands (`huntCarryMeatEnabled: true`, `people.carryKind = CARRY_FOOD`).
+- **Wolf Scavenging & Scent Tracking**: Wolves scavenge meat heaps on and adjacent to their tile (`wolfScavengeEnabled: true`) and pursue prey scent gradients when prey is not in line of sight (`wolfScentTrackEnabled: true`).
+- **Human Self-Defense**: Strong or stone-wielding defenders fight back against attacking wolves, dealing physical combat injury (`wolfDefenseEnabled: true`, `wolfDefenseDamage: 15.0`).
+- **Energy Ledger & Invariants**: Conserves energy with 0 violations across 500+ simulation ticks (`ledger.violations === 0`).
+- **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
+- **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).

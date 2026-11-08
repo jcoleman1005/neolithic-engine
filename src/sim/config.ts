@@ -149,6 +149,13 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   soilWearRate: 0.0012, // soil health lost per bite that strips a cell
   soilRecoveryRate: 0.0015, // per tick, fraction of the missing health regained when not stripped
   soilMin: 0.2, // soil health never drops below this
+  // Phase 5e: golden crops and active tending (Primitives 5, 9, 41)
+  goldenCropsEnabled: true, // worked cells ripen to golden fields as food approaches capacity
+  cropRipenThreshold: 0.70, // fraction of capacityAt above which cultivated cells are ripe
+  cropRipenMinFarmLevel: 2, // minimum farmLevel (worked soil >= 2) required for crops to ripen to golden
+  tendingEnabled: true, // repeated gentle harvesting/foraging boosts soil cultivation and regrowth (Primitive 5)
+  tendingGain: 0.03, // extra cultivation (tilled) gained per gentle harvest without stripping
+  tendingRegrowBoost: 0.40, // regrowth multiplier bonus for well-tended cultivated soil
   // Mutable fertility: soil fertility improves with tending (passive tilled+seeded cover,
   // explicit seed drops, tamping, compost) and degrades with overuse (repeated stripping/overgrazing).
   fertilityChangeEnabled: true,
@@ -204,10 +211,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // energy (leaving a share as meat), breed when fed and starve without prey. Each leaves danger
   // scent; a lone person beside one may be killed. Their energy is plant-side.
   wolvesEnabled: true,
-  wolfInitialCount: 20,
+  wolfInitialCount: 28,
   wolfCapacity: 128,
   wolfMaxEnergy: 80.0,
-  wolfUpkeep: 0.06, // energy lost per tick
+  wolfUpkeep: 0.05, // energy lost per tick
   wolfMoveCost: 0.03,
   wolfKillChance: 0.6, // per tick with prey on or beside the tile
   wolfMeatFactor: 1.2, // energy gained per unit of the prey's energy
@@ -216,19 +223,30 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wolfPersonMeal: 20.0, // energy a wolf gains from a person
   wolfLoneRadius: 2, // a person is only a target with no one else within this many tiles (S1: was 0)
   wolfDanger: 2.0, // danger scent left per tick
-  wolfBreedEnergy: 50.0,
-  wolfBirthEnergy: 20.0,
-  wolfBreedChance: 0.02, // per tick once able, scaled by (1 - wolves / wolfSoftCap)
-  wolfSoftCap: 40,
+  wolfBreedEnergy: 45.0,
+  wolfBirthEnergy: 18.0,
+  wolfBreedChance: 0.025, // per tick once able, scaled by (1 - wolves / wolfSoftCap)
+  wolfSoftCap: 50,
   wolfAdultAge: 360,
   wolfMaxAge: 5400,
-  wolfSenseRadius: 8, // tiles within which a wolf turns toward herd animals
+  wolfSenseRadius: 12, // tiles within which a wolf turns toward herd animals
   wolfPersist: 0.75, // chance per tick a wandering wolf keeps its heading
+  wolfDefenseEnabled: true, // brave or strong defenders strike back at attacking wolves
+  wolfDefenseDamage: 25.0, // max physical counter-damage dealt to an attacking wolf
+  wolfScavengeEnabled: true, // hungry wolves can feed on carcass meat heaps
+  wolfScavengeBite: 3.0, // meat taken per scavenging bite
+  wolfScentTrackEnabled: true, // wolves track prey food scent trails when herds are out of sight
   huntingEnabled: true,
   huntBelow: 0.6, // hunts below this fraction of maxEnergy
   huntChance: 0.15, // chance a strike kills, per tick with prey adjacent
   huntCost: 0.3, // labour per strike (booked as movement)
   huntMeatFactor: 1.0, // meat per unit of the animal's energy
+  huntCarryMeatEnabled: true, // hunter butchers and claims fresh carcass meat into hands
+  huntScalingEnabled: true, // weapon and strength scaling for hunting strikes
+  huntStrengthBonus: 0.2, // bonus strike chance for high-strength hunters (up to +0.20)
+  huntStoneBonus: 0.15, // bonus strike chance when carrying a stone weapon
+  herdScentEnabled: true, // herds emit prey food scent so hungry climbers can track them
+  herdScentEmitRate: 0.2, // prey scent emitted per unit of herd body energy
   carcassTicks: 120, // how long the dead-animal graphic stays (viewer only), if the meat lasts
   herdInitialCount: 150, // founder animals
   herdCapacity: 1024, // slots (an upper bound; food, not this, should limit the herds)
@@ -331,6 +349,20 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite
   graveTicks: 150, // how long a fresh grave mark stays visible
+  // Resource-motivated clashes with lethal stakes (Options B & C)
+  resourceClashEnabled: true, // clashes motivated by hunger, carried loot and scarce tiles with lethal stakes
+  clashHungerThreshold: 35.0, // energy below which a hungry person fights for food or steals
+  clashFlatDamage: 6.0, // flat energy damage inflicted by winner's strike (scaled by strength)
+  clashLethalInjury: 220, // severe injury threshold where sustained trauma triggers fatal collapse
+  clashContestedResourceBonus: 1.5, // belligerence multiplier on contested food or crowded cold shelter tiles
+  // Conflict & Looting Foundations (Phase 7 / Primitives 76 & 78)
+  clashLootEnabled: true, // victor loots loser's carried goods (Primitive 78)
+  clashCourageEnabled: true, // tactical retreat when outmatched and bravery is low (Primitive 76)
+  courageOddsThreshold: 0.35, // base odds ratio threshold below which a timid fighter disengages
+  clashRetreatMoveMul: 1.5, // movement energy multiplier paid by a fleeing fighter (exertion sprint)
+  clashRetreatFatigue: 6, // fatigue added to a retreating coward (adrenaline crash)
+  clashRetreatInjuryMul: 0.20, // fraction of clash injury taken as a glancing strike / scrape when fleeing
+  clashRetreatDropThreshold: 3.0, // carried cargo amount above which a panicking coward drops goods to run faster
   // Bodies (5g). Life stages: children and elders give less work (forage bite, carry, clash
   // strength). Strength gene scales carrying. Childcare: a child under adultAge costs its
   // mother (split with a mate beside them) childCare energy a tick while within careRadius.
@@ -366,6 +398,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   sickUpkeep: 0.8,
   sickFedHeal: 1, // extra ticks of recovery per tick while fed
   buildingEnabled: true,
+  stoneBarrenEnabled: true, // rock/stone cells are barren mineral: zero plant food, zero fertility, cannot be grazed or farmed
   stoneCap: 30.0, // stone on a rock tile (finite, does not regrow)
   stoneBite: 1.0, // stone picked up per tick on rock
   stoneCarryMax: 8.0,

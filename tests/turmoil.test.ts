@@ -217,11 +217,11 @@ describe('S3x contest', () => {
     expect(Rules.clashStats.yields).toBe(y0 + 1);
     expect(w.people.injury[a]).toBe(0);
     expect(w.people.injury[b]).toBe(0);
-    expect(w.people.energy[b]).toBe(30);
+    expect(w.people.energy[b]).toBeCloseTo(30 - (w.config.moveCost ?? 0.05), 5); // walking away is an ordinary paid step
   });
 
-  it('with the switch off the old gate applies: two calm people never fight', () => {
-    const w = empty({ fearEnabled: false, contestEnabled: false });
+  it('with the contest and main\'s resource gate off, the old gate applies: two calm people never fight', () => {
+    const w = empty({ fearEnabled: false, contestEnabled: false, resourceClashEnabled: false });
     w.land.food[(60 << 8) | 50] = 40;
     const hA = new Uint8Array(HABIT_COUNT).fill(0), hB = new Uint8Array(HABIT_COUNT).fill(255);
     hA[HABIT_BELLIGERENCE] = 0; hB[HABIT_BELLIGERENCE] = 0;

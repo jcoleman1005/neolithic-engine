@@ -22,6 +22,13 @@ import {
   GEN_MASK,
   stageWork,
   CARRY_WATER,
+  CARRY_EARTH,
+  maxCarryCapacity,
+  CARRY_NONE,
+  CARRY_SEED,
+  CARRY_FOOD,
+  CARRY_BRUSH,
+  CARRY_STONE,
 } from './people';
 import type { Land } from './land';
 import { FORM_NEST } from './land';
@@ -500,6 +507,7 @@ export class Rules {
   ): void {
     const px = people.x[slot];
     const py = people.y[slot];
+    const adultAge = config.adultAge ?? 5760;
     const maxEnergy = config.maxEnergy ?? 100.0;
     const radius = config.leaderSearchRadius ?? 6;
     const stickiness = config.habitStickiness ?? 0.9;
@@ -520,7 +528,7 @@ export class Rules {
       thresholdToBeat = curScore * (1 + incumbency);
     }
 
-    let bestCandidateScore = -1;
+    let bestCandidateScore = 0;
     let bestCandidateSlot = -1;
 
     // Remove directional bias: start scan at a randomized offset within the search square
@@ -547,6 +555,7 @@ export class Rules {
         for (let idx = start; idx < end; idx++) {
           const otherSlot = cellPeople[idx];
           if (otherSlot === slot || people.alive[otherSlot] === 0) continue;
+          if (people.age[otherSlot] < adultAge) continue;
 
           const score = Rules.scoreAttraction(slot, otherSlot, people, config, maxEnergy);
           // Compare candidates to each other with a plain >
@@ -570,7 +579,7 @@ export class Rules {
         const shifted = Math.round(cur * stickiness + tgt * (1.0 - stickiness));
         people.habits[hOff + h] = Math.max(0, Math.min(255, shifted));
       }
-    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId)) {
+    } else if (curLeaderId === 0 || !people.isValidId(curLeaderId) || people.age[slotFromId(curLeaderId)] < adultAge) {
       people.leaderId[slot] = 0;
     }
   }
@@ -590,9 +599,9 @@ export class Rules {
     const targetAge = people.age[targetSlot];
     const isAdult = targetAge >= adultAge;
 
-    // Children are generally not followed by adults
-    if (!isAdult && people.age[observerSlot] >= adultAge) {
-      return 0.1;
+    // Primitive 24: adultAge gates leader attraction. Non-adults cannot lead.
+    if (!isAdult) {
+      return 0;
     }
 
     const tGOff = targetSlot * GENE_COUNT;
@@ -940,8 +949,48 @@ export class Rules {
       const bellA = people.habits[hOffA + HABIT_BELLIGERENCE] + people.genes[gOffA + GENE_CRUELTY];
       const bellB = people.habits[hOffB + HABIT_BELLIGERENCE] + people.genes[gOffB + GENE_CRUELTY];
 
+      const resourceOn = config.resourceClashEnabled !== false;
+      const px = people.x[slotA];
+      const py = people.y[slotA];
+      const cell = (py << 8) | px;
+
+      // Competing motivations (Option C):
+      // 1. Sustenance / food drive: hunger vs food or carried loot
+      const hungerThreshold = config.clashHungerThreshold ?? 35.0;
+      const ea = people.energy[slotA];
+      const eb = people.energy[slotB];
+      const carriesFoodA = people.carryKind[slotA] === CARRY_FOOD && people.carry[slotA] > 0;
+      const carriesFoodB = people.carryKind[slotB] === CARRY_FOOD && people.carry[slotB] > 0;
+      const hungryA = ea < hungerThreshold;
+      const hungryB = eb < hungerThreshold;
+      const foodStakes =
+        (hungryA && (carriesFoodB || eb > hungerThreshold * 0.5)) ||
+        (hungryB && (carriesFoodA || ea > hungerThreshold * 0.5));
+
+      // 2. Contested tile: standing on a food heap / carcass, or crowded shelter in the cold
+      const heapStakes = land.pile[cell] > 0.5;
+      const coldStakes = (land.sheltered(cell) || land.fire[cell] > 0) && land.coldAt(cell) > 0.2;
+      const hasStakes = foodStakes || heapStakes || coldStakes;
+
+      // S3x: with the contest on, it decides below; the gates here apply only with it off.
       const contestOn = config.contestEnabled !== false;
-      if (contestOn || bellA > 180 || bellB > 180) {
+      let willClash: boolean;
+      if (contestOn) {
+        willClash = true;
+      } else if (resourceOn) {
+        if (hasStakes) {
+          // Competing material interests: lower threshold needed to fight
+          const bonus = config.clashContestedResourceBonus ?? 1.5;
+          willClash = (bellA * bonus > 180) || (bellB * bonus > 180) || (hungryA && eb > 20) || (hungryB && ea > 20);
+        } else {
+          // No material stakes: only extreme belligerence/cruelty triggers an unprovoked scuffle
+          willClash = bellA > 280 || bellB > 280;
+        }
+      } else {
+        willClash = bellA > 180 || bellB > 180;
+      }
+
+      if (willClash) {
         // Culture similarity: near habits tolerate; far habits clash with rising chance
         if (config.cultureTouchEnabled ?? true) {
           const dist = Rules.habitDistance(slotA, slotB, people);
@@ -984,9 +1033,6 @@ export class Rules {
           Rules.clashStats.strangers++;
         }
 
-        const px = people.x[slotA];
-        const py = people.y[slotA];
-
         // Combat scores: strength + nearby allies + PRNG noise
         const alliesA = Rules.countNearbyAllies(slotA, px, py, people, spatial);
         const alliesB = Rules.countNearbyAllies(slotB, px, py, people, spatial);
@@ -1005,17 +1051,87 @@ export class Rules {
           if (fight < 0) {
             // The defender gives way: steps off the tile unhurt and leaves the stake.
             Rules.clashStats.yields++;
-            Rules.retreatStep(fight === -1 ? slotB : slotA, people, land, prng);
+            // Walking away is an ordinary step, paid as one (no sprint, no parting blow: there was no fight).
+            const yielder = fight === -1 ? slotB : slotA;
+            const step = config.moveCost ?? 0.05;
+            people.energy[yielder] -= step;
+            ledger.move += step;
+            if (people.energy[yielder] < 0) { ledger.overdraft += -people.energy[yielder]; people.energy[yielder] = 0; }
+            Rules.retreatStep(yielder, people, land, prng);
             return;
           }
         }
         Rules.clashStats.fights++;
+        // Primitive 76: Courage / tactical retreat before clash
+        if (!contestOn && config.clashCourageEnabled !== false) {
+          const powerA = strA * 10 + alliesA * 3;
+          const powerB = strB * 10 + alliesB * 3;
+          const oddsA = powerA / (powerA + powerB + 0.001);
+          const oddsB = 1 - oddsA;
+
+          const braA = people.genes[gOffA + GENE_BRAVERY] / 255;
+          const braB = people.genes[gOffB + GENE_BRAVERY] / 255;
+          const baseThreshold = config.courageOddsThreshold ?? 0.35;
+          const reqOddsA = baseThreshold * Math.max(0.05, 1.2 - braA - (hasStakes ? 0.2 : 0));
+          const reqOddsB = baseThreshold * Math.max(0.05, 1.2 - braB - (hasStakes ? 0.2 : 0));
+
+          const retreatA = oddsA < reqOddsA;
+          const retreatB = oddsB < reqOddsB;
+
+          if (retreatA || retreatB) {
+            const cowardSlot = (retreatA && retreatB) ? (oddsA <= oddsB ? slotA : slotB) : (retreatA ? slotA : slotB);
+            const pursuerSlot = cowardSlot === slotA ? slotB : slotA;
+            fields.depositDanger(px, py, (config.scentDangerClash ?? 5.0) * 0.5);
+            if (config.experienceHabitsEnabled ?? true) {
+              Rules.nudgeHabit(people, cowardSlot, HABIT_CAUTION, 1);
+            }
+
+            // Tactical retreat physical honesty:
+            // 1. Exertion sprint energy cost (booked to ledger.move)
+            const retreatMoveCost = (config.moveCost ?? 0.05) * (config.clashRetreatMoveMul ?? 1.5);
+            people.energy[cowardSlot] -= retreatMoveCost;
+            ledger.move += retreatMoveCost;
+            if (people.energy[cowardSlot] < 0) {
+              ledger.overdraft += -people.energy[cowardSlot];
+              people.energy[cowardSlot] = 0;
+            }
+
+            // 2. Adrenaline exhaustion / fatigue spike
+            if (config.fatigueEnabled !== false) {
+              people.fatigue[cowardSlot] = Math.min(255, people.fatigue[cowardSlot] + (config.clashRetreatFatigue ?? 6));
+            }
+
+            // 3. Glancing strike / parting swipe scaled by pursuer's cruelty & belligerence
+            if (config.injuryEnabled !== false) {
+              const pursuerGOff = pursuerSlot * GENE_COUNT;
+              const pursuerHOff = pursuerSlot * HABIT_COUNT;
+              const cruelty = people.genes[pursuerGOff + GENE_CRUELTY] / 255;
+              const belligerence = people.habits[pursuerHOff + HABIT_BELLIGERENCE] / 255;
+              const pursuitUrge = (cruelty + belligerence) * 0.5;
+              const baseInjury = config.clashInjury ?? 60;
+              const scrape = Math.round(baseInjury * (config.clashRetreatInjuryMul ?? 0.20) * (0.5 + 0.5 * pursuitUrge));
+              people.injury[cowardSlot] = Math.min(255, people.injury[cowardSlot] + scrape);
+            }
+
+            // 4. Encumbrance panic drop: drop heavy cargo to flee faster
+            const dropThreshold = config.clashRetreatDropThreshold ?? 3.0;
+            if (people.carryKind[cowardSlot] !== CARRY_NONE && people.carry[cowardSlot] > dropThreshold) {
+              Rules.dropCarriedToLand(people.carryKind[cowardSlot], people.carry[cowardSlot], px, py, land, config);
+              people.carryKind[cowardSlot] = CARRY_NONE;
+              people.carry[cowardSlot] = 0;
+            }
+
+            Rules.retreatStep(cowardSlot, people, land, prng);
+            return;
+          }
+        }
 
         const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
         const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;
 
         const winnerSlot = scoreA >= scoreB ? slotA : slotB;
         const loserSlot = winnerSlot === slotA ? slotB : slotA;
+        const winnerStr = winnerSlot === slotA ? strA : strB;
 
         // Energy mechanics: loser loses share, winner takes most, remainder struggle waste
         const lossShare = config.clashLossShare ?? 0.25;
@@ -1023,10 +1139,21 @@ export class Rules {
         const maxEnergy = config.maxEnergy ?? 100.0;
 
         let loserLoss = people.energy[loserSlot] * lossShare;
-        if (loserLoss < 0.5) {
-          loserLoss = Math.min(people.energy[loserSlot], 0.5);
+        if (resourceOn) {
+          if (hasStakes) {
+            // Flat damage from strike, scaled by winner strength (3.0 to 6.0)
+            const flatDmg = (config.clashFlatDamage ?? 6.0) * (0.5 + 0.5 * winnerStr);
+            loserLoss = Math.min(people.energy[loserSlot], loserLoss + flatDmg);
+          } else {
+            if (loserLoss < 0.5) loserLoss = Math.min(people.energy[loserSlot], 0.5);
+            loserLoss = Math.min(people.energy[loserSlot], loserLoss);
+          }
+        } else {
+          if (loserLoss < 0.5) {
+            loserLoss = Math.min(people.energy[loserSlot], 0.5);
+          }
+          loserLoss = Math.min(people.energy[loserSlot], loserLoss);
         }
-        loserLoss = Math.min(people.energy[loserSlot], loserLoss);
         const rawLoot = loserLoss * lootEfficiency;
         const actualLoot = Math.min(rawLoot, Math.max(0, maxEnergy - people.energy[winnerSlot]));
         const struggleWaste = loserLoss - actualLoot;
@@ -1035,10 +1162,52 @@ export class Rules {
         people.energy[winnerSlot] += actualLoot;
         ledger.attack += struggleWaste;
         Rules.addFear(loserSlot, px, py, people, config);
+        let loserFell = people.energy[loserSlot] <= 0;
+
         if (config.injuryEnabled !== false) {
           const hurt = config.clashInjury ?? 60;
-          people.injury[loserSlot] = Math.min(255, people.injury[loserSlot] + hurt);
+          const newInjuryLoser = Math.min(255, people.injury[loserSlot] + hurt);
+          people.injury[loserSlot] = newInjuryLoser;
           people.injury[winnerSlot] = Math.min(255, people.injury[winnerSlot] + hurt * (config.clashInjuryWinner ?? 0.25));
+
+          if (resourceOn && hasStakes && newInjuryLoser >= (config.clashLethalInjury ?? 220)) {
+            loserFell = true;
+          }
+        }
+
+        // Primitive 78: Looting carried goods
+        if (config.clashLootEnabled !== false) {
+          const loserKind = people.carryKind[loserSlot];
+          const loserAmt = people.carry[loserSlot];
+
+          if (loserKind !== CARRY_NONE && loserAmt > 0) {
+            const winnerKind = people.carryKind[winnerSlot];
+            const winnerAmt = people.carry[winnerSlot];
+            const winnerCap = maxCarryCapacity(winnerSlot, loserKind, people, config);
+
+            if (winnerKind === CARRY_NONE || winnerAmt <= 0) {
+              const taken = Math.min(winnerCap, loserAmt);
+              people.carryKind[winnerSlot] = loserKind;
+              people.carry[winnerSlot] = taken;
+              const excess = loserAmt - taken;
+              if (excess > 0) {
+                Rules.dropCarriedToLand(loserKind, excess, px, py, land, config);
+              }
+            } else if (winnerKind === loserKind) {
+              const space = Math.max(0, winnerCap - winnerAmt);
+              const taken = Math.min(space, loserAmt);
+              people.carry[winnerSlot] += taken;
+              const excess = loserAmt - taken;
+              if (excess > 0) {
+                Rules.dropCarriedToLand(loserKind, excess, px, py, land, config);
+              }
+            } else {
+              Rules.dropCarriedToLand(loserKind, loserAmt, px, py, land, config);
+            }
+
+            people.carryKind[loserSlot] = CARRY_NONE;
+            people.carry[loserSlot] = 0;
+          }
         }
 
         if (config.experienceHabitsEnabled ?? true) {
@@ -1046,7 +1215,6 @@ export class Rules {
           Rules.nudgeHabit(people, loserSlot, HABIT_BELLIGERENCE, -(config.habitLoseStep ?? 3));
         }
 
-        const loserFell = people.energy[loserSlot] <= 0;
         if ((config.chronicleEnabled ?? true) && rootA !== rootB) {
           // Observer only: who beat whom, and whether the loser died.
           const wRoot = winnerSlot === slotA ? (rootA !== 0 ? rootA : idA) : rootB !== 0 ? rootB : idB;
@@ -1055,8 +1223,21 @@ export class Rules {
         }
 
         if (loserFell) {
-          if (people.energy[loserSlot] < 0) {
+          if (people.energy[loserSlot] > 0) {
+            ledger.deathFat += people.energy[loserSlot];
+          } else if (people.energy[loserSlot] < 0) {
             ledger.overdraft += -people.energy[loserSlot];
+          }
+          if (config.clashLootEnabled !== false) {
+            if (people.carryKind[loserSlot] !== CARRY_NONE && people.carry[loserSlot] > 0) {
+              Rules.dropCarriedToLand(people.carryKind[loserSlot], people.carry[loserSlot], px, py, land, config);
+              people.carryKind[loserSlot] = CARRY_NONE;
+              people.carry[loserSlot] = 0;
+            }
+          } else {
+            if (people.carryKind[loserSlot] === CARRY_FOOD && people.carry[loserSlot] > 0) {
+              land.dropFood(px, py, people.carry[loserSlot], config);
+            }
           }
           fields.depositDanger(px, py, config.scentDangerDeath ?? 10.0);
           land.markDeath(px, py, config.graveTicks ?? 150);
@@ -1066,6 +1247,31 @@ export class Rules {
           Rules.retreatStep(loserSlot, people, land, prng);
         }
       }
+    }
+  }
+
+  public static dropCarriedToLand(
+    kind: number,
+    amount: number,
+    px: number,
+    py: number,
+    land: Land,
+    config: Readonly<SimulationConfig>
+  ): void {
+    if (amount <= 0) return;
+    if (kind === CARRY_FOOD) {
+      land.dropFood(px, py, amount, config);
+    } else if (kind === CARRY_SEED) {
+      land.dropSeeds(px, py, amount, config);
+    } else if (kind === CARRY_BRUSH) {
+      land.dropBrush(px, py, amount, config);
+    } else if (kind === CARRY_STONE) {
+      land.build(px, py, amount, config);
+    } else if (kind === CARRY_EARTH) {
+      land.build(px, py, amount, config, true);
+    } else if (kind === CARRY_WATER) {
+      // Spilled water soaks in unless the tile can hold a store.
+      land.pourWater((py << 8) | px, amount, config);
     }
   }
 

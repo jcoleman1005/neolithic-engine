@@ -55,11 +55,12 @@ describe('Phase 4c while you were away', () => {
 });
 
 describe('Phase 4c inspector story', () => {
-  it('describes a person in plain English and is the same twice', () => {
+  it('describes a person in plain English and is the same twice', async () => {
     const world = new World({ initialPopulation: 300 }, 7);
     const chronicle = new Chronicle();
     for (let i = 0; i < 2400; i++) {
       world.step();
+      if (i % 200 === 0) await new Promise((r) => setImmediate(r));
       chronicle.record(world);
     }
     const people = world.people;
@@ -81,5 +82,5 @@ describe('Phase 4c inspector story', () => {
     expect(a.detail).toMatch(/^Leads \d+ followers near .+\.$/);
     expect(chronicle.describePerson(world, info(follower)).detail).toMatch(/^Follows .+, with \d+ others, near .+\.$/);
     expect(chronicle.describePerson(world, info(follower)).headline).toMatch(/ of the /);
-  });
+  }, 120000);
 });

@@ -65,23 +65,33 @@ describe('Phase 5f stone and dry-stone huts', () => {
     expect(mk(true)).toBeLessThan(mk(false));
   });
 
-  it('with building off nobody carries stone and nothing is built', () => {
+  it('with building off nobody carries stone and nothing is built', async () => {
     const w = new World({ initialPopulation: 150, buildingEnabled: false }, 8);
-    for (let t = 0; t < 400; t++) w.step();
+    for (let t = 0; t < 400; t++) {
+      w.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
+    }
     for (let s = 0; s < w.people.capacity; s++) expect(w.people.carryKind[s]).not.toBe(4);
     expect(w.land.hutCount).toBe(0);
     expect(w.land.durability.every((v) => v === 0)).toBe(true);
   });
 
-  it('building state survives a save round trip and the run continues identically; the ledger balances', () => {
+  it('building state survives a save round trip and the run continues identically; the ledger balances', async () => {
     const a = new World({ initialPopulation: 150 }, 12);
-    for (let t = 0; t < 500; t++) a.step();
+    for (let t = 0; t < 500; t++) {
+      a.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
+    }
     a.land.build(40, 40, 20, a.config);
     for (let t = 0; t < 20; t++) a.step();
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
     expect(b.land.hutCount).toBe(a.land.hutCount);
     expect(b.stateHash()).toBe(a.stateHash());
-    for (let t = 0; t < 100; t++) { a.step(); b.step(); }
+    for (let t = 0; t < 100; t++) {
+      a.step();
+      b.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
+    }
     expect(b.stateHash()).toBe(a.stateHash());
     expect(a.ledger.violations).toBe(0);
   });
@@ -94,5 +104,50 @@ describe('Phase 5f stone and dry-stone huts', () => {
     expect(out.length).toBe(before + 3);
     expect(out[out.length - 1]).toBeGreaterThanOrEqual(8);
     expect(out[out.length - 1]).toBeLessThan(12);
+  });
+
+  it('rock cells are barren mineral: zero plant food, zero fertility, and cannot be grazed or seeded', () => {
+    const w = new World({ initialPopulation: 0, stoneBarrenEnabled: true }, 5);
+    let rock = -1;
+    for (let i = 0; i < 65536 && rock < 0; i++) if (w.land.stone[i] > 0) rock = i;
+    expect(rock).toBeGreaterThanOrEqual(0);
+    const rx = rock & 255, ry = rock >> 8;
+
+    // Rock cell has zero plant food and zero fertility
+    expect(w.land.maxFood[rock]).toBe(0);
+    expect(w.land.food[rock]).toBe(0);
+    expect(w.land.fertility[rock]).toBe(0);
+
+    // Cannot graze on rock
+    expect(w.land.graze(rx, ry, 5.0, w.config)).toBe(0);
+
+    // Dropping seeds on rock fails to take root
+    w.land.dropSeeds(rx, ry, 2.0, w.config);
+    expect(w.land.seeds[rock]).toBe(0);
+    expect(w.land.fertility[rock]).toBe(0);
+  });
+
+  it('carrying stone does not transmute into seeds when eating', () => {
+    const w = new World({ initialPopulation: 1, stoneBarrenEnabled: true }, 21);
+    const slot = [...Array(w.people.capacity).keys()].find((s) => w.people.alive[s] === 1)!;
+    // Set person to hold stone
+    w.people.carry[slot] = 4.0;
+    w.people.carryKind[slot] = 4; // CARRY_STONE
+    w.people.energy[slot] = 50.0;
+
+    // Place on fertile meadow with food
+    const px = 50, py = 50;
+    w.people.x[slot] = px;
+    w.people.y[slot] = py;
+    const c = cell(px, py);
+    w.land.stone[c] = 0;
+    w.land.food[c] = 20.0;
+    w.land.maxFood[c] = 20.0;
+
+    w.step();
+
+    // After step/graze, carried stone must still be stone, NOT seeds
+    expect(w.people.carryKind[slot]).toBe(4);
+    expect(w.people.carry[slot]).toBe(4.0);
   });
 });

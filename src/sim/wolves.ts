@@ -36,6 +36,7 @@ export class Wolves {
   public killedHerd = 0;
   public killedPeople = 0;
   private readonly peopleHere = new Uint8Array(CELLS);
+  private readonly personSlotHere = new Int32Array(CELLS);
   private prng: PRNG;
 
   constructor(config: Readonly<SimulationConfig>, seed: number) {
@@ -142,8 +143,16 @@ export class Wolves {
     // Where people stand this tick (an index of its own, so a loaded save steps identically).
     const here = this.peopleHere;
     here.fill(0);
+    const personAt = this.personSlotHere;
+    personAt.fill(-1);
     const px = people.x, py = people.y, palive = people.alive;
-    for (let s = 0; s < people.capacity; s++) if (palive[s] === 1) { const c = (py[s] << 8) | px[s]; if (here[c] < 255) here[c]++; }
+    for (let s = 0; s < people.capacity; s++) {
+      if (palive[s] === 1) {
+        const c = (py[s] << 8) | px[s];
+        if (here[c] < 255) here[c]++;
+        personAt[c] = s;
+      }
+    }
 
     for (let slot = 0; slot < this.capacity; slot++) {
       if (this.alive[slot] === 0) continue;
@@ -176,8 +185,30 @@ export class Wolves {
         if (here[c] === 1 && prng.next() < attackChance && this.isAlone(nbX[k], nbY[k], loneR)) {
           // A lone person (nobody else on that tile or the wolf's): the wolf bites. The bite takes energy
           // and wounds; a person with nothing left falls, otherwise they get away hurt and may bleed out.
-          for (let s = 0; s < people.capacity; s++) {
-            if (palive[s] === 1 && px[s] === nbX[k] && py[s] === nbY[k]) {
+          const s = personAt[c];
+          if (s >= 0 && palive[s] === 1) {
+            let wolfFendedOff = false;
+            if (config.wolfDefenseEnabled !== false) {
+              const bravery = people.genes[s * 8 + 1];
+              const strength = people.genes[s * 8 + 0];
+              const ck = people.carryKind[s];
+              const hasWeapon = ck === 2 || ck === 3;
+              if (bravery > 130 || strength > 140 || hasWeapon) {
+                const weaponMult = hasWeapon ? 1.5 : 1.0;
+                const defDamage = (strength / 255) * (config.wolfDefenseDamage ?? 25.0) * weaponMult;
+                e -= defDamage;
+                fields.depositDanger(x, y, (config.scentDangerClash ?? 5.0) * 0.5);
+                if (e <= 0) {
+                  this.kill(slot);
+                  wolfFendedOff = true;
+                  struck = true;
+                } else if (defDamage > 15.0 && prng.next() < 0.5) {
+                  wolfFendedOff = true;
+                  struck = true;
+                }
+              }
+            }
+            if (!wolfFendedOff) {
               const bite = Math.min(people.energy[s], config.wolfBiteEnergy ?? 25);
               people.energy[s] -= bite;
               ledger.deathFat += bite;
@@ -189,18 +220,30 @@ export class Wolves {
                 land.markDeath(nbX[k], nbY[k], config.graveTicks ?? 150);
                 people.kill(s);
                 here[c] = 0;
+                personAt[c] = -1;
                 e = Math.min(maxE, e + (config.wolfPersonMeal ?? 20));
                 this.killedPeople++;
               }
               struck = true;
-              break;
             }
           }
         }
       }
 
-      // Move: toward the nearest herd animal within sense range, else keep the heading (and
-      // sometimes turn).
+      // Scavenge: hungry wolves can feed on carcass meat heaps
+      if (!struck && config.wolfScavengeEnabled !== false && e < maxE) {
+        for (let k = 0; k < 5 && e < maxE; k++) {
+          const c = (nbY[k] << 8) | nbX[k];
+          if (land.pile[c] > 0) {
+            const scavengeBite = Math.min(config.wolfScavengeBite ?? 3.0, maxE - e);
+            const took = land.takePile(nbX[k], nbY[k], scavengeBite);
+            e += took;
+            if (took > 0) struck = true;
+          }
+        }
+      }
+
+      // Move: toward the nearest herd animal within sense range, else follow scent trail, else keep heading
       let d = this.dir[slot];
       if (!struck) {
         let best = 1e9, bx = 0, by = 0;
@@ -212,8 +255,30 @@ export class Wolves {
             }
           }
         }
-        if (best < 1e9) d = Math.abs(bx) >= Math.abs(by) ? (bx > 0 ? 0 : 1) : (by > 0 ? 2 : 3);
-        else if (prng.next() > persist) d = prng.nextInt(0, 4);
+        if (best < 1e9) {
+          d = Math.abs(bx) >= Math.abs(by) ? (bx > 0 ? 0 : 1) : (by > 0 ? 2 : 3);
+        } else if (config.wolfScentTrackEnabled !== false) {
+          let bestFood = fields.getFood(x, y);
+          let scentDir = -1;
+          for (let k = 0; k < 4; k++) {
+            const sx = k === 0 ? 1 : k === 1 ? -1 : 0;
+            const sy = k === 2 ? 1 : k === 3 ? -1 : 0;
+            const fx = (x + sx) & COORD_MASK;
+            const fy = (y + sy) & COORD_MASK;
+            const sf = fields.getFood(fx, fy);
+            if (sf > bestFood * 1.05) {
+              bestFood = sf;
+              scentDir = k;
+            }
+          }
+          if (scentDir >= 0 && prng.next() < 0.6) {
+            d = scentDir;
+          } else if (prng.next() > persist) {
+            d = prng.nextInt(0, 4);
+          }
+        } else if (prng.next() > persist) {
+          d = prng.nextInt(0, 4);
+        }
       }
       let moved = false;
       if (!struck) {

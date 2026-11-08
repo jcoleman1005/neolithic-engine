@@ -203,6 +203,7 @@ export class Land {
     this.elevation = elevation ?? (config.elevationEnabled ? generateElevation(gridConfig) : null);
     this.terrain = terrain ?? (config.terrainEnabled ? generateTerrain(gridConfig) : null);
 
+    this.initStone(gridConfig);
     this.initFoodCapacities(gridConfig);
     const cover = this.terrain?.cover;
     if (cover) {
@@ -240,6 +241,8 @@ export class Land {
     const baseCap = config.landFoodMax ?? 20.0;
     this.baseFoodCap = baseCap;
     const elev = this.elevation;
+    const stoneBarren = config.stoneBarrenEnabled !== false;
+    const rockLevel = config.elevationHillLevel ?? 0.68;
 
     for (let i = 0; i < TOTAL_CELLS; i++) {
       let f = 0.5; // default moderate fertility
@@ -256,9 +259,10 @@ export class Land {
       }
 
       this.isWater[i] = water ? 1 : 0;
-      this.fertility[i] = f;
+      const isRock = stoneBarren && (this.stone[i] > 0 || (elev && i < elev.elevation.length && elev.elevation[i] / 65535 >= rockLevel));
+      this.fertility[i] = isRock ? 0 : f;
 
-      if (water) {
+      if (water || isRock) {
         this.maxFood[i] = 0;
         this.food[i] = 0;
       } else {
@@ -273,6 +277,7 @@ export class Land {
   /** Food capacity of a cell now: natural capacity, scaled by soil health and the seeds on it. */
   public capacityAt(i: number, config: Readonly<SimulationConfig>): number {
     const max = this.maxFood[i];
+    if (max <= 0) return 0;
     if (config.farmingPhysicsEnabled === false) return max;
     const sf = Math.min(1, this.seeds[i] / (config.seedCap ?? 10));
     return max * this.soilHealth[i] * (1 + (config.seedCapacityBoost ?? 0.6) * sf);
@@ -295,6 +300,8 @@ export class Land {
     const seedRegrow = config.seedRegrowBoost ?? 1.5;
     const seedCapBoost = config.seedCapacityBoost ?? 0.6;
     const soilRec = config.soilRecoveryRate ?? 0.0006;
+    const tendingOn = config.tendingEnabled !== false && farm;
+    const tendingBoost = config.tendingRegrowBoost ?? 0.40;
 
     const finite = config.finiteResourcesEnabled !== false;
     const treeRegrow = (config.treeRegrowRate ?? 0.0005) * growthFactor;
@@ -428,7 +435,8 @@ export class Land {
           }
         }
         cap = max * sh * (1 + seedCapBoost * sf);
-        rate = baseRate * (1 + tillBoost * t + seedRegrow * sf);
+        const tendBonus = tendingOn && t > 0.25 ? tendingBoost * Math.min(1, t) : 0;
+        rate = baseRate * (1 + tillBoost * t + seedRegrow * sf + tendBonus);
         if (cur > cap) {
           cur = cap;
           this.food[i] = cur;
@@ -481,8 +489,8 @@ export class Land {
     }
   }
 
-  /** Natural caves on the edges of the hills, spaced apart, picked with a seeded shuffle. */
-  private initCaves(config: Readonly<SimulationConfig>): void {
+  /** Stone on hill and rock cells. */
+  private initStone(config: Readonly<SimulationConfig>): void {
     const elev = this.elevation;
     if (!elev) return;
     for (let i = 0; i < TOTAL_CELLS; i++) this.upland[i] = elev.upland01(i);
@@ -490,19 +498,33 @@ export class Land {
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 0 && elev.elevation[i] / 65535 >= rockLevel) this.stone[i] = config.stoneCap ?? 30;
     }
-    if (config.cavesEnabled === false) return;
+  }
+
+  /** Natural caves built into the sides of hills and mountains, spaced apart, picked with a seeded shuffle. */
+  private initCaves(config: Readonly<SimulationConfig>): void {
+    const elev = this.elevation;
+    if (!elev || config.cavesEnabled === false) return;
     const hill = config.elevationHillLevel ?? 0.68;
-    const mountain = config.elevationMountainLevel ?? 0.8;
     const cands: number[] = [];
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) continue;
       const h = elev.elevation[i] / 65535;
-      if (h < hill || h >= mountain) continue;
+      // Must be at least in the highland/hill elevations
+      if (h < hill) continue;
       const x = i & COORD_MASK, y = i >> 8;
       const ns = [(y << 8) | ((x + 1) & COORD_MASK), (y << 8) | ((x - 1) & COORD_MASK), (((y + 1) & COORD_MASK) << 8) | x, (((y - 1) & COORD_MASK) << 8) | x];
-      let edge = false;
-      for (let k = 0; k < 4; k++) if (elev.elevation[ns[k]] / 65535 < hill && this.isWater[ns[k]] === 0) edge = true;
-      if (edge) cands.push(i);
+      
+      let downhillDrop = false;
+      let uphillRockWall = false;
+      for (let k = 0; k < 4; k++) {
+        const nh = elev.elevation[ns[k]] / 65535;
+        // Front drop: adjacent dry land tile that is noticeably lower (cliff face or hill slope)
+        if (this.isWater[ns[k]] === 0 && nh <= h - 0.015) downhillDrop = true;
+        // Back rock wall: hill or mountain mass rising behind the cave opening
+        if (nh >= h + 0.015) uphillRockWall = true;
+      }
+      // A genuine hillside/mountain cave requires an uphill cliff behind it and a drop in front
+      if (downhillDrop && uphillRockWall) cands.push(i);
     }
     const rng = new PRNG(((config.seed ?? 0) ^ 0x5ca5e) >>> 0);
     for (let k = cands.length - 1; k > 0; k--) {
@@ -1021,6 +1043,7 @@ export class Land {
     const cap = config.compactionCap ?? 2;
     this.compaction[i] = Math.min(cap, this.compaction[i] + (config.workGain ?? 0.03) * workMultiplier);
     if (config.fertilityChangeEnabled !== false && this.isWater[i] === 0) {
+      if ((config.stoneBarrenEnabled !== false) && this.stone[i] > 0) return;
       const fMax = config.fertilityMax ?? 1.5;
       const curF = this.fertility[i];
       if (curF < fMax) {
@@ -1070,7 +1093,7 @@ export class Land {
   /** A resting person drops carried seeds on their own cell. */
   public dropSeeds(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
-    if (this.isWater[i] === 1) return;
+    if (this.isWater[i] === 1 || ((config.stoneBarrenEnabled !== false) && this.stone[i] > 0)) return;
     this.seeds[i] = Math.min(config.seedCap ?? 10, this.seeds[i] + amount);
     if (config.fertilityChangeEnabled !== false) {
       const fMax = config.fertilityMax ?? 1.5;
@@ -1090,12 +1113,23 @@ export class Land {
     const soilMin = config.soilMin ?? 0.2;
     const seedCap = config.seedCap ?? 10;
     const span = Math.max(1e-6, 1 - soilMin);
+    const goldenOn = config.goldenCropsEnabled !== false;
+    const ripenThreshold = config.cropRipenThreshold ?? 0.70;
+    const minFarm = config.cropRipenMinFarmLevel ?? 2;
     for (let i = 0; i < TOTAL_CELLS; i++) {
       if (this.isWater[i] === 1) { out[i] = 0; continue; }
       const dmg = Math.min(7, Math.round(((1 - this.soilHealth[i]) / span) * 7));
       // Square-root scale so lightly worked soil still shows.
       const farmLevel = Math.min(7, Math.round(Math.sqrt(Math.min(1, this.tilled[i])) * 7));
-      const seedLevel = Math.min(3, Math.round((this.seeds[i] / seedCap) * 3));
+      let seedLevel = Math.min(3, Math.round((this.seeds[i] / seedCap) * 3));
+      if (goldenOn && farmLevel >= minFarm && seedLevel === 0) {
+        const cap = this.capacityAt(i, config);
+        if (cap > 0 && this.food[i] >= cap * ripenThreshold) {
+          seedLevel = 3; // Ripe golden crop!
+        } else if (cap > 0 && this.food[i] >= cap * (ripenThreshold * 0.75)) {
+          seedLevel = 1; // Growing amber shoots
+        }
+      }
       out[i] = dmg | (farmLevel << 3) | (seedLevel << 6);
     }
   }
@@ -1106,7 +1140,7 @@ export class Land {
    */
   public graze(x: number, y: number, want: number, config: Readonly<SimulationConfig>, till = true): number {
     const index = (y & COORD_MASK) * GRID_SIZE + (x & COORD_MASK);
-    if (this.isWater[index] === 1) return 0;
+    if (this.isWater[index] === 1 || ((config.stoneBarrenEnabled !== false) && this.stone[index] > 0)) return 0;
 
     const floor = config.landGrazingFloor ?? 1.0;
     const available = this.food[index] - floor;
@@ -1132,6 +1166,10 @@ export class Land {
             if (this.berryMax[index] > 0) this.berryMax[index] = this.berryCapSaved * this.fertility[index];
           }
         }
+      } else if (config.tendingEnabled !== false && take > 0) {
+        // Primitive 5: Tending - gentle harvesting without stripping raises cultivation and regrowth
+        const tendingGain = config.tendingGain ?? 0.03;
+        this.tilled[index] = Math.min(1.0, this.tilled[index] + tendingGain * (1 - this.tilled[index]));
       }
     }
     return take;

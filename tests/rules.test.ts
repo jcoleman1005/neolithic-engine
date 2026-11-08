@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { Rules } from '../src/sim/rules';
-import { People, GENE_COUNT, HABIT_COUNT, slotFromId } from '../src/sim/people';
+import { People, GENE_COUNT, HABIT_COUNT, slotFromId, CARRY_FOOD } from '../src/sim/people';
 import { Land } from '../src/sim/land';
 import { ScentFields } from '../src/sim/fields';
 import { SpatialIndex } from '../src/sim/spatial';
@@ -73,11 +73,12 @@ describe('Phase 3 Rules & Invariants', () => {
     }
   });
 
-  it('touch friction: with touchEnabled=false, border clashes disappear', () => {
+  it('touch friction: with touchEnabled=false, border clashes disappear', async () => {
     // Run 1: touchEnabled = true
     const worldOn = new World({ initialPopulation: 200, touchEnabled: true }, 99);
     for (let t = 0; t < 200; t++) {
       worldOn.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
     const attackOn = worldOn.ledger.attack;
 
@@ -85,6 +86,7 @@ describe('Phase 3 Rules & Invariants', () => {
     const worldOff = new World({ initialPopulation: 200, touchEnabled: false }, 99);
     for (let t = 0; t < 200; t++) {
       worldOff.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
     const attackOff = worldOff.ledger.attack;
 
@@ -112,10 +114,11 @@ describe('Phase 3 Rules & Invariants', () => {
     expect(people.leaderId[followerSlot]).toBe(0);
   });
 
-  it('genes and habits are bounded and properly inherited across generations', () => {
+  it('genes and habits are bounded and properly inherited across generations', async () => {
     const world = new World({ initialPopulation: 100 }, 333);
     for (let t = 0; t < 400; t++) {
       world.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
 
     const people = world.people;
@@ -135,10 +138,11 @@ describe('Phase 3 Rules & Invariants', () => {
     }
   });
 
-  it('energy ledger balances identically with climb, copy, and touch active', () => {
+  it('energy ledger balances identically with climb, copy, and touch active', async () => {
     const world = new World({ initialPopulation: 150 }, 77);
     for (let t = 0; t < 500; t++) {
       world.step();
+      if (t % 50 === 0) await new Promise((r) => setImmediate(r));
     }
 
     const report = world.ledger.report();
@@ -232,6 +236,8 @@ describe('Phase 3 Rules & Invariants', () => {
       // The fight's own accounting is checked here. With the S3x contest on, this much weaker
       // defender gives way instead of fighting (covered in turmoil.test.ts), so the contest is off.
       contestEnabled: false,
+      resourceClashEnabled: false,
+      clashCourageEnabled: false,
     };
     const people = new People(10);
     const land = new Land(config);
@@ -281,6 +287,75 @@ describe('Phase 3 Rules & Invariants', () => {
       const moved = people.x[slotWeak] !== 20 || people.y[slotWeak] !== 20;
       expect(moved).toBe(true);
     }
+  });
+
+  it('resource-driven clashes trigger on material stakes and can inflict lethal fatal strikes', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      elevationEnabled: false,
+      terrainEnabled: false,
+      resourceClashEnabled: true,
+      contestEnabled: false, // main's resource gate applies only with the S3x contest off
+      clashFlatDamage: 6.0,
+      clashHungerThreshold: 35.0,
+      cultureTouchEnabled: false,
+      clashCourageEnabled: false,
+    };
+    const people = new People(10);
+    const land = new Land(config);
+    const fields = new ScentFields();
+    const spatial = new SpatialIndex();
+    const ledger = new EnergyLedger();
+    const prng = new PRNG(12345);
+
+    // Strong warrior at (20, 20) with moderate-high belligerence (140 + cruelty 128 = 268)
+    const strongGenes = new Uint8Array(GENE_COUNT).fill(128);
+    strongGenes[0] = 250; // High strength
+    const strongHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    strongHabits[3] = 140;
+    const idStrong = people.spawn(20, 20, 80, 1, 0, 0, 0, strongGenes, strongHabits, 0);
+    const slotStrong = slotFromId(idStrong);
+
+    // Well-fed neutral person (40 energy, bell 80 + cruelty 128 = 208) on empty tile -> hasStakes is false, bell < 280, no fight
+    const fedGenes = new Uint8Array(GENE_COUNT).fill(128);
+    const fedHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    fedHabits[3] = 80;
+    const idFed = people.spawn(20, 20, 40, 0, 0, 0, 0, fedGenes, fedHabits, 0);
+    const slotFed = slotFromId(idFed);
+    spatial.build(people);
+
+    Rules.touch(slotStrong, slotFed, people, land, fields, spatial, ledger, config, prng);
+    expect(people.energy[slotFed]).toBe(40); // untouched!
+
+    // Now place food on the land (contested food heap stakes)
+    land.pile[(20 << 8) | 20] = 5.0;
+    Rules.touch(slotStrong, slotFed, people, land, fields, spatial, ledger, config, prng);
+    expect(people.energy[slotFed]).toBeLessThan(40); // now they clash over the food heap!
+
+    // Starving weak carrier with 5 energy carrying food
+    const weakGenes = new Uint8Array(GENE_COUNT).fill(128);
+    weakGenes[0] = 10;
+    const weakHabits = new Uint8Array(HABIT_COUNT).fill(128);
+    weakHabits[3] = 150;
+    const idWeak = people.spawn(30, 30, 5, 0, 0, 0, 0, weakGenes, weakHabits, 0);
+    const slotWeak = slotFromId(idWeak);
+    people.carryKind[slotWeak] = CARRY_FOOD;
+    people.carry[slotWeak] = 12.0;
+
+    const idAttacker = people.spawn(30, 30, 80, 1, 0, 0, 0, strongGenes, strongHabits, 0);
+    const slotAttacker = slotFromId(idAttacker);
+    spatial.build(people);
+
+    const headBefore = Rules.clashLog.head;
+    Rules.touch(slotAttacker, slotWeak, people, land, fields, spatial, ledger, config, prng);
+
+    // Weak fighter should have fallen (died directly in clash)
+    expect(people.alive[slotWeak]).toBe(0);
+    // Victor claimed the carried food as loot (Primitive 78)
+    expect(people.carryKind[slotAttacker]).toBe(CARRY_FOOD);
+    expect(people.carry[slotAttacker]).toBe(12.0);
+    // clashLog should record a casualty (fell = 1)
+    expect(Rules.clashLog.fell[headBefore % 8192]).toBe(1);
   });
 
   describe('culture similarity in touch', () => {
@@ -370,5 +445,86 @@ describe('Phase 3 Rules & Invariants', () => {
 
     // Follower must retain incumbent leader because challenger did not beat 35% incumbency
     expect(people.leaderId[slotFol]).toBe(idInc);
+  });
+
+  it('children cannot be selected as leaders and cannot attract followers', () => {
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false };
+    const people = new People(10);
+    const prng = new PRNG(101);
+
+    // Highly charismatic child candidate at (10, 10)
+    const childGenes = new Uint8Array(GENE_COUNT).fill(128);
+    childGenes[4] = 250; // Max charisma
+    childGenes[0] = 250; // Max strength
+    const childHabits = new Uint8Array(HABIT_COUNT).fill(200);
+    const idChild = people.spawn(10, 10, 90, 1, 0, 0, 0, childGenes, childHabits, 0);
+    const slotChild = slotFromId(idChild);
+    people.age[slotChild] = 500; // Well below adultAge (5760)
+
+    // Observer child at (11, 10)
+    const obsChildGenes = new Uint8Array(GENE_COUNT).fill(100);
+    const idObsChild = people.spawn(11, 10, 50, 0, 0, 0, 0, obsChildGenes, undefined, 0);
+    const slotObsChild = slotFromId(idObsChild);
+    people.age[slotObsChild] = 500;
+
+    // Observer adult at (10, 11) - sees child with 250 stats at (10, 10)
+    const obsAdultGenes = new Uint8Array(GENE_COUNT).fill(100);
+    const idObsAdult = people.spawn(10, 11, 50, 0, 0, 0, 0, obsAdultGenes, undefined, 0);
+    const slotObsAdult = slotFromId(idObsAdult);
+    people.age[slotObsAdult] = config.adultAge + 100;
+
+    // 1. scoreAttraction must return 0 for non-adult candidates regardless of observer age
+    expect(Rules.scoreAttraction(slotObsChild, slotChild, people, config, 100)).toBe(0);
+    expect(Rules.scoreAttraction(slotObsAdult, slotChild, people, config, 100)).toBe(0);
+
+    // Place adult far away at (50, 50) to test child-only neighborhood
+    people.x[slotObsAdult] = 50;
+    people.y[slotObsAdult] = 50;
+
+    const spatial = new SpatialIndex();
+    spatial.build(people);
+
+    // 2. Rules.copy must not assign child as leader to another child even when child candidate has max stats
+    Rules.copy(slotObsChild, people, spatial, config, prng);
+    expect(people.leaderId[slotObsChild]).toBe(0);
+
+    // 3. Rules.copy must not assign child as leader to an adult
+    Rules.copy(slotObsAdult, people, spatial, config, prng);
+    expect(people.leaderId[slotObsAdult]).toBe(0);
+
+    // 4. When adult moves within radius of child, child follows the adult (not the child candidate)
+    people.x[slotObsAdult] = 10;
+    people.y[slotObsAdult] = 11;
+    spatial.build(people);
+
+    Rules.copy(slotObsChild, people, spatial, config, prng);
+    expect(people.leaderId[slotObsChild]).toBe(idObsAdult);
+  });
+
+  it('newborn child born to a band leader inherits the mother as direct leader', () => {
+    const world = new World({ initialPopulation: 0 }, 42);
+    const people = world.people;
+    const config = world.config;
+
+    // Leader mother with leaderId = 0
+    const mId = people.spawn(50, 50, 80, 0, 1, 0, 0);
+    const mSlot = slotFromId(mId);
+    people.age[mSlot] = 6000;
+    people.pregnant[mSlot] = (config.gestationTicks ?? 135) - 1;
+    people.mateId[mSlot] = 0;
+
+    world.step();
+
+    // Find the newborn
+    let babyId = 0;
+    for (let s = 0; s < people.capacity; s++) {
+      if (people.alive[s] === 1 && people.motherId[s] === mId) {
+        babyId = people.idOf(s);
+        break;
+      }
+    }
+    expect(babyId).toBeGreaterThan(0);
+    const babySlot = slotFromId(babyId);
+    expect(people.leaderId[babySlot]).toBe(mId);
   });
 });

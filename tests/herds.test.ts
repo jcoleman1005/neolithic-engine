@@ -124,7 +124,7 @@ describe('Phase 6a herbivore herds', () => {
 });
 
 describe('Phase 6a hunting', () => {
-  const hunt = { ...cfg, herdInitialCount: 1, huntChance: 1, herdFleeChance: 0 };
+  const hunt = { ...cfg, herdInitialCount: 1, huntChance: 1, herdFleeChance: 0, huntCarryMeatEnabled: false };
 
   function setup() {
     const land = new Land(hunt);
