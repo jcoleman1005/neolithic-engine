@@ -64,6 +64,13 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wearDecaySlices: 2, // every tile loses 1 wear once per this many ticks (S2 tuning: was 8)
   pathCostCut: 0.5, // a fully worn tile costs this much less to step onto
   pathPull: 0.3, // how strongly people lean toward the more worn neighbour
+  // Persistent-walk jitter (src/sim/jitter.ts): wandering keeps its heading, with intermittent straight dashes.
+  jitterEnabled: false, // off: the wiring was reverted (scripts/probes/jitter-wiring.patch); the jitter measured as a no-op
+  jitterMinAmp: 24, // roaming x curiosity x rest below this (0 to 255) kills the jitter
+  jitterDashLog2: 3, // an epoch is a dash with chance 1 / 2^this (3 = 12.5%)
+  jitterEpochShift: 4, // an epoch is 2^this ticks (4 = 16), staggered per slot
+  jitterDashWeightPct: 150, // dash weight as a percent of the ordinary weight
+  jitterRoadDampPct: 50, // fully worn ground cuts the weight by this percent
   stayValueEnabled: true, // the stay check counts the heap underfoot and the real upkeep of the tile
   stayRefFood: 10.0, // food a tile with no plant capacity (rock, a hut on a hill) is measured against
   roamStayWeight: 0.2, // roaming and curious people need this much more (at the top of the range) to stay (S1 tuning: was 0.5)

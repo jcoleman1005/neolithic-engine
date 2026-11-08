@@ -776,3 +776,46 @@ Round 1 wore most of the land, so it read as worn ground everywhere rather than 
 - **Energy Ledger & Invariants**: Conserves energy with 0 violations across 500+ simulation ticks (`ledger.violations === 0`).
 - **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
 - **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).
+
+## Persistent-walk jitter (src/sim/jitter.ts, not yet called from rules.ts)
+New tunables, all in `config.ts`, switch `jitterEnabled` (default true): `jitterMinAmp` 24, `jitterDashLog2` 3 (12.5% dash epochs), `jitterEpochShift` 4 (16 ticks), `jitterDashWeightPct` 150, `jitterRoadDampPct` 50. No old values; first introduction. Dash weight now also takes road damping. Nothing consumes it yet, so there is no behaviour change and no perf cost.
+
+### Jitter on vs off, `npm run movement`, seeds 1 to 5 (5-year warm-up, 300-tick window, adults)
+| Metric (mean of 5 seeds) | off | on | seeds where on > off |
+|---|---|---|---|
+| Reversal % of moves | 46.7 | 48.1 | 3 of 5 |
+| Standing still % | 84.6 | 84.5 | 2 of 5 |
+| Unique cells per 300 ticks | 16.2 | 15.8 | 2 of 5 |
+| Food per move | 5.12 | 5.35 | 4 of 5 |
+| Population at window end | 1107 | 1043 | 1 of 5 (**-5.7%**) |
+
+Expectation was that persistence cuts reversals and widens ranging. **Missed**: reversals are about 48% either way and unique cells are flat. The jitter push (0.8 x weight) is small next to the gradient and calm-stay terms in `climb`, and 85% of adult ticks are still, so the heading rarely gets a chance to persist. Population is lower with it on in 4 of 5 seeds; effect size small and unexplained (no energy-cost change was made, so check whether it is movement cost from slightly more moving). No tuning done, per rule 10. Not covered: share of time on worn paths and settlement counts (`movement.ts` does not report them), and no watched run on the map.
+
+### Why the jitter changed almost nothing (instrumented, seeds 1 to 3, 300 ticks after 5 years; instrumentation reverted)
+| Measure | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| `climb` calls that return Stay before the jitter block | 86% | 82% | 79% |
+| Calls reaching the jitter | 14% | 18% | 21% |
+| Of those, weight exactly 0 (`rawAmp` < 24) | 95% | 89% | 91% |
+| Mean jitter push (0.8 x weight) | 0.004 | 0.010 | 0.007 |
+| Mean pre-jitter velocity (food, danger, leader) | 4.5 | 5.0 | 4.5 |
+| Times the push exceeded the pre-jitter velocity | 0 | 3 | 3 |
+
+Control: `jitterMinAmp` 256 (jitter code runs, never pushes) gives population 1040, reversals 47.5%, unique cells 17.6, standing still 82.8%. That matches jitter on (1043, 48.1%, 15.8, 84.5%) and not jitter off (1107, 46.7%, 16.2, 84.6%). So the new jitter is behaviourally a no-op, and the earlier population gap (about -6%) comes from removing the old exploration nudge (or from the changed PRNG stream; 5 seeds cannot separate those, per-seed spread is about +/-100).
+
+Causes: (1) the mechanism was gated by the calm-stay branch, where most people stand; (2) the product `roaming x curiosity` is far smaller than the old sum `(curiosity + roaming) x 0.2`, so most people sit under the cutoff; (3) a push of at most 0.8 is tiny next to gradients of about 4.5; (4) reversals near 48% come from the gradient step, not from jitter. Not tried: scaling push to the gradient, the sum instead of the product, or moving the jitter ahead of the calm-stay return.
+
+### Tile depletion under adults (jitter off, seeds 1 to 3, 300 ticks after 5 years; probe script, not committed)
+| Measure | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Stationary share of adult ticks | 85.6% | 81.8% | 82.9% |
+| Food / capacity on a tile someone stays on (mean) | 0.53 | 0.55 | 0.55 |
+| Stay ticks on a tile under the 0.5 stay fraction | 36.8% | 34.5% | 34.8% |
+| Food change per stay tick on that tile | -0.49 | -0.51 | -0.47 |
+| Stay run length: median / 90th percentile (ticks) | 2 / 27 | 2 / 19 | 2 / 19 |
+| Stays that end on a depleted tile (< 0.5) | 93.8% | 92.1% | 93.8% |
+| Mean food / capacity: occupied vs unoccupied tiles | 0.60 / 0.99 | 0.61 / 0.99 | 0.60 / 0.99 |
+
+Grazing does deplete tiles (about half a unit per stay tick, and nearly every stay ends on a depleted tile), so the earlier guess that regrowth outpaces eating was wrong. But unoccupied land sits at 99% of capacity: about 1,000 adults on 65,536 tiles. A depleted forager only needs the next tile along, so the environment forces short foraging hops, not wandering. Movement is local and the 85% standing share is the long tail of stays (90th percentile 19 to 27 ticks), not people sitting on rich ground. Not measured: why the 35% of stays below the threshold stay (leader pull, hut or heap value, thirst, cold).
+
+Jitter shelved: `Rules.climb` and `life.ts` reverted to the original, `jitterEnabled` set to false (it was true during the runs above), wiring saved in `scripts/probes/jitter-wiring.patch`. Default fingerprints are back to their pre-jitter values.
