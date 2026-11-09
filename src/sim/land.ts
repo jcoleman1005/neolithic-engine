@@ -815,7 +815,31 @@ export class Land {
       }
     }
     const e = 255 - sum / total;
-    return e < 0 ? 0 : Math.round(e);
+    let out = e < 0 ? 0 : Math.round(e);
+    // Unit C idea 1: walled in on all four sides within roomMaxSpan, so indoors.
+    if (config.exposureRaysEnabled !== false) {
+      const indoor = config.indoorBaseExposure ?? 15;
+      if (out > indoor && this.enclosed(x, y, config)) out = indoor;
+    }
+    return out;
+  }
+
+  /** S3 unit C idea 1: a wall (durability >= wallThreshold) or a cave within roomMaxSpan tiles straight N, S, W and E. */
+  public enclosed(x: number, y: number, config: Readonly<SimulationConfig>): boolean {
+    const span = config.roomMaxSpan ?? 4;
+    const wall = config.wallThreshold ?? 30;
+    // Early exit on the first open side.
+    for (let side = 0; side < 4; side++) {
+      const sx = side === 2 ? -1 : side === 3 ? 1 : 0;
+      const sy = side === 0 ? -1 : side === 1 ? 1 : 0;
+      let hit = false;
+      for (let d = 1; d <= span; d++) {
+        const n = (((y + sy * d) & COORD_MASK) << 8) | ((x + sx * d) & COORD_MASK);
+        if (this.durability[n] >= wall || this.cave[n] === 1) { hit = true; break; }
+      }
+      if (!hit) return false;
+    }
+    return true;
   }
 
   /** S3a: refreshes exposure on one slice of the map. */

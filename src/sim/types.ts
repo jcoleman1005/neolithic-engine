@@ -131,6 +131,16 @@ export interface SimulationConfig {
   brushBarrier: number;
   treeBarrier: number;
   cliffBarrier: number;
+  // S3 unit C: Phase 5f exposure port
+  exposureRaysEnabled: boolean;
+  wallThreshold: number;
+  roomMaxSpan: number;
+  indoorBaseExposure: number;
+  windShadowEnabled: boolean;
+  windShadowReach: number;
+  windShadowRise: number;
+  windbreakReduction: number;
+  windShadowFloor: number;
   directionalBuildEnabled: boolean;
   directionalAvoidWear: number;
   pathsEnabled: boolean;
