@@ -89,7 +89,7 @@ The agent can't currently see the map: the repo has no browser tooling, and a pl
 - **`scripts/map-dump.ts`:** no dependencies. Runs a seed to year N with switch overrides and writes a PNG with Node's `zlib`, showing terrain, built cells, heaps, people density and (later) wear. Also prints the gate numbers. S1 and S3a rely on this.
 - **`scripts/fingerprint.ts`:** accepts overrides and a tick count.
 - **`scripts/verify.sh`:** keeps full test output in a file and prints failing test names, which are currently lost when output is cut.
-- **Real-renderer capture:** `scripts/capture.ts` (a world saved at year N, several zooms and 360 px) and `scripts/visual-check.ts` (`npm run visual`: fixed seed, scripted camera, pixel diff against `visual/baseline/`, part of `npm run verify`). Playwright is now a dev dependency, by the user's decision of 2026-11-08; `PLAYWRIGHT_DIR` is no longer needed. If Chromium is missing, run `npx playwright install chromium` or set `VISUAL_CHROMIUM`.
+- **Real-renderer capture:** `scripts/capture.ts` (a world saved at year N, several zooms and 360 px) and `scripts/visual-check.ts` (`npm run visual`: fixed seed, scripted camera, pixel diff against `visual/baseline/`; run by `npm run verify` when `VERIFY_VISUAL=1`, opt-in by the user's decision of 2026-11-08). Playwright is now a dev dependency, by the user's decision of 2026-11-08; `PLAYWRIGHT_DIR` is no longer needed. If Chromium is missing, run `npx playwright install chromium` or set `VISUAL_CHROMIUM`.
 - Extend `scripts/sweep.ts`, which today only knows `farming` and `stockpiles`, when a stage needs to tune.
 
 ### S0 Settlement observer
