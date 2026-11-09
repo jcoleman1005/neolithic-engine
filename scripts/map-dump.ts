@@ -16,7 +16,7 @@ import { FORM_GRANARY, FORM_HEAP, FORM_NEST } from '../src/sim/land';
 import type { SimulationConfig } from '../src/sim/types';
 import type { SavedWorld } from '../src/sim/protocol';
 import { Chronicle } from '../src/sim/chronicle';
-import { isBuiltCell, TIER_NAMES } from '../src/sim/settlements';
+import { builtWallMin, isBuiltCell, TIER_NAMES } from '../src/sim/settlements';
 import { parseArgs } from './args';
 import { encodePng } from './png';
 
@@ -25,7 +25,7 @@ const CELLS = SIZE * SIZE;
 /** An adult this close to a built cell counts as in a camp. */
 const NEAR_RADIUS = 3;
 
-const isBuilt = (w: World, c: number): boolean => isBuiltCell(w.land, c);
+const isBuilt = (w: World, c: number): boolean => isBuiltCell(w.land, c, builtWallMin(w.config));
 
 /** Colours one map cell from the land under it. */
 function cellColor(w: World, c: number, out: Uint8Array, o: number): void {

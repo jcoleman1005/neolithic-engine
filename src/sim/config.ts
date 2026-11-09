@@ -119,6 +119,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   windShadowRise: 0.05,
   windbreakReduction: 140,
   windShadowFloor: 30,
+  // S3 unit C, idea 3: hearth anchor (observer only). The settlement observer counts walls of
+  // durability settlementWallMin or more as built, beside fires, nests, granaries and huts.
+  hearthAnchorEnabled: true,
+  settlementWallMin: 30,
   directionalBuildEnabled: false,
   directionalAvoidWear: 64, // carriers do not build on tiles worn at least this much (they are routes)
   pathsEnabled: true,

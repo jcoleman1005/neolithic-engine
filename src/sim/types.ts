@@ -141,6 +141,8 @@ export interface SimulationConfig {
   windShadowRise: number;
   windbreakReduction: number;
   windShadowFloor: number;
+  hearthAnchorEnabled: boolean;
+  settlementWallMin: number;
   directionalBuildEnabled: boolean;
   directionalAvoidWear: number;
   pathsEnabled: boolean;

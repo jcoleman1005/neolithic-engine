@@ -16,10 +16,19 @@ const MASK = SIZE - 1;
 
 export const TIER_NAMES = ['camp', 'hamlet', 'village', 'town', 'city'] as const;
 
-/** What counts as built. Caves and other natural features do not. */
-export function isBuiltCell(land: Land, c: number): boolean {
+/**
+ * What counts as built: nests, granaries, huts and fires (hearths), and, when `wallMin` > 0 (unit C
+ * hearth anchor), walls of durability `wallMin` or more. Caves and other natural features do not.
+ */
+export function isBuiltCell(land: Land, c: number, wallMin = 0): boolean {
   const f = land.form[c];
-  return f === FORM_NEST || f === FORM_GRANARY || land.structure[c] === 1 || land.fire[c] === 1;
+  return f === FORM_NEST || f === FORM_GRANARY || land.structure[c] === 1 || land.fire[c] === 1
+    || (wallMin > 0 && land.durability[c] >= wallMin);
+}
+
+/** S3 unit C: the wall durability that counts as built for the observer (0 when the hearth anchor is off). */
+export function builtWallMin(config: { hearthAnchorEnabled?: boolean; settlementWallMin?: number }): number {
+  return config.hearthAnchorEnabled === false ? 0 : config.settlementWallMin ?? 30;
 }
 
 export interface SettlementRecord {
@@ -194,12 +203,13 @@ export class SettlementTracker {
   private findClusters(world: World): Cluster[] {
     const land = world.land;
     const gap = world.config.settlementGap ?? 2;
+    const wallMin = builtWallMin(world.config);
     const { seen, order } = this;
     seen.fill(0);
     const clusters: Cluster[] = [];
     let tail = 0;
     for (let startCell = 0; startCell < CELLS; startCell++) {
-      if (seen[startCell] === 1 || !isBuiltCell(land, startCell)) continue;
+      if (seen[startCell] === 1 || !isBuiltCell(land, startCell, wallMin)) continue;
       const start = tail;
       let head = tail;
       order[tail++] = startCell;
@@ -217,7 +227,7 @@ export class SettlementTracker {
         for (let dy = -gap; dy <= gap; dy++) {
           for (let dx = -gap; dx <= gap; dx++) {
             const n = (((y + dy) & MASK) << 8) | ((x + dx) & MASK);
-            if (seen[n] === 0 && isBuiltCell(land, n)) {
+            if (seen[n] === 0 && isBuiltCell(land, n, wallMin)) {
               seen[n] = 1;
               order[tail++] = n;
             }
