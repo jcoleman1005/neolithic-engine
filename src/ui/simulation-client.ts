@@ -92,6 +92,9 @@ export class SimulationClient implements WorldView {
   public landStructuresVersion = 0;
   public landPaths: Uint8Array | null = null;
   public landPathsVersion = 0;
+  /** The latest batch of contests from the host (x, y, kind, tick, ...); the renderer fades them out. */
+  public contests: readonly number[] = [];
+  public contestsVersion = 0;
   public terrain: TerrainField | null = null;
   public elevation: ElevationField | null = null;
 
@@ -202,6 +205,7 @@ export class SimulationClient implements WorldView {
         if (message.landStructures) this.setStructures(message.landStructures);
         this.landPaths = message.landPaths ? fastBase64Decode(message.landPaths) : null;
         this.landPathsVersion++;
+        this.contests = [];
         this.settlements = message.settlements ?? [];
         this.worldEvents = [...message.events];
         this.events.reset();
@@ -213,6 +217,10 @@ export class SimulationClient implements WorldView {
         if (message.landOverlay) this.setOverlay(message.landOverlay);
         if (message.landStructures) this.setStructures(message.landStructures);
         if (message.settlements) this.settlements = message.settlements;
+        if (message.contests && message.contests.length > 0) {
+          this.contests = message.contests;
+          this.contestsVersion++;
+        }
         if (message.landPaths) {
           this.landPaths = fastBase64Decode(message.landPaths);
           this.landPathsVersion++;

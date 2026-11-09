@@ -3,7 +3,7 @@
  * Architectural blueprint cutaway rendering for Phase 5f stone huts and closed rooms.
  */
 
-import { PALETTE } from './palette';
+import { PALETTE, type MaterialRamp } from './palette';
 
 // NESW Cardinal Neighbor bits for 16-tile wall connection
 export const WALL_N = 1;
@@ -43,16 +43,16 @@ export function populateWallSpatialMask(
 }
 
 /**
- * Draws a 1-cell thick top-down architectural stone wall with interior floor drop shadow.
+ * Draws a 1-cell thick top-down architectural wall (stone, or packed earth with `p`) with interior floor drop shadow.
  */
 export function drawCutawayWall(
   ctx: CanvasRenderingContext2D,
   px: number,
   py: number,
   cs: number,
-  mask: number
+  mask: number,
+  p: MaterialRamp = PALETTE.stoneWall
 ): void {
-  const p = PALETTE.stoneWall;
 
   // 1. Solid wall core filling the 16x16 cell
   ctx.fillStyle = p.baseHex;

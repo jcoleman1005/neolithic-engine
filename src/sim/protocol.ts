@@ -9,6 +9,11 @@ import type { WorldState } from './world';
 
 export const PERSON_FRAME_BYTES = 11;
 
+/** Contest kinds in the frame's `contests` list (see ContestLog). */
+export const CONTEST_FIGHT = 1;
+export const CONTEST_YIELD = 2;
+export const CONTEST_CONCEDE = 3;
+
 // Person frame: slot (2), x, y, look, generation, root leader id (4), carry (kind in bits 0 to 2, amount 0 to 31 above).
 // Look byte bit layout:
 // Bit 0: sex (0 = female, 1 = male)
@@ -125,6 +130,9 @@ export interface WorldView {
   readonly landStructuresVersion?: number;
   readonly landPaths?: Uint8Array | null;
   readonly landPathsVersion?: number;
+  /** Recent contests (x, y, kind, tick, ...) and when they arrived, newest last (see FromWorker frame contests). */
+  readonly contests?: readonly number[];
+  readonly contestsVersion?: number;
   readonly settlements?: readonly SettlementView[];
   readonly selectedPerson?: PersonDetail | null;
   readonly organisms?: ReadonlyMap<string, OrganismView>;
@@ -183,6 +191,8 @@ export type FromWorker =
       readonly landPaths?: string;
       /** Sent with the land overlay, not every frame. */
       readonly settlements?: readonly SettlementView[];
+      /** Contests since the last overlay, four numbers each: x, y, kind (1 fight, 2 gave way, 3 conceded food), tick. */
+      readonly contests?: readonly number[];
       readonly ticksPerSecond: number;
       readonly running: boolean;
       readonly targetTicksPerSecond: number;

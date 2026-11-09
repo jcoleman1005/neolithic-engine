@@ -97,6 +97,18 @@ export function installCaptureHook(d: CaptureDeps): void {
     // Used by scripts/capture.ts.
     goTo: (x: number, y: number) => renderer.goTo(x, y),
     cellSize: () => renderer.cellSize,
+    /** The latest contest batch (x, y, kind, tick, ...), for finding a fight to frame. */
+    contests: () => Array.from(sim.contests),
+    /** Contest marks the renderer is showing now: [x, y, kind, age ms]. */
+    contestMarks: () => renderer.liveContestMarks(),
+    /** Up to `limit` cells, as [x, y], whose ground-channel byte has any of `mask`'s bits (8 | 16: being built). */
+    groundCells: (mask: number, limit = 50) => {
+      const g = sim.landPaths;
+      const out: [number, number][] = [];
+      if (!g) return out;
+      for (let i = 0; i < g.length && out.length < limit; i++) if ((g[i] & mask) !== 0) out.push([i & 255, i >> 8]);
+      return out;
+    },
     settlementHitBoxes: () => renderer.settlementHitBoxes(),
 
     /** The view in cells: where the middle of the usable canvas is, and the raw pan. */
