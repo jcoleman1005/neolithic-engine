@@ -1,5 +1,7 @@
 # Neolithic Engine — Status
 
+- **Visual baselines 07 and 08 regenerated (2026-11-09)** after merging PR #3 on top of the births fix (a782483): the fix moves seed 4's first lone split from tick 8100 to 9060, so both band-following frames changed (92% and 92% of pixels); 01 to 06 pass unchanged. The first visual run failed with `clock.pauseAt: Cannot fast-forward to the past` (the app took over 2 s of page time to boot on first compile); a re-run passed the scenario. Flaky under load, not fixed.
+
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
 ## S3 art: contests, building, earth walls, carry marks, paths (branch `viewer-s3-art`, unit B)
