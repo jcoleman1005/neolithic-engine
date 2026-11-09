@@ -2,7 +2,7 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
-## Save version check (branch `claude/visual-verification-setup-x8cmbi`, not yet merged to `main`)
+## Save version check (branch `claude/visual-verification-setup-x8cmbi`)
 - **Done**:
   - Saves carry `schema` (`SAVE_SCHEMA`, now 2, in `src/sim/world.ts`). A build refuses a save with a higher schema. Saves with no stamp still load.
   - `People.importState` refuses a save whose people carry a field this build does not know (`PERSON_FIELDS` in `src/sim/people.ts`, exhaustive against `PackedPerson` at compile time, so a new field fails `tsc` until it is registered). `mateSlot` is allowed as a legacy name.
@@ -12,8 +12,11 @@
 - **Measured** (cloud container, not the S21; earlier figures in this file are from other hardware):
   - `VERIFY_VISUAL=1 npm run verify`: `ok check`, `ok test`, `ok build`, `ok visual-check`.
   - Perf: **3.852 µs / person / tick** at 13,811 people (53.202 ms/tick; desktop budget: <= 15.0 µs). One run, no before-merge baseline.
-- **Not done**: a real `data/` save has not been loaded against the new check; the S21 perf check (30 µs budget) is still open; no Rule-13 watch of this build.
-- **Next**: merge to `main` once agreed; bump `SAVE_SCHEMA` and add to `PERSON_FIELDS` whenever a save gains per-person state.
+- **Watched (Rule 13), by the user on this branch's build, 2026-11-09**: people spread normally across the map (the earlier edge and axis pile-up was an old server still on port 8080). Seen: food mounds piling up, crops growing, hunting, wolves near people, stone huts, and probably some walls forming. Not seen: campfires, carried water, any wolf attack, any visible sign of turmoil. No roadmap boxes are ticked from this: the campfire, wolf-behaviour and closed-room checks are not established.
+- **Headless check** (`scratchpad/watchprobe.ts`, default config, seeds 1 to 5, 15 years, sampled every 30 ticks; read-only, it counts `land.ignite` calls): 112 to 153 fires lit per seed (first at year 0.7, 11 to 20 burning at once); 167 to 343 people carrying water at once, but only 4 to 5 water-store tiles at once (63 to 86 units stored at peak); 19 to 37 huts and 59 to 74 wall-like cells; wolves took 30 to 178 herd animals and killed 0 to 2 people. So fires and carried water do happen in the sim. Wolves bite only a person with nobody else within `wolfLoneRadius` (2) of them, and strike herd prey first, so few attacks on bands is by design.
+- **Open finding, not yet explained**: the sim lights fires and carries water but they were not seen in the viewer. Candidates, none checked: a fire burns out in about 40 ticks (about 13 s at 3 ticks a second), so the glow is brief; stores are a handful of blue tiles; carriers show their mark only at close zoom; or a viewer gap. A scripted Playwright look at the real page over a few simulated years would settle it.
+- **Not done**: a real `data/` save has not been loaded against the new check; the S21 perf check (30 µs budget) is still open; no further Rule-13 watch.
+- **Next**: bump `SAVE_SCHEMA` and add to `PERSON_FIELDS` whenever a save gains per-person state; settle the open finding above.
 
 ## Persistent-walk jitter (branch `ccr-72645d63-0n3gjg`, shelved)
 - **State**: `src/sim/jitter.ts`, its test and six `jitter*` tunables stay in the tree, **unused and off** (`jitterEnabled: false`). `Rules.climb` and `life.ts` are back to the original; the wiring is saved as `scripts/probes/jitter-wiring.patch` (`git apply` it to retry). Default fingerprints are unchanged.
