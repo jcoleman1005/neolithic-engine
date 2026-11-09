@@ -187,13 +187,9 @@ const camera = new AutoCamera();
 camera.enabled = false;
 renderer.onUserInput = () => camera.notifyUserInput(performance.now());
 
-// scripts/capture.ts aims the camera through this; only present with ?capture in the URL.
+// scripts/capture.ts and scripts/visual-check.ts drive the page through this; only present with ?capture in the URL.
 if (new URLSearchParams(location.search).has('capture')) {
-  (window as unknown as { __capture: unknown }).__capture = {
-    goTo: (x: number, y: number) => renderer.goTo(x, y),
-    cellSize: () => renderer.cellSize,
-    settlementHitBoxes: () => renderer.settlementHitBoxes(),
-  };
+  void import('./ui/capture-hook').then(({ installCaptureHook }) => installCaptureHook({ sim, renderer, camera, canvas }));
 }
 
 const metricsView = new MetricsView($('#metrics-container'));

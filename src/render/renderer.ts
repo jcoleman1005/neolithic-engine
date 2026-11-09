@@ -537,6 +537,25 @@ export class CanvasRenderer {
     this.cameraTarget = target;
   }
 
+  /** Read-only view of the camera, for scripts/visual-check.ts (through the ?capture hook). */
+  public cameraState(): {
+    panX: number;
+    panY: number;
+    cellSize: number;
+    insets: ViewInsets;
+    gliding: boolean;
+    target: { x: number; y: number } | null;
+  } {
+    return {
+      panX: this.panX,
+      panY: this.panY,
+      cellSize: this.cellSize,
+      insets: { ...this.insets },
+      gliding: this.gotoTarget !== null,
+      target: this.gotoTarget ?? this.cameraTarget,
+    };
+  }
+
   /** One-off glide to a spot (a tapped chronicle entry). The auto-camera backs off meanwhile. */
   public goTo(x: number, y: number): void {
     this.gotoTarget = { x, y };

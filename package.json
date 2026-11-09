@@ -25,12 +25,15 @@
     "capture": "vite-node scripts/capture.ts --",
     "probe": "vite-node scripts/settle-probe.ts --",
     "perf": "vite-node scripts/perf.ts",
+    "visual": "vite-node scripts/visual-check.ts --",
+    "visual:update": "vite-node scripts/visual-check.ts -- --update true",
     "build:server": "vite build --ssr server/main.ts --outDir dist-server --emptyOutDir",
     "server": "npm run build && npm run build:server && node dist-server/main.js",
     "server:start": "node dist-server/main.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "playwright": "^1.65.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
     "vite-node": "^6.0.0",
