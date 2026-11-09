@@ -104,6 +104,25 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   brushBarrier: 4.0, // barrier per unit of brush on a tile
   treeBarrier: 120.0, // barrier of a full stand of trees
   cliffBarrier: 600.0, // barrier per unit of height a neighbour stands above this tile
+  // S3 unit C, Phase 5f exposure port, idea 1: 4-way ray enclosure. A tile with a wall (durability
+  // >= wallThreshold) or a cave within roomMaxSpan tiles straight north, south, west and east is
+  // indoors: its exposure drops to at most indoorBaseExposure. Does nothing while exposureEnabled is off.
+  exposureRaysEnabled: true,
+  wallThreshold: 30,
+  roomMaxSpan: 4,
+  indoorBaseExposure: 15,
+  // S3 unit C, idea 2: wind shadow. A tile with a wall, cave, wood or higher ground (by more than
+  // windShadowRise) within windShadowReach tiles upwind sits in its shadow: exposure drops to at most
+  // max(windShadowFloor, 255 - windbreakReduction). Does nothing while exposureEnabled is off.
+  windShadowEnabled: true,
+  windShadowReach: 3,
+  windShadowRise: 0.05,
+  windbreakReduction: 140,
+  windShadowFloor: 30,
+  // S3 unit C, idea 3: hearth anchor (observer only). The settlement observer counts walls of
+  // durability settlementWallMin or more as built, beside fires, nests, granaries and huts.
+  hearthAnchorEnabled: true,
+  settlementWallMin: 30,
   directionalBuildEnabled: false,
   directionalAvoidWear: 64, // carriers do not build on tiles worn at least this much (they are routes)
   pathsEnabled: true,
@@ -377,7 +396,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // fades by 1 / costMemoryTicks a tick, and inside the region the stay check counts
   // placeCost / costMemoryTicks a tick as upkeep. A child within careRadius of a parent moves
   // costChildLearn of the gap a tick toward the parent's memory. A pressure, never an order.
-  placeCostEnabled: true,
+  placeCostEnabled: false, // off by default: measured too weak while fights are rare (docs/findings.md); user decision 2026-11-09
   costRadius: 8,
   costMemoryTicks: 360,
   costChildLearn: 0.05,

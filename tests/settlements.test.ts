@@ -3,7 +3,7 @@ import { World } from '../src/sim/world';
 import { BandTracker } from '../src/sim/bands';
 import { Chronicle } from '../src/sim/chronicle';
 import { FORM_NEST } from '../src/sim/land';
-import { isBuiltCell, SettlementTracker } from '../src/sim/settlements';
+import { builtWallMin, isBuiltCell, SettlementTracker } from '../src/sim/settlements';
 
 const cell = (x: number, y: number): number => ((y & 255) << 8) | (x & 255);
 const namer = (_w: World, x: number, y: number, _t: unknown, salt: number): string => `P${x}-${y}-${salt}`;
@@ -46,6 +46,33 @@ describe('settlement detection', () => {
     expect(isBuiltCell(w.land, cell(2, 2))).toBe(true);
     expect(isBuiltCell(w.land, cell(3, 3))).toBe(true);
     expect(isBuiltCell(w.land, cell(4, 4))).toBe(true);
+  });
+
+  it('unit C hearth anchor: walls of settlementWallMin count as built; weaker walls and the switch off do not', () => {
+    const w = emptyWorld();
+    w.land.durability.fill(0);
+    w.land.durability[cell(5, 5)] = 30;
+    w.land.durability[cell(6, 6)] = 29;
+    expect(isBuiltCell(w.land, cell(5, 5), builtWallMin(w.config))).toBe(true);
+    expect(isBuiltCell(w.land, cell(6, 6), builtWallMin(w.config))).toBe(false);
+    expect(isBuiltCell(w.land, cell(5, 5))).toBe(false); // no threshold given: walls do not count
+    expect(builtWallMin({ ...w.config, hearthAnchorEnabled: false })).toBe(0);
+  });
+
+  it('unit C hearth anchor: a hearth and walls anchor a camp with no hut, nest or granary', () => {
+    const run = (hearthAnchorEnabled: boolean): number => {
+      const w = emptyWorld({ hearthAnchorEnabled });
+      w.land.durability.fill(0);
+      const t = new SettlementTracker();
+      w.land.fire[cell(50, 50)] = 1; // the hearth
+      w.land.durability[cell(52, 50)] = 60;
+      w.land.durability[cell(50, 52)] = 60;
+      addPeople(w, 5, 50, 50);
+      scan(w, t, 30);
+      return t.records.size;
+    };
+    expect(run(true)).toBe(1);
+    expect(run(false)).toBe(0); // one fire alone is under the built minimum
   });
 
   it('needs both the built and the resident minimum to found a camp', () => {

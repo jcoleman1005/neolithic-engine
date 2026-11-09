@@ -1,9 +1,14 @@
 import { World } from '../src/sim/world';
+import type { SimulationConfig } from '../src/sim/types';
+import { parseArgs } from './args';
+
+// npm run perf -- [--someSwitchEnabled true] (config overrides; none by default)
+const { overrides } = parseArgs(process.argv.slice(2), []);
 
 console.log('Benchmarking Neolithic Engine at ~10,000 people...');
 
 // Initialize world with capacity to sustain >= 10,000 people
-const world = new World({ initialPopulation: 12500, landFoodMax: 45.0 }, 42);
+const world = new World({ initialPopulation: 12500, landFoodMax: 45.0, ...(overrides as Partial<SimulationConfig>) }, 42);
 
 // Warm-up 20 ticks
 for (let t = 0; t < 20; t++) {

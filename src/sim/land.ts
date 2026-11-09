@@ -815,7 +815,58 @@ export class Land {
       }
     }
     const e = 255 - sum / total;
-    return e < 0 ? 0 : Math.round(e);
+    let out = e < 0 ? 0 : Math.round(e);
+    // Unit C idea 1: walled in on all four sides within roomMaxSpan, so indoors.
+    if (config.exposureRaysEnabled !== false) {
+      const indoor = config.indoorBaseExposure ?? 15;
+      if (out > indoor && this.enclosed(x, y, config)) out = indoor;
+    }
+    // Unit C idea 2: in the shadow of a wall, cave, wood or rise upwind.
+    if (config.windShadowEnabled !== false) {
+      const shadow = Math.max(config.windShadowFloor ?? 30, 255 - (config.windbreakReduction ?? 140));
+      if (out > shadow && this.inWindShadow(x, y, config)) out = shadow;
+    }
+    return out;
+  }
+
+  /**
+   * S3 unit C idea 2: a wall (durability >= wallThreshold), cave, wood or ground higher by more than
+   * windShadowRise within windShadowReach tiles upwind. (windX, windY) points to where the wind comes
+   * from (setWind), so upwind is along its sign. The ray takes the nearest of the 8 compass steps: a
+   * component under sin(22.5 deg) counts as no wind that way (the old 5f code's 0.2 snapped most
+   * headings to a diagonal, because main's wind turns smoothly round the year).
+   */
+  public inWindShadow(x: number, y: number, config: Readonly<SimulationConfig>): boolean {
+    const cut = 0.3827; // sin(22.5 deg)
+    const ux = this.windX > cut ? 1 : this.windX < -cut ? -1 : 0;
+    const uy = this.windY > cut ? 1 : this.windY < -cut ? -1 : 0;
+    if (ux === 0 && uy === 0) return false;
+    const reach = config.windShadowReach ?? 3;
+    const wall = config.wallThreshold ?? 30;
+    const rise = this.upland[(y << 8) | x] + (config.windShadowRise ?? 0.05);
+    for (let s = 1; s <= reach; s++) {
+      const n = (((y + uy * s) & COORD_MASK) << 8) | ((x + ux * s) & COORD_MASK);
+      if (this.durability[n] >= wall || this.cave[n] === 1 || this.wooded[n] === 1 || this.upland[n] > rise) return true;
+    }
+    return false;
+  }
+
+  /** S3 unit C idea 1: a wall (durability >= wallThreshold) or a cave within roomMaxSpan tiles straight N, S, W and E. */
+  public enclosed(x: number, y: number, config: Readonly<SimulationConfig>): boolean {
+    const span = config.roomMaxSpan ?? 4;
+    const wall = config.wallThreshold ?? 30;
+    // Early exit on the first open side.
+    for (let side = 0; side < 4; side++) {
+      const sx = side === 2 ? -1 : side === 3 ? 1 : 0;
+      const sy = side === 0 ? -1 : side === 1 ? 1 : 0;
+      let hit = false;
+      for (let d = 1; d <= span; d++) {
+        const n = (((y + sy * d) & COORD_MASK) << 8) | ((x + sx * d) & COORD_MASK);
+        if (this.durability[n] >= wall || this.cave[n] === 1) { hit = true; break; }
+      }
+      if (!hit) return false;
+    }
+    return true;
   }
 
   /** S3a: refreshes exposure on one slice of the map. */

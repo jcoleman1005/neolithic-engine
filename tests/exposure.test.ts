@@ -111,6 +111,79 @@ describe('S3a: exposure and directional building', () => {
     expect(loaded.stateHash()).toBe(w.stateHash());
   });
 
+  it('unit C rays: a tile walled in on all four sides within roomMaxSpan is low; one open side is not', () => {
+    const w = quietWorld({ windShadowEnabled: false });
+    const c = cell(100, 100);
+    // Walls 3 tiles out (outside the 3x3 barrier average) on N, S and W only.
+    w.land.durability[cell(100, 97)] = 40;
+    w.land.durability[cell(100, 103)] = 40;
+    w.land.durability[cell(97, 100)] = 40;
+    expect(w.land.exposureOf(c, w.config)).toBe(255);
+    w.land.durability[cell(103, 100)] = 40;
+    expect(w.land.exposureOf(c, w.config)).toBe(w.config.indoorBaseExposure);
+    const off = quietWorld({ windShadowEnabled: false, exposureRaysEnabled: false });
+    off.land.durability.set(w.land.durability);
+    expect(off.land.exposureOf(c, off.config)).toBe(255);
+  });
+
+  it('unit C rays: walls below wallThreshold or beyond roomMaxSpan do not enclose; a cave does', () => {
+    const w = quietWorld({ windShadowEnabled: false });
+    const c = cell(100, 100);
+    for (const n of [cell(100, 98), cell(100, 102), cell(98, 100)]) w.land.durability[n] = 40;
+    w.land.durability[cell(105, 100)] = 40; // 5 tiles east: beyond the default span of 4
+    expect(w.land.exposureOf(c, w.config)).toBeGreaterThan(w.config.indoorBaseExposure);
+    w.land.durability[cell(102, 100)] = 29; // just under the threshold
+    expect(w.land.exposureOf(c, w.config)).toBeGreaterThan(w.config.indoorBaseExposure);
+    w.land.cave[cell(102, 100)] = 1;
+    expect(w.land.exposureOf(c, w.config)).toBe(w.config.indoorBaseExposure);
+  });
+
+  it('unit C rays: exposure falls step by step as walls are added around a room', () => {
+    const w = quietWorld({ windShadowEnabled: false });
+    const c = cell(140, 140);
+    const seen: number[] = [w.land.exposureOf(c, w.config)];
+    for (const n of [cell(141, 140), cell(139, 140), cell(140, 141), cell(140, 139)]) {
+      w.land.durability[n] = 60;
+      seen.push(w.land.exposureOf(c, w.config));
+    }
+    for (let k = 1; k < seen.length; k++) expect(seen[k]).toBeLessThan(seen[k - 1]);
+    expect(seen[seen.length - 1]).toBeLessThanOrEqual(w.config.indoorBaseExposure);
+  });
+
+  it('unit C wind shadow: the downwind side of a wall is lower than the upwind side', () => {
+    const w = quietWorld({ exposureRaysEnabled: false });
+    w.land.setWind(0); // wind from the east (+x)
+    w.land.durability[cell(80, 80)] = 60;
+    const downwind = w.land.exposureOf(cell(78, 80), w.config); // 2 tiles west: sheltered by the wall
+    const upwind = w.land.exposureOf(cell(82, 80), w.config); // 2 tiles east: facing the wind
+    expect(downwind).toBeLessThan(upwind);
+    expect(downwind).toBe(Math.max(w.config.windShadowFloor, 255 - w.config.windbreakReduction));
+    expect(upwind).toBe(255);
+    const off = quietWorld({ exposureRaysEnabled: false, windShadowEnabled: false });
+    off.land.setWind(0);
+    off.land.durability.set(w.land.durability);
+    expect(off.land.exposureOf(cell(78, 80), off.config)).toBe(255);
+  });
+
+  it('unit C wind shadow: a nearly-east wind still casts a wall\'s shadow straight west', () => {
+    const w = quietWorld({ exposureRaysEnabled: false });
+    w.land.setWind(0.04); // about 14 degrees off east
+    w.land.durability[cell(80, 80)] = 60;
+    expect(w.land.exposureOf(cell(78, 80), w.config)).toBe(Math.max(w.config.windShadowFloor, 255 - w.config.windbreakReduction));
+  });
+
+  it('unit C wind shadow: woods, caves and higher ground cast it; the reach is windShadowReach', () => {
+    const w = quietWorld({ exposureRaysEnabled: false });
+    w.land.setWind(0.25); // wind from the south (+y)
+    const shadow = Math.max(w.config.windShadowFloor, 255 - w.config.windbreakReduction);
+    w.land.wooded[cell(30, 33)] = 1;
+    expect(w.land.exposureOf(cell(30, 30), w.config)).toBe(shadow); // 3 south: within reach
+    w.land.cave[cell(40, 44)] = 1;
+    expect(w.land.exposureOf(cell(40, 40), w.config)).toBe(255); // 4 south: beyond reach
+    w.land.upland[cell(50, 52)] = 0.2;
+    expect(w.land.exposureOf(cell(50, 50), w.config)).toBe(shadow);
+  });
+
   it('leaves the state hash alone while exposure is off', () => {
     const w = quietWorld({ exposureEnabled: false });
     const h = w.stateHash();

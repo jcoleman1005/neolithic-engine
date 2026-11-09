@@ -10,6 +10,20 @@
 - **Checks:** fingerprint with `--placeCostEnabled false` equals main at 1800 ticks (`cdd6570302cb9c9f`). Perf 3.976 µs per person per tick (main 3.871).
 - **Result:** losers do not leave measurably more (missed target); few adults carry a cost (5 to 6%); population and grazing unchanged; settlements lasting 10 years down 4 to 23%; child deaths slightly up on 2 of 3 seeds. See `docs/findings.md`. Fights are too rare since the contest for the cost to matter much.
 - **Next:** the user decides whether to keep it as is, tune it, or switch it off. Wall crossing (unit D) waits for this merge.
+
+## S3 Phase 5f exposure port (branch `s3-exposure-port`, unit C)
+
+- **Built:** three switches, all on by default.
+  - `exposureRaysEnabled`: a tile with a wall or cave within 4 tiles N, S, W and E drops to indoor exposure 15.
+  - `windShadowEnabled`: a wall, cave, wood or rise within 3 tiles upwind drops it to 115.
+  - `hearthAnchorEnabled`: the settlement observer counts walls of durability 30 or more as built.
+  - The first two act only while `exposureEnabled` (off by default) is on.
+- **Checks:**
+  - **Fingerprint:** with defaults, unchanged from main (`fa5596d7e60c04ca`).
+  - **Tests:** exposure and settlements tests added. Full suite 371 of 371; `npm run check` and `npm run build` exit 0 (run directly, because `verify.sh` won't parse with CRLF line endings on Windows).
+  - **Perf with exposure on:** 4.05 to 4.34 µs, against 3.96 without the new code.
+- **On the map:** nothing changes yet, because no rule reads exposure. Camp counts at year 30 on seed 1 are unchanged (47, 11, 5), and camps lasting 10 years rise from 34 to 36. See `docs/findings.md`.
+- **Next:** S3b, which makes exposure matter (shelter and cold). After that, decide whether rays should require a closed room and whether walls need a hearth to anchor a camp.
 ## S3 art: contests, building, earth walls, carry marks, paths (branch `viewer-s3-art`, unit B)
 
 Viewer work for the 2026-11-09 watch, which found building and fights unreadable. Fingerprint unchanged (`fa5596d7e60c04ca` before and after).

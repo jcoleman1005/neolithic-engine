@@ -1057,3 +1057,26 @@ Against the targets:
 Guardrails: no seed dies out. Population at year 50 is within 10% of off (+1.2%, −5.3%, −2.2%). Settlements lasting 10 years or more are down on all 3 seeds (−4%, −23%, −11%), inside the 25% limit, but seed 2 is close to it. Child deaths are down on seed 1 and up on seeds 2 and 3 (+1.3%, +3.9%), so "not up" is not met on 2 of 3 seeds; the rises are small. Perf: 3.976 µs per person per tick against main's 3.871 (same machine, back to back, nothing else running).
 
 Why the effect is small, from the numbers above: since the contest, fights are rare (about 6,500 to 8,400 in 50 years among about 4,000 people, roughly 0.04 a person a year), so few people ever carry a cost. A typical clash loss is a few to about 20 energy, which over `costMemoryTicks` 360 is under 0.06 energy a tick of expected cost against a metabolism of 0.25. That raises the food staying needs by at most about a fifth, for a few months. The mechanism works (tests), but at today's fight rate it has little to act on. Not tuned: one round, no values changed. Making it bite would mean a shorter memory or a larger weight, which would be tuning toward a where-people-go target, which the spec rules out. Left for the user.
+
+### S3 unit C: Phase 5f exposure port (2026-11-09)
+
+Branch `s3-exposure-port`. Three ideas from the old 5f exposure code, each behind its own switch, ported into main's S3a exposure. Starting values, not tuned (taken from the 5f code): `wallThreshold` 30, `roomMaxSpan` 4, `indoorBaseExposure` 15, `windShadowReach` 3, `windShadowRise` 0.05, `windbreakReduction` 140, `windShadowFloor` 30, `settlementWallMin` 30. One change from the 5f code: the upwind ray snaps to the nearest of 8 compass steps with a cutoff of sin(22.5°), not 0.2, because main's wind turns smoothly round the year. With 0.2, about three quarters of headings took a diagonal ray, so a wall straight upwind cast no shadow.
+
+Perf, `npm run perf` (which now takes config overrides), 10,000 people, back to back on a quiet machine. Main 2ad00f0 measured 3.871 µs on the same machine.
+
+| Arm | µs / person / tick |
+|---|---|
+| Defaults (`exposureEnabled` off) | 3.802 |
+| `--exposureEnabled true --directionalBuildEnabled true`, rays and shadow off (main's S3a) | 3.963 |
+| + ray enclosure | 4.094 |
+| + wind shadow | 4.344 (4.050 after the cutoff fix) |
+
+Hearth anchor: observer only, so not in `npm run perf` (which runs no observer). With defaults the fingerprint is unchanged: `fa5596d7e60c04ca` at 1,000 ticks and `cdd6570302cb9c9f` at 1,800, both the same as main.
+
+Maps, `npm run map -- --seed 1 --years 30 --exposureEnabled true --directionalBuildEnabled true`. Before = main 2ad00f0, after = this branch (PNGs in `scratch/`, not committed). Year 30, both: 5,485 people; 47 camps, 11 hamlets and 5 villages; 564 built tiles. Settlement records seen: 179 before and 194 after. Lasting 10 years or more: 34 before and 36 after. Population and building are identical because nothing in the sim reads `land.exposure` yet (S3b will). Only the hash differs (`ffcf9c9994e26f58` before, `d677bc87b5dee151` after), since exposure is hashed while on.
+
+Known limits, from review, left as ported:
+- **Rays don't check for a closed room.** They only look for any wall on each of the four axes, so a street ringed by separate huts counts as indoors.
+- **Walls count as built without a hearth.** With the hearth anchor on, walls of 30 or more count as built even with no fire, so ruins can found or keep a camp. Wall cells also count toward tier thresholds.
+- **Diagonal shadow rays.** On a diagonal wind the shadow ray steps diagonally, so it reaches about 4.2 tiles.
+- **Two wall settings.** `wallThreshold` and `settlementWallMin` both set what counts as a wall.
