@@ -821,7 +821,31 @@ export class Land {
       const indoor = config.indoorBaseExposure ?? 15;
       if (out > indoor && this.enclosed(x, y, config)) out = indoor;
     }
+    // Unit C idea 2: in the shadow of a wall, cave, wood or rise upwind.
+    if (config.windShadowEnabled !== false) {
+      const shadow = Math.max(config.windShadowFloor ?? 30, 255 - (config.windbreakReduction ?? 140));
+      if (out > shadow && this.inWindShadow(x, y, config)) out = shadow;
+    }
     return out;
+  }
+
+  /**
+   * S3 unit C idea 2: a wall (durability >= wallThreshold), cave, wood or ground higher by more than
+   * windShadowRise within windShadowReach tiles upwind. (windX, windY) points to where the wind comes
+   * from (setWind), so upwind is along its sign; a component under 0.2 counts as no wind that way.
+   */
+  public inWindShadow(x: number, y: number, config: Readonly<SimulationConfig>): boolean {
+    const ux = this.windX > 0.2 ? 1 : this.windX < -0.2 ? -1 : 0;
+    const uy = this.windY > 0.2 ? 1 : this.windY < -0.2 ? -1 : 0;
+    if (ux === 0 && uy === 0) return false;
+    const reach = config.windShadowReach ?? 3;
+    const wall = config.wallThreshold ?? 30;
+    const rise = this.upland[(y << 8) | x] + (config.windShadowRise ?? 0.05);
+    for (let s = 1; s <= reach; s++) {
+      const n = (((y + uy * s) & COORD_MASK) << 8) | ((x + ux * s) & COORD_MASK);
+      if (this.durability[n] >= wall || this.cave[n] === 1 || this.wooded[n] === 1 || this.upland[n] > rise) return true;
+    }
+    return false;
   }
 
   /** S3 unit C idea 1: a wall (durability >= wallThreshold) or a cave within roomMaxSpan tiles straight N, S, W and E. */

@@ -150,6 +150,33 @@ describe('S3a: exposure and directional building', () => {
     expect(seen[seen.length - 1]).toBeLessThanOrEqual(w.config.indoorBaseExposure);
   });
 
+  it('unit C wind shadow: the downwind side of a wall is lower than the upwind side', () => {
+    const w = quietWorld({ exposureRaysEnabled: false });
+    w.land.setWind(0); // wind from the east (+x)
+    w.land.durability[cell(80, 80)] = 60;
+    const downwind = w.land.exposureOf(cell(78, 80), w.config); // 2 tiles west: sheltered by the wall
+    const upwind = w.land.exposureOf(cell(82, 80), w.config); // 2 tiles east: facing the wind
+    expect(downwind).toBeLessThan(upwind);
+    expect(downwind).toBe(Math.max(w.config.windShadowFloor, 255 - w.config.windbreakReduction));
+    expect(upwind).toBe(255);
+    const off = quietWorld({ exposureRaysEnabled: false, windShadowEnabled: false });
+    off.land.setWind(0);
+    off.land.durability.set(w.land.durability);
+    expect(off.land.exposureOf(cell(78, 80), off.config)).toBe(255);
+  });
+
+  it('unit C wind shadow: woods, caves and higher ground cast it; the reach is windShadowReach', () => {
+    const w = quietWorld({ exposureRaysEnabled: false });
+    w.land.setWind(0.25); // wind from the south (+y)
+    const shadow = Math.max(w.config.windShadowFloor, 255 - w.config.windbreakReduction);
+    w.land.wooded[cell(30, 33)] = 1;
+    expect(w.land.exposureOf(cell(30, 30), w.config)).toBe(shadow); // 3 south: within reach
+    w.land.cave[cell(40, 44)] = 1;
+    expect(w.land.exposureOf(cell(40, 40), w.config)).toBe(255); // 4 south: beyond reach
+    w.land.upland[cell(50, 52)] = 0.2;
+    expect(w.land.exposureOf(cell(50, 50), w.config)).toBe(shadow);
+  });
+
   it('leaves the state hash alone while exposure is off', () => {
     const w = quietWorld({ exposureEnabled: false });
     const h = w.stateHash();
