@@ -1,6 +1,6 @@
 # Work board
 
-The board says who is working on what, so sessions don't build the same thing twice. Read it before starting work. Update it when you claim, finish or drop something, and commit the update on `main` (docs only) or on your own branch. Last reviewed 2026-11-08.
+The board says who is working on what, so sessions don't build the same thing twice. Read it before starting work. Update it when you claim, finish or drop something, and commit the update on `main` (docs only) or on your own branch. Last reviewed 2026-11-08 (after merging settlements-s3 and the visual check into main).
 
 ## How to use it
 
@@ -15,12 +15,12 @@ The board says who is working on what, so sessions don't build the same thing tw
 
 | Work | Branch | Worktree | Owner session | Files | Status |
 |---|---|---|---|---|---|
-| Settlements S3: structures, carried water, turmoil (healing, contest, place cost), and the S3b to S3d port | `settlements-s3` | `neolithic-engine-structures` | Neolithic Engine 11/5/26 | `src/sim/rules.ts`, `life.ts`, `land.ts`, `people.ts`, `config.ts`, `types.ts`, `world.ts`; `tests/turmoil.test.ts`, `exposure.test.ts`, `water-carry.test.ts`; `scripts/*-probe.ts` | Active. Next: merge `main`, then the place-cost memory, then port the Phase 5f ideas (below). Not merged to `main`; needs a quiet-machine verify, your review and a rule-13 watch. |
+| Settlements S3: structures, carried water, turmoil (healing, contest, place cost), and the S3b to S3d port | `settlements-s3` | `neolithic-engine-structures` | Neolithic Engine 11/5/26 | `src/sim/rules.ts`, `life.ts`, `land.ts`, `people.ts`, `config.ts`, `types.ts`, `world.ts`; `tests/turmoil.test.ts`, `exposure.test.ts`, `water-carry.test.ts`; `scripts/*-probe.ts` | Merged to `main` on 2026-11-08 (7fb20ea) with verify green. Next on this branch: the place-cost memory, then port the Phase 5f ideas (below). S3 is not closed until your rule-13 watch. |
 | Faster verify: parallel test files, calibrated test loops | `main` (d2832f8, dce6b48) | n/a | made by an earlier session; verified and pushed by Neolithic Engine 11/5/26 | `vitest.config.ts`, `scripts/verify.sh`, `tests/*` | Done on `main`. |
-| Phase 5f structures (ray enclosure, wind shadow, doorways, wall crossing, hearth anchor) | `phase-5f-exposure` (d38588c, not pushed) | main checkout `neolithic-engine` | unknown (no active session claims it) | `src/sim/land.ts`, `life.ts`, `rules.ts`, `seasons.ts`, `settlements.ts`, `config.ts`; `tests/exposure.test.ts` | **Retired by the user's decision of 2026-11-08:** `settlements-s3` is the one structures branch. Don't merge it to `main`. Its ideas are queued below. The main checkout is left mid-merge (conflict in `docs/STATUS.md`, plus `REBASE_HEAD` and `stash@{0}`), for the user to finish or abort. |
+| Phase 5f structures (ray enclosure, wind shadow, doorways, wall crossing, hearth anchor) | `phase-5f-exposure` (d38588c, not pushed) | main checkout `neolithic-engine` | unknown (no active session claims it) | `src/sim/land.ts`, `life.ts`, `rules.ts`, `seasons.ts`, `settlements.ts`, `config.ts`; `tests/exposure.test.ts` | **Retired by the user's decision of 2026-11-08:** `settlements-s3` is the one structures branch. Don't merge it to `main`. Its ideas are queued below. Branch deleted on 2026-11-08 at the user's request; its one commit, d38588c, holds the ideas queued below. |
 | Persistent-walk jitter (shelved, switched off; probes and notes kept) | merged to `main` via PR #1 (885e024) | cloud | Jitter computation logic review (cloud session) | `src/sim/jitter.ts`, `config.ts`, `types.ts`; `tests/jitter.test.ts` | Done and shelved: jitter had little effect (`docs/findings.md`). Added to the board after the fact on 2026-11-08. |
-| Visual verification: Playwright screenshots of the camera, terrain, water and cliffs, pixel-diffed against `visual/baseline/`, run from `npm run verify` | `claude/visual-verification-setup-x8cmbi` | cloud | Neolithic Engine 11/8/26 (cloud session) | `scripts/visual-check.ts`, `visual-lib.ts`, `visual-snapshot.ts`, `png.ts`, `verify.sh`; `src/ui/capture-hook.ts`, `src/main.ts` (the `?capture` block), `src/render/renderer.ts` (one read-only `cameraState()` getter, 10 lines); `tests/visual-lib.test.ts`; `visual/` | Active. `settlements-s3` also edits `renderer.ts` (+21 lines, different area); expect a trivial merge. |
-| Merge of `main` into the S3 work (parallel copy) | `settlements-s3-b` | `.claude/worktrees/bridge-cse_01RaXxaJwZqqG6mXpDarUq92` | Neolithic Engine 11/6/26 | none now | Paused by its owner. Its fixes are on `settlements-s3`; to be retired by its owner once `settlements-s3` has merged `main`. |
+| Visual verification: Playwright screenshots of the camera, terrain, water and cliffs, pixel-diffed against `visual/baseline/`, run from `npm run verify` with `VERIFY_VISUAL=1` | `claude/visual-verification-setup-x8cmbi` | cloud | Neolithic Engine 11/8/26 (cloud session) | `scripts/visual-check.ts`, `visual-lib.ts`, `visual-snapshot.ts`, `png.ts`, `verify.sh`; `src/ui/capture-hook.ts`, `src/main.ts` (the `?capture` block), `src/render/renderer.ts` (one read-only `cameraState()` getter, 10 lines); `tests/visual-lib.test.ts`; `visual/` | Merged to `main` on 2026-11-08 by Neolithic Engine 11/5/26, with the visual step made opt-in. Baselines regenerated after `settlements-s3` merged. |
+| Merge of `main` into the S3 work (parallel copy) | `settlements-s3-b` | `.claude/worktrees/bridge-cse_01RaXxaJwZqqG6mXpDarUq92` | Neolithic Engine 11/6/26 | none now | Paused by its owner. Everything on it is now on `settlements-s3` (the fearX/fearY fix and the chronicle battle-test pin included), so its owner can retire it. |
 
 ## Queue: Phase 5f ideas to port into S3, one at a time, each with a switch and measured
 
@@ -35,5 +35,5 @@ Taken from `phase-5f-exposure` (commit d38588c), whose perf was 14.2 µs per per
 ## Needs a person
 
 - A rule-13 watch of the S0 to S3 features in a browser.
-- The main checkout's mid-merge on `phase-5f-exposure`: finish or abort.
+- `stash@{0}` ("WIP on chore/faster-verify"): an older draft of the faster-verify tests, superseded by what is on `main`. Drop it if you agree; it is shared by all worktrees.
 - Whether `data/` (the saved world) is backed up.

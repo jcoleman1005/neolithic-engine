@@ -22,7 +22,7 @@ import type { SavedWorld } from '../src/sim/protocol';
 export const LEAD_TICKS = 3;
 const MAX_TICKS = 360 * 60;
 const CHECKPOINT_EVERY = 360;
-const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 2; // 2: the split must arrive alone
 
 export interface SplitMeta {
   readonly seed: number;
@@ -47,6 +47,13 @@ interface SplitFound {
   readonly y: number;
   readonly band: number;
   readonly priority: number;
+}
+
+/** Other camera-worthy entries (priority above 0, not a split) in one tick's chronicle record. */
+function othersIn(bodies: ReturnType<Chronicle['record']>): number {
+  let n = 0;
+  for (const b of bodies) if (b.kind === 'chronicle' && b.type !== 'split' && b.priority > 0) n++;
+  return n;
 }
 
 function findSplit(bodies: ReturnType<Chronicle['record']>): SplitFound | null {
@@ -105,22 +112,36 @@ function build(seed: number): SplitSnapshot {
   }
   if (!firstRunSplit || !checkpoint) throw new Error(`Seed ${seed} has no band split within ${MAX_TICKS} ticks; pick another seed`);
 
-  // 2. Load the checkpoint and run on to the first split of that loaded timeline.
+  // 2. Load the checkpoint and run on to the first split of that loaded timeline that arrives alone:
+  // no other camera-worthy entry on its tick or in the LEAD_TICKS before it, so the camera's cut can
+  // only be to the split. (With the settlement observer, a camp can be founded on the same tick.)
   const probe = load(checkpoint.world, checkpoint.chronicle);
   const checkpointTick = probe.world.tick;
+  const splitTicks = new Set<number>();
+  let lastOther = -Infinity;
   let found: SplitFound | null = null;
-  while (!found && probe.world.tick < checkpointTick + 2 * CHECKPOINT_EVERY) {
+  const window = 6 * CHECKPOINT_EVERY;
+  while (!found && probe.world.tick < checkpointTick + window) {
     probe.world.step();
-    found = findSplit(probe.chronicle.record(probe.world));
+    const bodies = probe.chronicle.record(probe.world);
+    const split = findSplit(bodies);
+    const others = othersIn(bodies);
+    if (split) {
+      splitTicks.add(probe.world.tick);
+      if (others === 0 && probe.world.tick - lastOther > LEAD_TICKS) found = split;
+    }
+    if (others > 0 || (split && !found)) lastOther = probe.world.tick;
   }
-  if (!found) throw new Error(`No split within ${2 * CHECKPOINT_EVERY} ticks of the tick ${checkpointTick} checkpoint`);
+  if (!found) throw new Error(`No split arriving alone within ${window} ticks of the tick ${checkpointTick} checkpoint`);
   const splitTick = probe.world.tick;
 
   // 3. Load it again and stop LEAD_TICKS short of the split: this is the save.
   const replay = load(checkpoint.world, checkpoint.chronicle);
   while (replay.world.tick < splitTick - LEAD_TICKS) {
     replay.world.step();
-    if (findSplit(replay.chronicle.record(replay.world))) throw new Error('The same checkpoint split earlier on a second load: loading is not deterministic');
+    if (findSplit(replay.chronicle.record(replay.world)) && !splitTicks.has(replay.world.tick)) {
+      throw new Error('The same checkpoint split at a different tick on a second load: loading is not deterministic');
+    }
   }
   const saved: SavedWorld = {
     format: 'neolithic-world',

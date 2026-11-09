@@ -52,6 +52,14 @@ export interface LandState {
   readonly durability?: readonly number[];
   /** Path wear (S2); absent in older saves. */
   readonly wear?: readonly number[];
+  /** What built tiles are made of (S3); absent in older saves. */
+  readonly material?: readonly number[];
+  readonly exposure?: readonly number[];
+  /** Carried-water stores (S3w); absent in older saves. */
+  readonly waterStore?: readonly number[];
+  readonly waterFindable?: readonly number[];
+  /** Far-sight block food map; absent in older saves. */
+  readonly blockFood?: readonly number[];
   readonly structure?: readonly number[];
 }
 
@@ -112,6 +120,23 @@ export class Land {
   public readonly durability: Uint8Array;
   /** S2: how worn the ground is by feet, 0 to 255. Saved; hashed only while paths are on. */
   public readonly wear: Uint8Array;
+  /** S3: what a built tile is made of: 0 nothing, 1 packed earth, 2 stone. */
+  public readonly material: Uint8Array;
+  /** S3a: how open a tile is to the wind, 0 enclosed to 255 open. Refreshed in slices, so saved. */
+  public readonly exposure: Uint8Array;
+  /** Shore test 2: mean standing plant food per 16 x 16 block, refreshed on a fixed interval. Saved; hashed when on. */
+  public readonly blockFood = new Float32Array(256);
+  /** S3w: water poured into a store on this tile. Saved; hashed only while carried water is on. */
+  public readonly waterStore: Float32Array;
+  /** S3w: 1 while thirsty people can find this store (set at the find level, cleared below half). Saved. */
+  public readonly waterFindable: Uint8Array;
+  /** S3w: steps to drinkable water: fresh rivers and lakes, plus findable stores. Derived, not saved. */
+  public readonly drinkDist: Uint8Array;
+  private drinkDirty = true;
+  private readonly drinkQueue = new Int32Array(TOTAL_CELLS);
+  /** S3a: where the wind comes from this season, as a unit vector. */
+  public windX = 0;
+  public windY = -1;
   /** 0 none, 1 hut. Set when durability reaches hutDurability, cleared when erosion takes it under hutKeep. Saved. */
   public readonly structure: Uint8Array;
   public hutCount = 0;
@@ -161,6 +186,11 @@ export class Land {
     this.stone = new Float32Array(TOTAL_CELLS);
     this.durability = new Uint8Array(TOTAL_CELLS);
     this.wear = new Uint8Array(TOTAL_CELLS);
+    this.material = new Uint8Array(TOTAL_CELLS);
+    this.waterStore = new Float32Array(TOTAL_CELLS);
+    this.waterFindable = new Uint8Array(TOTAL_CELLS);
+    this.drinkDist = new Uint8Array(TOTAL_CELLS).fill(255);
+    this.exposure = new Uint8Array(TOTAL_CELLS).fill(255);
     this.structure = new Uint8Array(TOTAL_CELLS);
     this.fire = new Uint8Array(TOTAL_CELLS);
     this.fireNear = new Uint8Array(TOTAL_CELLS);
@@ -541,11 +571,14 @@ export class Land {
   }
 
   /** Sets stone down on a cell: adds durability, and the cell becomes a hut once it holds enough. */
-  public build(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
+  public build(x: number, y: number, amount: number, config: Readonly<SimulationConfig>, earth = false): void {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
     if (this.isWater[i] === 1) return;
     const cap = config.durabilityCap ?? 255;
-    this.durability[i] = Math.min(cap, Math.round(this.durability[i] + amount * (config.buildGain ?? 4)));
+    const gain = earth ? config.earthBuildGain ?? 2 : config.buildGain ?? 4;
+    this.durability[i] = Math.min(cap, Math.round(this.durability[i] + amount * gain));
+    // A tile with any stone in it counts as stone; earth only marks a tile that has none.
+    if (config.earthBuildingEnabled !== false) this.material[i] = earth ? (this.material[i] === 2 ? 2 : 1) : 2;
     if (this.structure[i] === 0 && this.durability[i] >= (config.hutDurability ?? 60)) {
       this.structure[i] = 1;
       this.hutCount++;
@@ -569,8 +602,14 @@ export class Land {
   }
 
   /** S2: path wear for the viewer, 0 to 7 per tile. */
-  public packPaths(out: Uint8Array): void {
-    for (let i = 0; i < TOTAL_CELLS; i++) out[i] = this.wear[i] >> 5;
+  public packPaths(out: Uint8Array, config?: Readonly<SimulationConfig>): void {
+    // Ground channel: wear in bits 0 to 2 and (S3w) the water store level in bits 6 and 7.
+    const cap = config?.waterStoreCap ?? 100;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      const s = this.waterStore[i];
+      const lvl = s <= 0 ? 0 : s < cap / 3 ? 1 : s < (2 * cap) / 3 ? 2 : 3;
+      out[i] = (this.wear[i] >> 5) | (lvl << 6);
+    }
   }
 
   /** Wears every built tile down by 1, one slice of the map a tick, so each loses 1 per erosionSlices ticks. */
@@ -578,15 +617,224 @@ export class Land {
     const slices = Math.max(1, config.erosionSlices ?? 64);
     const keep = config.hutKeep ?? 20;
     for (let i = tick % slices; i < TOTAL_CELLS; i += slices) {
-      const d = this.durability[i];
-      if (d === 0) continue;
-      this.durability[i] = d - 1;
-      if (this.structure[i] === 1 && d - 1 < keep) {
-        this.structure[i] = 0;
-        this.hutCount--;
-        if (config.shelterSeekEnabled !== false) this.warmDirty = true;
+      if (this.durability[i] !== 0) this.wearBuilt(i, keep, config);
+    }
+    // S3: packed earth also washes away on a faster slice of its own.
+    if (config.earthBuildingEnabled !== false) {
+      const es = Math.max(1, config.earthErodeSlices ?? 32);
+      for (let i = tick % es; i < TOTAL_CELLS; i += es) {
+        if (this.material[i] === 1 && this.durability[i] !== 0) this.wearBuilt(i, keep, config);
       }
     }
+  }
+
+  private wearBuilt(i: number, keep: number, config: Readonly<SimulationConfig>): void {
+    const d = this.durability[i] - 1;
+    this.durability[i] = d;
+    if (d === 0) this.material[i] = 0;
+    if (this.structure[i] === 1 && d < keep) {
+      this.structure[i] = 0;
+      this.hutCount--;
+      if (config.shelterSeekEnabled !== false) this.warmDirty = true;
+    }
+  }
+
+  /** Shore test 2: recomputes the block food map (mean standing plant food on land per 16 x 16 block). */
+  public refreshBlockFood(): void {
+    for (let by = 0; by < 16; by++) {
+      for (let bx = 0; bx < 16; bx++) {
+        let sum = 0, n = 0;
+        for (let y = by * 16; y < by * 16 + 16; y++) {
+          for (let x = bx * 16; x < bx * 16 + 16; x++) {
+            const c = (y << 8) | x;
+            if (this.isWater[c] === 1) continue;
+            sum += this.food[c];
+            n++;
+          }
+        }
+        this.blockFood[by * 16 + bx] = n > 0 ? sum / n : 0;
+      }
+    }
+  }
+
+  /** S3w: rebuilds the drinkable-water distance when a store has been found or lost. */
+  public refreshDrink(): void {
+    if (!this.drinkDirty) return;
+    this.drinkDirty = false;
+    const dist = this.drinkDist;
+    const queue = this.drinkQueue;
+    dist.fill(255);
+    let head = 0, tail = 0;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (this.waterDist[i] === 0 || this.waterFindable[i] === 1) { dist[i] = 0; queue[tail++] = i; }
+    }
+    while (head < tail) {
+      const c = queue[head++];
+      const d = dist[c] + 1;
+      if (d > 254) continue;
+      const x = c & COORD_MASK, y = c >> 8;
+      for (let k = 0; k < 4; k++) {
+        const n = k === 0 ? (y << 8) | ((x + 1) & COORD_MASK)
+          : k === 1 ? (y << 8) | ((x - 1) & COORD_MASK)
+          : k === 2 ? (((y + 1) & COORD_MASK) << 8) | x
+          : (((y - 1) & COORD_MASK) << 8) | x;
+        if (dist[n] !== 255 || this.isWater[n] === 1) continue;
+        dist[n] = d;
+        queue[tail++] = n;
+      }
+    }
+  }
+
+  /** S3w: keeps a store's findable state, with hysteresis so it does not flicker. */
+  private updateFindable(i: number, config: Readonly<SimulationConfig>): void {
+    const min = config.waterStoreFindMin ?? 10;
+    const v = this.waterStore[i];
+    if (this.waterFindable[i] === 0 && v >= min) { this.waterFindable[i] = 1; this.drinkDirty = true; }
+    else if (this.waterFindable[i] === 1 && v < min / 2) { this.waterFindable[i] = 0; this.drinkDirty = true; }
+  }
+
+  /** S3w: pours water into a tile's store; returns how much went in. */
+  public pourWater(i: number, amount: number, config: Readonly<SimulationConfig>): number {
+    const room = (config.waterStoreCap ?? 100) - this.waterStore[i];
+    const got = amount < room ? amount : room > 0 ? room : 0;
+    this.waterStore[i] += got;
+    this.updateFindable(i, config);
+    return got;
+  }
+
+  /** S3w: takes water from a tile's store to drink; returns how much came out. */
+  public takeWater(i: number, want: number, config: Readonly<SimulationConfig>): number {
+    const got = want < this.waterStore[i] ? want : this.waterStore[i];
+    this.waterStore[i] -= got;
+    this.updateFindable(i, config);
+    return got;
+  }
+
+  /** Neighbour offsets in a fixed order (own tile first), for reaching into the tiles around someone. */
+  private static readonly REACH_DX = [0, -1, 0, 1, -1, 1, -1, 0, 1];
+  private static readonly REACH_DY = [0, -1, -1, -1, 0, 0, 1, 1, 1];
+
+  /** Food heaped on this tile and the 8 around it. */
+  public pileInReach(x: number, y: number): number {
+    let sum = 0;
+    for (let k = 0; k < 9; k++) sum += this.pile[(((y + Land.REACH_DY[k]) & COORD_MASK) << 8) | ((x + Land.REACH_DX[k]) & COORD_MASK)];
+    return sum;
+  }
+
+  /** Eats from heaps on this tile first, then the 8 around it in a fixed order. Returns what was eaten. */
+  public takePileInReach(x: number, y: number, want: number): number {
+    let got = 0;
+    for (let k = 0; k < 9 && got < want; k++) {
+      got += this.takePile(x + Land.REACH_DX[k], y + Land.REACH_DY[k], want - got);
+    }
+    return got;
+  }
+
+  /** S3w: whether any water store is on this tile or the 8 around it. */
+  public waterInReach(x: number, y: number): boolean {
+    for (let k = 0; k < 9; k++) {
+      if (this.waterStore[(((y + Land.REACH_DY[k]) & COORD_MASK) << 8) | ((x + Land.REACH_DX[k]) & COORD_MASK)] > 0) return true;
+    }
+    return false;
+  }
+
+  /** S3w: drinks from stores on this tile first, then the 8 around it. Returns what was drunk. */
+  public drinkInReach(x: number, y: number, want: number, config: Readonly<SimulationConfig>): number {
+    let got = 0;
+    for (let k = 0; k < 9 && got < want; k++) {
+      const c = (((y + Land.REACH_DY[k]) & COORD_MASK) << 8) | ((x + Land.REACH_DX[k]) & COORD_MASK);
+      if (this.waterStore[c] > 0) got += this.takeWater(c, want - got, config);
+    }
+    return got;
+  }
+
+  /** S3w: stores dry out, faster when warm, much slower on a built (covered) tile. */
+  public evaporateWater(config: Readonly<SimulationConfig>): void {
+    const warm = this.seasonTemp > 0 ? this.seasonTemp : 0;
+    const base = (config.waterEvaporation ?? 0.05) * (1 + (config.waterEvapWarm ?? 2) * warm);
+    const covered = config.waterCoveredEvapMul ?? 0.25;
+    const store = this.waterStore;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (store[i] <= 0) continue;
+      const roof = this.durability[i] > 0 || this.structure[i] === 1 || this.form[i] === FORM_NEST;
+      const v = store[i] - base * (roof ? covered : 1);
+      store[i] = v > 0 ? v : 0;
+      this.updateFindable(i, config);
+    }
+  }
+
+  /** S3: digs packed earth from trodden ground. Returns what came away. */
+  public dig(i: number, want: number, config: Readonly<SimulationConfig>): number {
+    if (this.isWater[i] === 1 || this.wooded[i] === 1 || this.stone[i] > 0 || this.durability[i] > 0) return 0;
+    if (this.wear[i] < (config.earthWear ?? 64)) return 0;
+    return want;
+  }
+
+  /** S3a: how much a tile shelters its neighbours: built walls, brush, trees and higher ground. */
+  public barrierAt(n: number, from: number, config: Readonly<SimulationConfig>): number {
+    let b = this.durability[n] + this.brush[n] * (config.brushBarrier ?? 4);
+    const tm = this.treeMax[n];
+    if (tm > 0) b += (config.treeBarrier ?? 120) * (this.trees[n] / tm);
+    const rise = this.upland[n] - this.upland[from];
+    if (rise > 0) b += rise * (config.cliffBarrier ?? 600);
+    return b > 255 ? 255 : b;
+  }
+
+  /** S3a: weight of the neighbour at (dx, dy): the upwind side counts more. */
+  public windWeightTo(dx: number, dy: number, config: Readonly<SimulationConfig>): number {
+    const len = dx !== 0 && dy !== 0 ? Math.SQRT2 : 1;
+    const along = (dx * this.windX + dy * this.windY) / len;
+    return (dx !== 0 && dy !== 0 ? 0.5 : 1) * (1 + (config.windWeight ?? 2) * (along > 0 ? along : 0));
+  }
+
+  /** S3a: sets where this season's wind comes from (turning once round the compass a year). */
+  public setWind(phase: number): void {
+    this.windX = Math.cos(2 * Math.PI * phase);
+    this.windY = Math.sin(2 * Math.PI * phase);
+  }
+
+  /** S3a: exposure of one tile: 255 less the wind-weighted average barrier around it; caves are covered. */
+  public exposureOf(i: number, config: Readonly<SimulationConfig>): number {
+    if (this.cave[i] === 1) return 0;
+    const x = i & COORD_MASK, y = i >> 8;
+    let sum = 0, total = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const w = this.windWeightTo(dx, dy, config);
+        sum += w * this.barrierAt((((y + dy) & COORD_MASK) << 8) | ((x + dx) & COORD_MASK), i, config);
+        total += w;
+      }
+    }
+    const e = 255 - sum / total;
+    return e < 0 ? 0 : Math.round(e);
+  }
+
+  /** S3a: refreshes exposure on one slice of the map. */
+  public updateExposure(tick: number, config: Readonly<SimulationConfig>): void {
+    const slices = Math.max(1, config.exposureSlices ?? 8);
+    for (let i = tick % slices; i < TOTAL_CELLS; i += slices) this.exposure[i] = this.exposureOf(i, config);
+  }
+
+  /**
+   * S3a: the neighbouring tile where `gain` durability would shelter tile (x, y) most, given the wind;
+   * -1 when no neighbour would help. Skips water, occupied tiles and worn routes.
+   */
+  public bestShelterNeighbour(x: number, y: number, gain: number, occupied: (c: number) => boolean, config: Readonly<SimulationConfig>): number {
+    const avoidWear = config.directionalAvoidWear ?? 64;
+    const from = (y << 8) | x;
+    let best = -1, bestScore = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const n = (((y + dy) & COORD_MASK) << 8) | ((x + dx) & COORD_MASK);
+        if (this.isWater[n] === 1 || this.wear[n] >= avoidWear || this.cave[n] === 1 || occupied(n)) continue;
+        const room = 255 - this.barrierAt(n, from, config);
+        const score = this.windWeightTo(dx, dy, config) * (gain < room ? gain : room);
+        if (score > bestScore) { bestScore = score; best = n; }
+      }
+    }
+    return best;
   }
 
   /** Sets this tick's seasonal temperature and the cold thresholds (called once a tick by the life system). */
@@ -969,6 +1217,11 @@ export class Land {
       stone: Array.from(this.stone),
       durability: Array.from(this.durability),
       wear: Array.from(this.wear),
+      material: Array.from(this.material),
+      waterStore: Array.from(this.waterStore),
+      waterFindable: Array.from(this.waterFindable),
+      blockFood: Array.from(this.blockFood),
+      exposure: Array.from(this.exposure),
       structure: Array.from(this.structure),
     };
   }
@@ -1015,6 +1268,17 @@ export class Land {
     if (state.durability) for (let i = 0; i < len; i++) this.durability[i] = state.durability[i] ?? 0;
     this.wear.fill(0);
     if (state.wear) for (let i = 0; i < len; i++) this.wear[i] = state.wear[i] ?? 0;
+    this.waterStore.fill(0);
+    if (state.waterStore) for (let i = 0; i < len; i++) this.waterStore[i] = state.waterStore[i] ?? 0;
+    this.waterFindable.fill(0);
+    if (state.waterFindable) for (let i = 0; i < len; i++) this.waterFindable[i] = state.waterFindable[i] ?? 0;
+    this.drinkDirty = true;
+    this.blockFood.fill(0);
+    if (state.blockFood) for (let i = 0; i < 256; i++) this.blockFood[i] = state.blockFood[i] ?? 0;
+    this.material.fill(0);
+    if (state.material) for (let i = 0; i < len; i++) this.material[i] = state.material[i] ?? 0;
+    this.exposure.fill(255);
+    if (state.exposure) for (let i = 0; i < len; i++) this.exposure[i] = state.exposure[i] ?? 255;
     if (state.structure) for (let i = 0; i < len; i++) { this.structure[i] = state.structure[i] ?? 0; this.hutCount += this.structure[i]; }
   }
 }

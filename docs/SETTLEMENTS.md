@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0, S0 and S1 merged. S2 built on `settlements-s2`: one target missed on seed 3; tuning waits for a combined pass at the end (decision 2026-11-05). Next is S3, which starts with the S3-pre and S3a stop point. See `docs/STATUS.md`.
+**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x: slow healing is built; next the contest (fights over a real stake), then the place-cost memory that replaces the first fear design. Then the S3a re-run. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
@@ -89,7 +89,7 @@ The agent can't currently see the map: the repo has no browser tooling, and a pl
 - **`scripts/map-dump.ts`:** no dependencies. Runs a seed to year N with switch overrides and writes a PNG with Node's `zlib`, showing terrain, built cells, heaps, people density and (later) wear. Also prints the gate numbers. S1 and S3a rely on this.
 - **`scripts/fingerprint.ts`:** accepts overrides and a tick count.
 - **`scripts/verify.sh`:** keeps full test output in a file and prints failing test names, which are currently lost when output is cut.
-- **Real-renderer capture:** `scripts/capture.ts` (a world saved at year N, several zooms and 360 px) and `scripts/visual-check.ts` (`npm run visual`: fixed seed, scripted camera, pixel diff against `visual/baseline/`, part of `npm run verify`). Playwright is now a dev dependency, by the user's decision of 2026-11-08; `PLAYWRIGHT_DIR` is no longer needed. If Chromium is missing, run `npx playwright install chromium` or set `VISUAL_CHROMIUM`.
+- **Real-renderer capture:** `scripts/capture.ts` (a world saved at year N, several zooms and 360 px) and `scripts/visual-check.ts` (`npm run visual`: fixed seed, scripted camera, pixel diff against `visual/baseline/`; run by `npm run verify` when `VERIFY_VISUAL=1`, opt-in by the user's decision of 2026-11-08). Playwright is now a dev dependency, by the user's decision of 2026-11-08; `PLAYWRIGHT_DIR` is no longer needed. If Chromium is missing, run `npx playwright install chromium` or set `VISUAL_CHROMIUM`.
 - Extend `scripts/sweep.ts`, which today only knows `farming` and `stockpiles`, when a stage needs to tune.
 
 ### S0 Settlement observer
@@ -151,6 +151,133 @@ No new scent and no stored home. People stay when the place is physically better
 ### S3 Exposure and walls
 This answers the roadmap's closed-rooms question: no room detector and no wall tag. Rooms are simply places where exposure is low. Built in this order, stopping to review after each step:
 
+**S3w Carried water (planned and reviewed 2026-11-05; build before S3b).** Why: with thirst on, half of everyone standing still is next to fresh water; with thirst off, 41% stand 7 or more tiles away (seed 3, years 5 to 15). Thirst is not a range limit, since a full drink lasts about 100 ticks; it is a trip. Every 100 ticks or so it drags everyone to the river, and nothing pulls them back inland. Shore land also holds about twice the plant food (capacity 23.5 next to water, 6.7 to 11.5 inland), so the shore is a real draw anyway. The aim is not to move people anywhere: it is to let them drink without the trip and see whether behaviour changes.
+
+*Approach:* water becomes an ordinary hand-carried item (one thing at a time, like food). People drink from what they carry and pour it into small stores at camps away from the river. Not a personal waterskin: that would break the one-carry rule and hand everyone a container at year 0; waterskins and wells are parked.
+
+*Mechanics* (switch `waterCarryEnabled`; every number in config):
+- **Fetch:** a fed person with empty hands and nearly full hydration, standing next to fresh river or lake water, fills up to `waterCarryMax`, but only on a small chance per tick (`waterFetchChance`, a hash of tick and slot, no random draw). Without that chance, everyone at the shore would fill up, and hands full of water would stop stone, earth and brush carrying.
+- **Spill:** carried water loses `waterSpill` per step.
+- **Drink from the carry:** a thirsty carrier drinks what they carry first, so a forager can stay inland instead of walking back. This is the part most likely to change behaviour.
+- **Pour:** a resting carrier pours into the tile's store (`Land.waterStore`, capped at `waterStoreCap`) only at least `waterPourMinDist` tiles from natural water, where at least `dropCrowd` people rest or a store already stands. Closer in, a store would save a step or two and nothing more, so carriers keep their water and drink it.
+- **Evaporate:** stores lose `waterEvaporation` a tick, more in warm seasons, and `waterCoveredEvapMul` as much on built tiles (nest, hut or any built durability). Exposure can join in later if S3a is accepted.
+- **Drink from a store:** a store is drunk from on its tile or any of the 8 around it, just as a river is drunk from beside it (changed 2026-11-05 at your suggestion). One rule covers both: stop and drink when natural water or a store is within reach, otherwise walk downhill on the drinkable-water distance. Up to 9 people can share a store without standing on one tile.
+- **Eat from heaps within reach (separate switch `adjacentStoresEnabled`):** hungry people also eat from food heaps on the 8 tiles around them, own tile first and then a fixed order, and S1's stay check counts heaps within reach. It changes far more than water does (each heap feeds about 9 times as many people, and fewer heaps grow into granaries), so it gets its own switch and its own comparison.
+- **Expect small inland groups:** a 50-person camp drinks about 20 units a tick, so a store of 100 lasts 5 ticks, and keeping one camp 5 tiles from water would take about 10 people hauling all the time.
+
+*Foundational changes:*
+1. **Two water distance fields:** `waterDist` stays natural fresh water (fetching, fish, the shore drink). New `drinkDist` counts rivers plus findable stores. A store becomes findable at `waterStoreFindMin` and drops out only below half of it, so it does not flicker; that state is saved and hashed. `drinkDist` is rebuilt only when a store changes findable state, with a reused typed queue. With the switch off, people use `waterDist` as today.
+2. **`CARRY_WATER`** through carry caps (body-scaled), spill, drag and the save.
+3. **A carry byte in the person frame:** 10 to 11 bytes per person (carried kind and amount), so the viewer can mark what anyone carries. This is a format change, so open pages reload, and it is about 10% more frame bandwidth.
+4. **`Land.waterStore`** (Float32) and the findable state: saved, and hashed only while the switch is on.
+5. **The per-tile ground channel to the viewer:** wear (bits 0 to 2), with water store level in bits 6 and 7; bits 3 to 5 are left for S3's built level.
+6. **Tools:** `npm run map -- --samples <file>` writes thinned samples of how far people standing still are from natural water, and a new `npm run compare` runs the statistics below.
+
+*On the map:* stores draw as blue on the tile, stronger as they fill (a top-down jar or pool sprite comes from the graphics agent later). At close zoom a carrier shows a small mark for what they carry, blue for water. The settlement card shows stored water, and the legend gets entries.
+
+*How S3w is judged.* No target for where people should be. The test is whether behaviour differs:
+- **Runs:** 6 seeds, 30 years each, carried water on and off. Everything else stays at defaults, with S3a off, since it is unreviewed.
+- **Measure:** distance from natural fresh water of everyone standing still, sampled every 90 ticks from year 10 to 30.
+- **Two comparisons**, each with everything else on: carried water off against on, and adjacent eating off against on.
+- **Main test:** the per-seed means are compared in pairs, with the mean difference, a 95% interval, and an exact sign-flip test (with 6 seeds, the smallest possible two-sided p is 0.03).
+- **Supporting check:** a rank test within each seed.
+- **Passes if:** the difference is significant at p < 0.05 in either direction, with the interval excluding zero.
+- **Guardrails, reported and not targets:** no seed dies out; population at year 20 within 10% of off; built tiles not down by more than 25%; perf within budget.
+
+*Tests:* fetching only next to natural water and only on the chance; spill per step; drinking from a carry and from a store; pouring only far enough from natural water; evaporation faster when warm and slower when covered; findable hysteresis; `drinkDist` including stores and matching after a load; the thirst stop rule on a store tile; the carry byte round trip; off parity.
+
+**S3x Turmoil: healing and the cost of a place (planned 2026-11-06, revised 2026-11-07; build before S3b).** Why: the death probe (`scripts/death-probe.ts`, `docs/findings.md`) found no code bug, but wounds never heal at today's balance. From year 20, 95 to 97% of people are wounded, averaging 220 of 255. Wounds heal only above half energy, while clashes come about every 2 months per child. Wounds add upkeep and stop steps, so the wounded get hungrier, stop healing, and fewer women are fed enough to mate (43% falling to 13%). Nothing lets repeated defeat drive people away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step.
+
+On by default. Slow healing and the contest are built and measured; the contest refinements are next, then the place-cost memory, which replaces the first fear design (revised 2026-11-07, see below).
+1. **`slowHealEnabled`** (built). Wounds heal at any energy: the full `injuryHeal` above `injuryHealEnergy`, falling to `healFloor` of it at zero energy, and `healShelterMul` faster on a sheltered tile (`Land.sheltered`; it follows exposure once S3b is on). Healing costs no energy. Off keeps the old rule. Result: wounds fall a little on all 3 seeds, but wounds still arrive faster than they heal (`docs/findings.md`).
+2. **`placeCostEnabled`: people remember what a place costs them.** New per-person state: `placeCost` (Float32, energy), `costX`, `costY` (Uint8, the centre of the region it belongs to). It is a pressure, not an order: nothing tells anyone where to go.
+   - **Losses add what was actually lost:** the energy a clash loser loses, or a wolf takes. A heavy defeat counts more than a scratch.
+   - **Wins subtract what was gained:** a winner's loot comes off their own cost, so the memory tracks net loss. It never goes below 0, so raiding does not make a place more attractive than it is.
+   - **One region per person:** an event within `costRadius` of the centre adds to the memory and nudges the centre toward it, weighted by size. An event farther away starts a new memory there, and the old place's cost is dropped, since it belongs to a place the person has left.
+   - **It fades:** each tick the memory shrinks by 1 / `costMemoryTicks` (about a year), so a quiet stretch rebuilds trust.
+   - **It is counted as upkeep:** the expected cost of living in the region is `placeCost / costMemoryTicks` energy a tick. Inside the region, the stay check (`worthStaying`, and the old calm path when `stayValueEnabled` is off) adds it to the real upkeep of the tile. When the place no longer pays, the person moves the way any dissatisfied person moves (food scent, roaming, worn paths) and stops on the first tile that pays. There is no push and no direction.
+   - **Shelter is weighed, not overridden:** the cold rule's "stay sheltered" holds only while the cold upkeep a shelter saves is more than the place's expected cost.
+   - **Children learn from their parents:** a child (under `adultAge`) within `careRadius` of a living mother or father drifts toward that parent's view of the place (`costChildLearn` of the gap a tick), taking the parent's centre when the parent's memory is larger. If the family stays, the child stays. An orphan keeps their own memory, which fades as usual.
+   - **What should follow, unscripted:** outnumbered people lose more often (allies already raise clash scores) and leave first. Rich land can bear the cost of fighting and is held, while poor land is given up. Winners are paid by loot and stay.
+
+3. **`contestEnabled`: a fight is a contest over something real** (planned 2026-11-07; built before the place cost, which depends on how often people really fight). It replaces the belligerence gate (habit + cruelty > 180, which stops under 3% of touches) and keeps everything before it. Allies still share, and pairs whose cultures are close still tolerate each other. Pairs below the old gate (under 3% of touches) now go through the contest too; for everyone else the contest can only remove fights.
+   - **The stake** is the food both could eat here: standing plants above the grazing floor, plus heaps in reach when stockpiles are on. A person values it as `min(their share, maxEnergy − energy)`, so a fed person cannot use food and has no motive. With no fight, the two share the tile and each gets about half. **The gain** from winning is the value of all of it minus the value of half, plus the usual loot. **Yielding** loses the value of half.
+   - **The odds:** each side's fight score has a fixed part (strength × life stage × 10, plus allies × 3, as today) and noise uniform on 0 to 2. The chance of winning is therefore exact: the triangular distribution of the difference. No random draw is needed to judge it.
+   - **The costs** are the real ones: the energy a loser loses (`clashLossShare`), their share of the stake (the loser is driven off), plus the energy-equivalent of the wound. That is the upkeep a wound of `clashInjury` costs until it heals at the person's current healing rate, computed from config, so there is no new magic number. The winner's smaller wound is costed the same way.
+   - **Belligerence becomes risk appetite:** `r = contestRiskWeight × ((habit + cruelty) / 255 − 1)`, from −w to +w. A person attacks when `(1 + r) × pWin × gain > (1 − r) × (1 − pWin) × loss`. Each of the pair is checked as attacker, the more eager first.
+   - **The defender chooses:** fight back if `(1 + r) × pWin × (keep + loot) − (1 − r) × (1 − pWin) × loss` beats yielding, which costs half the stake. A defender who yields steps off the tile (the existing retreat step). Nobody is wounded and no habit changes, and the attacker keeps the tile.
+   - **What should follow, unscripted:** fed people on rich ground don't fight. The hungry fight over scarce food, so contests gather on worn ground and around heaps. The weak, children included, yield instead of being wounded. Two strangers no longer fight every tick, because once one yields nothing is left to contest. The climb of belligerence should slow, since yields replace most defeats.
+
+**Contest edge cases:**
+
+| Case | Handling |
+|---|---|
+| Nothing at stake (bare rock, fully fed pair) | No motive, no fight. |
+| A starving person against a stronger one | High value with low odds: they may attack anyway. That is desperation, and it is accepted and reported. |
+| The yielder cannot step (water all round) | They stay. Next tick the same contest yields again, with no harm done. |
+| A crowd of strangers at a heap | Each pairing in the cell is judged on its own, as today. The ally count is the same 9-cell scan the clash already does, and it runs only for pairs that pass the culture gate (about 8% of touches today). |
+| Children | No child rule. They are weak (life-stage strength), so they rarely attack and usually yield. |
+| Chronicle battles | Battles are built from clashes, so fewer may be reported. That is an outcome of this change, and the chronicle is not tuned for it. |
+| Off parity, saves | No new per-person state. With the switch off, no extra random numbers are drawn and today's gate is used. The switch is added (off) to the pinned-hash test. |
+| Observers | Contests, yields and clashes are counted in `Rules.clashStats` (observer only) for the probes. |
+
+**Contest tests:** no fight with nothing at stake; a fed pair does not fight over food they cannot eat; pWin matches the triangular formula; risk appetite moves the threshold; a weaker defender yields with no wound and steps off; a stronger defender fights back; a child yields to an adult; the switch off keeps the old gate; off parity.
+
+**Contest is judged by:** 3 seeds, 50 years, contest on against off (slow healing on, place cost not built). Measure: clashes and yields per person-year, share wounded, belligerence drift, births per head, women fed enough to mate, population at year 50, and settlements lasting 10 years or more. Guardrails: no seed dies out; perf within budget. Targets are written in `docs/findings.md` before running.
+
+4. **Contest refinements from the literature** (planned 2026-11-07; the contest is an asymmetric Hawk–Dove game; sources in `docs/findings.md`). Four switches, all on by default, each compared one off at a time:
+   - **`residenceEnabled`: who was here first** (Maynard Smith & Parker's Bourgeois strategy). New per-person `restTicks` (Uint8): ticks standing still on the current tile, capped at 255, reset by any step. A person who has rested at least `residentTicks` there is a resident. A resident values the stake at `residentValueMul` times what an intruder does, because they expect to keep using the place: the food now plus what grows back while they stay. That is an information and expectation difference, not a rule that the owner wins. Valuing the food more raises what a resident could win and lose by the same amount, so it does not make residents attack more. It makes them defend: giving way costs a resident more, so they fight back where a newcomer would yield. That is the Bourgeois pattern, owners defend and intruders back off, and it is what makes camps defended places.
+   - **`concedeEnabled`: give way only the part you value least** (Blurton Jones's tolerated theft; Winterhalder's marginal-value model). When the contest says the defender gives way, they no longer step off. The attacker takes food away in hand, up to what they can carry and eat, from the tile's plants and then the heaps in reach, like any gathering. Normal eating is about a bite a tick, so eating a meal on the spot would not be physical. If their hands hold something else, the defender steps off instead. The defender stays, unhurt, with what is left. Whether they then move on is decided by the ordinary stay check: if too little is left, they leave like anyone on a poor tile. The hungry take more, and a fed holder gives most of it up.
+   - **`matchCostEnabled`: close matches cost more** (Enquist & Leimar's sequential assessment). A fight's wounds and energy loss, `main`'s strike damage included, are scaled by how even the match was: `c = 1 − |2 × pWin − 1|`, from 1 for an even match to 0 for a certain one, applied as `matchCostFloor + (1 − matchCostFloor) × c`. The contest's own cost estimate uses the same factor, so judging and fighting agree. One-sided fights end quickly with little harm, and fights between equals are the bloody ones.
+   - **`selfAssessEnabled`: self-confidence, not belligerence** (winner and loser effects, Hsu, Earley & Wolf 2006). New per-person `confidence` (Float32, in fight-score units) and `confTick` (Uint32, when it last changed). A win adds `confStep` and a loss takes it away. It fades back toward 0 with time constant `confFadeTicks`, computed when read from `confTick`, so there is nothing per tick. The contest judges the odds from the person's own fight score plus their confidence against the other's true score. The fight itself uses true strength, so the overconfident lose more often. The belligerence habit nudges on a win or loss (+3 / −3) are off while this is on: belligerence stays an inherited and copied temperament, the risk appetite. A hierarchy can then emerge from repeated wins, with nobody tracking who beat whom.
+
+**Refinement edge cases:**
+
+| Case | Handling |
+|---|---|
+| Both are residents | Both value it the same way; the contest is symmetric again. |
+| A resident child | Resident like anyone. They still usually lose the odds, so they concede. |
+| A concession on bare ground | No stake means no contest, so it cannot happen. |
+| The attacker is already full | Their headroom is 0, so they had no motive; the contest would not have run. |
+| Conceding to a group, one taker after another in one tick | Each pairing is judged on what is left, so later takers find less and stop. |
+| Concession and the normal forage loop in the same tick | Eating is capped by headroom in both, so nobody eats past full. |
+| `main`'s resource gate and courage retreat | Off while the contest is on, as now. The refinements apply only with the contest on. |
+| Confidence running away | It fades with `confFadeTicks`, and fights use true strength, so overconfidence is corrected by losing. |
+| Old saves | `restTicks`, `confidence` and `confTick` are optional per-person fields, default 0. |
+| Slot reuse, growth, hashing | Reset in `kill` and `spawn`, copied on growth, hashed only when their switch is on, and the switches are added (off) to the pinned-hash test. |
+| Perf | `restTicks` is one write per person per tick in the movement loop. The rest runs only in contests (about 0.02 a person a tick) or in fights. Estimated 0.01 to 0.02 µs per person per tick in all. |
+
+**Refinement tests:** a resident defender fights back where a newcomer gives way, and the counter resets on a step; a concession puts food from plants then heaps in the taker's hands, leaves the ledger untouched and the defender in place and unhurt; the ledger balances; wounds scale with closeness and the estimate matches; confidence rises on a win, falls on a loss and fades as computed; the contest uses confidence for the odds but the fight does not; the belligerence nudges are off while self-assessment is on; each switch off restores the contest without it; save round trip; off parity.
+
+**Refinements are judged by:** 3 seeds, 50 years, all on against each one off, and against `main`'s resource clashes (contest off). Measure: fights, yields and concessions per person-year; share wounded; deaths in fights; who holds rich tiles (residents against intruders); spread of confidence; population at year 50; settlements lasting 10 years or more. Reported as directional effects across seeds (rule 10). Guardrails: no seed dies out; perf within budget.
+
+**Replaced: the first fear design.** Built and measured on 2026-11-06, then replaced: `fear` gained a fixed amount per loss, ignored wins, and pushed people away from the centre. Since nearly everyone loses sometimes, 77% of adults carried fear. Frightened people stood still a quarter of the time, so the good land was abandoned rather than held, and population at year 50 was about 38% lower (`docs/findings.md`). The code stays in git history (commit "S3x slow healing and fear from defeat").
+
+**Edge cases and how they are handled:**
+
+| Case | Handling |
+|---|---|
+| Hemmed in by water, or no tile nearby pays | No push, so nobody is driven into the shore. A person with nowhere better stays and pays, as with a poor tile today. |
+| Thirst returns early in `climb` | Thirst stays first, or people would die of thirst. |
+| A hut or nest inside a costly region | Weighed against cold upkeep saved, as above. Not skipped by rule. |
+| People wander back in (food scent, leader pull) | Expected: the cost then fails the stay check again. Measured as re-entries, not prevented. |
+| A leader inside the region | A follower who is not comfortable follows the leader as today; the band leaves when the leader's own cost fails. |
+| Refugees lose again elsewhere | A new memory there. Reported as the share of adults with a cost and how far they moved. |
+| Children lose most clashes | They learn their parents' view while near them. Child deaths are reported per run, and a jump is a stop-and-report. |
+| Wrap at the map edge | The centre is nudged with `wrapDiff`; Uint8 coordinates wrap with `& 255`. |
+| Slot reuse, growth, saves | Reset in `People.kill` and `spawn`; in the capacity-growth copy; saved per person as optional fields defaulting to 0. Old saves with `fear` fields load and ignore them. |
+| Fingerprint parity | Hashed only when the switch is on; no random numbers; the switch is added (off) to the pinned-hash test. |
+| Perf | One wrap-aware distance check per decision, one multiply per tick for the fade, two id lookups per child. Well under 0.1 µs per person. |
+
+*On the map:* nothing new is drawn at first. The inspector gets wounds and the place cost with its region in the viewer pass. Something visible (rule 13) to watch: a contested camp where those who keep losing leave and those who hold their own stay, compared with the switch off.
+
+*How S3x is judged.* No target for where people go. Targets are written in `docs/findings.md` before running:
+- **Runs:** 3 seeds, 50 years, place cost on against off (slow healing on in both); wound probe and fear probe (adapted to place cost).
+- **Measure:** share of losers more than `costRadius` from the clash 90 days later, against winners; share of adults with a cost; share standing still; tile capacity underfoot; births per head; settlements lasting 10 years or more.
+- **Guardrails, reported and not targets:** no seed dies out; population at year 50 within 10% of off; camps lasting 10 years or more not down by more than 25%; child deaths not up; perf within budget.
+
+*Tests:* healing at any energy, faster when fed and sheltered; a loss adds the energy lost and a win subtracts the loot, never below 0; events inside the radius add and move the centre, events outside start a new memory; the memory fades by 1 / `costMemoryTicks`; the stay check counts the expected cost only inside the region; shelter holds only while the cold saving exceeds the cost; a child near a parent moves toward the parent's memory and an orphan's fades; reset on kill and slot reuse; save round trip; off parity.
+
 **S3-pre Packed earth.** Stone exists only on hill tiles and is picked up only by people standing there, so lowland camps could almost never build. Add earth, dug from any land tile: a new `CARRY_EARTH` kind (new carry kind plumbing, inspector), and a per-cell material for built cells, so earth gives less durability and wears faster than stone. Digging costs energy and is booked in the ledger. Stone becomes the upgrade near hills. Switch `earthBuildingEnabled`. No "go fetch stone" drive yet.
 
 **S3a Layout spike (headless, no art).** Prototype exposure and directional unloading, then dump the built cells as images on 3 seeds. Do walls form, or only pillars and noise? If only noise, change the rules before anything else depends on them. Walls stay tile-thick, so this also checks whether room sizes and material use are workable, since a freestanding room takes 9 tiles and shared walls have to bring that down.
@@ -203,6 +330,8 @@ Art comes from the `graphics` agent (`.claude/agents/graphics.md`), following `d
 - **S0:** new `src/sim/settlements.ts`; `src/sim/host.ts`, `src/ui/simulation-client.ts`; `src/sim/world.ts`, `chronicle.ts`, `protocol.ts`, `config.ts`; `src/render/renderer.ts`; `src/ui/inspector.ts`, `legend.ts`, panel code; new `tests/settlements.test.ts`
 - **S1:** `src/sim/rules.ts`, `life.ts`, `land.ts`, `wolves.ts`, `config.ts`, `types.ts`; new `scripts/settle-probe.ts`; new `tests/staying.test.ts`
 - **S2:** `src/sim/land.ts`, `rules.ts`, `life.ts`, `protocol.ts`, `host.ts`; `src/ui/simulation-client.ts`; `src/render/renderer.ts`; new test
+- **S3x:** `src/sim/life.ts`, `rules.ts`, `wolves.ts`, `people.ts`, `config.ts`, `types.ts`; `src/ui/inspector.ts`; `scripts/death-probe.ts`; new `tests/turmoil.test.ts`
+- **S3w:** `src/sim/land.ts`, `life.ts`, `rules.ts`, `people.ts`, `world.ts`, `protocol.ts`, `config.ts`, `types.ts`; `src/ui/simulation-client.ts`, `inspector.ts`, `settlements-view.ts`, `legend.ts`; `src/render/renderer.ts`; `scripts/map-dump.ts`, `settle-probe.ts`; new `tests/water-carry.test.ts`
 - **S3:** `src/sim/land.ts`, `seasons.ts`, `rules.ts`, `life.ts`, `config.ts`, `world.ts`; `src/render/renderer.ts`; new `tests/exposure.test.ts`
 - **Docs for every stage:** `docs/decisions.md` (the three decisions above, recorded at the start), `docs/ROADMAP.md`, `docs/findings.md`, `docs/STATUS.md`
 

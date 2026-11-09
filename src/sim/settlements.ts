@@ -33,6 +33,8 @@ export interface SettlementRecord {
   /** Smoothed over recent scans, so a passing band does not count. */
   residents: number;
   stores: number;
+  /** Stored water near the settlement (S3w). */
+  water: number;
   tier: number;
   peakTier: number;
   /** Last scan that met the camp minimum. */
@@ -53,6 +55,7 @@ export interface SettlementView {
   readonly built: number;
   readonly residents: number;
   readonly stores: number;
+  readonly water: number;
   readonly tier: number;
   readonly peakTier: number;
   readonly history: ReadonlyArray<readonly [number, number]>;
@@ -79,6 +82,7 @@ interface Cluster {
   readonly radius: number;
   residents: number;
   stores: number;
+  water: number;
 }
 
 export class SettlementTracker {
@@ -139,7 +143,7 @@ export class SettlementTracker {
           id: this.nextId++,
           name: this.uniqueName(world, c.x, c.y, this.tongueOf(world, bands, i + 1, c), namer),
           foundedTick: tick,
-          x: c.x, y: c.y, radius: c.radius, built, residents: c.residents, stores: c.stores,
+          x: c.x, y: c.y, radius: c.radius, built, residents: c.residents, stores: c.stores, water: c.water,
           tier: 0, peakTier: 0, lastQualified: tick, cells: [],
           history: [[tick, 0]],
         };
@@ -151,6 +155,7 @@ export class SettlementTracker {
       rec.radius = c.radius;
       rec.built = built;
       rec.stores = c.stores;
+      rec.water = c.water;
       rec.cells = Array.from(this.order.subarray(c.start, c.end));
       if (built >= campBuilt && rec.residents >= campResidents) rec.lastQualified = tick;
       rec.tier = this.tierOf(world, rec);
@@ -238,6 +243,7 @@ export class SettlementTracker {
         radius: Math.sqrt(radius),
         residents: 0,
         stores: 0,
+        water: 0,
       });
     }
     return clusters;
@@ -259,6 +265,7 @@ export class SettlementTracker {
             if (near[n] === 0) {
               near[n] = i + 1;
               clusters[i].stores += world.land.pile[n];
+              clusters[i].water += world.land.waterStore[n];
             }
           }
         }
@@ -339,7 +346,7 @@ export class SettlementTracker {
       out.push({
         id: r.id, name: r.name, foundedTick: r.foundedTick, x: r.x, y: r.y,
         radius: Math.round(r.radius * 10) / 10, built: r.built, residents: Math.round(r.residents),
-        stores: Math.round(r.stores), tier: r.tier, peakTier: r.peakTier, history: r.history,
+        stores: Math.round(r.stores), water: Math.round(r.water ?? 0), tier: r.tier, peakTier: r.peakTier, history: r.history,
       });
     }
     return out.sort((a, b) => b.tier - a.tier || b.residents - a.residents || a.id - b.id);

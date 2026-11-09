@@ -21,6 +21,8 @@ import {
   genFromId,
   GEN_MASK,
   stageWork,
+  CARRY_WATER,
+  CARRY_EARTH,
   maxCarryCapacity,
   CARRY_NONE,
   CARRY_SEED,
@@ -45,6 +47,14 @@ export interface ClashStats {
   sameBand: number;
   leaderFollower: number;
   kin: number;
+  /** S3x contest: neither side thought a fight worth it. */
+  declined: number;
+  /** S3x contest: the defender gave way (stepped off, or conceded food). */
+  yields: number;
+  /** S3x concession: of the yields, those where the defender stayed and the other took food away. */
+  concessions: number;
+  /** Fights actually fought. */
+  fights: number;
 }
 
 /** Observer counts of belligerent non-allied encounters, binned by habit distance (Agent rule 11) */
@@ -137,6 +147,10 @@ export class Rules {
     sameBand: 0,
     leaderFollower: 0,
     kin: 0,
+    declined: 0,
+    yields: 0,
+    concessions: 0,
+    fights: 0,
   };
 
   public static resetClashStats(): void {
@@ -144,6 +158,10 @@ export class Rules {
     Rules.clashStats.sameBand = 0;
     Rules.clashStats.leaderFollower = 0;
     Rules.clashStats.kin = 0;
+    Rules.clashStats.declined = 0;
+    Rules.clashStats.yields = 0;
+    Rules.clashStats.concessions = 0;
+    Rules.clashStats.fights = 0;
   }
   /**
    * Rule 1: Climb
@@ -181,6 +199,7 @@ export class Rules {
     let foodWeight = 1.0 + 0.5 * forageTenacity;
     let leaderPullMul = 1.0;
     let suppressRoam = false;
+    let searching = false;
 
     // Primitive 18: Hunger drive - chosen from body state
     const drivesOn = config.bodyDrivesEnabled !== false;
@@ -194,11 +213,24 @@ export class Rules {
         foodWeight *= hungerWeightMul;
         leaderPullMul = config.hungerLeaderPullMul ?? 0.25;
 
+        // Shore test 1: with nothing better to smell, a hungry person searches: keeps going the
+        // way they were heading, and roams rather than stalling.
+        if (config.hungerSearchEnabled !== false) {
+          // Searching starts when the ground around is poor, not when the scent is flat: plants
+          // give off scent almost everywhere, so a flat-scent test hardly ever fired.
+          const f = land.food;
+          const row = py << 8;
+          const around = (f[row | px] + f[row | ((px + 1) & 0xff)] + f[row | ((px - 1) & 0xff)] +
+            f[(((py + 1) & 0xff) << 8) | px] + f[(((py - 1) & 0xff) << 8) | px]) / 5;
+          searching = around < (config.hungerSearchFood ?? 6);
+        }
+
         // When critically hungry, suppress curiosity/roaming jitter and reduce danger aversion
         const critHungerThreshold = (config.criticalHungerThreshold ?? 0.20) * maxE;
         if (curE < critHungerThreshold) {
-          suppressRoam = true;
-          dangerAversion *= 0.5; // starving people risk danger for food
+          suppressRoam = !searching;
+          // Starving people risk danger for food, unless wounds and a defeat have made them afraid (S3x).
+          if (!(config.fearWoundsEnabled !== false && config.fearEnabled !== false && people.fear[slot] > 0)) dangerAversion *= 0.5;
         }
       }
     }
@@ -244,16 +276,22 @@ export class Rules {
 
     // Thirst: a person low on water heads for the nearest fresh water (down the distance map),
     // and stays put once beside it to drink.
-    if (config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && people.hydration[slot] < (config.thirstSeek ?? 60)) {
-      const here = land.waterDist[(py << 8) | px];
-      if (here <= 1) return 4;
+    const carriedWater = config.waterCarryEnabled !== false && config.stockpilesEnabled !== false;
+    // S3w: someone carrying water drinks from it instead of walking to the river.
+    const hasWater = carriedWater && people.carryKind[slot] === CARRY_WATER && people.carry[slot] > 0;
+    if (config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && !hasWater && people.hydration[slot] < (config.thirstSeek ?? 60)) {
+      const cellHere = (py << 8) | px;
+      // Rivers and stores alike are drunk from on or beside them.
+      if (land.waterDist[cellHere] <= 1 || (carriedWater && land.waterInReach(px, py))) return 4;
+      const dist = carriedWater ? land.drinkDist : land.waterDist;
+      const here = dist[cellHere];
       if (here < 255) {
         let best = 4;
         let bestD = here;
         for (let d = 0; d < 4; d++) {
           const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
           const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
-          const nd = land.waterDist[(ny << 8) | nx];
+          const nd = dist[(ny << 8) | nx];
           if (nd < bestD && Rules.canStep(px, py, d, land)) { best = d; bestD = nd; }
         }
         if (best !== 4) return best;
@@ -261,7 +299,9 @@ export class Rules {
     }
 
     // Cold: a fed person in the cold heads for the nearest cave or fire and stays once sheltered.
-    if (config.coldEnabled !== false && people.energy[slot] >= (config.coldSeekEnergy ?? 0.5) * (config.maxEnergy ?? 100)) {
+    // S3x: fear is checked before cold, so a shelter inside the feared region does not hold a frightened person.
+    const afraid = Rules.inFearRegion(slot, people, config);
+    if (!afraid && config.coldEnabled !== false && people.energy[slot] >= (config.coldSeekEnergy ?? 0.5) * (config.maxEnergy ?? 100)) {
       const here = (py << 8) | px;
       if (land.coldAt(here) > 0.2) {
         if (land.sheltered(here)) return 4;
@@ -295,13 +335,58 @@ export class Rules {
       const max = land.capacityAt(cell, config);
       if (max > 0) {
         const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
-        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);
+        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1) * Rules.fearStayMul(slot, people, config);
         if (land.food[cell] >= need * max) return 4;
       }
     }
 
+    if (searching && config.farSightEnabled !== false) {
+      // Shore test 2: look across the neighbouring blocks for richer land and lean toward the best.
+      const bx = px >> 4, by = py >> 4;
+      const own = land.blockFood[by * 16 + bx];
+      let best = own * (1 + (config.farSightMargin ?? 0.2)), bdx = 0, bdy = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const f = land.blockFood[((by + dy) & 15) * 16 + ((bx + dx) & 15)];
+          if (f > best) { best = f; bdx = dx; bdy = dy; }
+        }
+      }
+      const pull = config.farSightPull ?? 1.0;
+      vx += bdx * pull;
+      vy += bdy * pull;
+    }
+    if (searching) {
+      const d = people.prevDir[slot];
+      const keep = config.hungerSearchPersist ?? 1.2;
+      if (d === 0) vx += keep;
+      else if (d === 1) vx -= keep;
+      else if (d === 2) vy += keep;
+      else if (d === 3) vy -= keep;
+    }
+
+    // S3x: a frightened person is pushed straight away from where they were beaten, at full
+    // strength until they are out of the region. Wounds make the push stronger.
+    let awayX = 0, awayY = 0;
+    if (afraid) {
+      awayX = wrapDiff(px, people.fearX[slot]);
+      awayY = wrapDiff(py, people.fearY[slot]);
+      if (awayX === 0 && awayY === 0) {
+        // On the centre itself: carry on the way they were heading, else east. No random draw.
+        const d = people.prevDir[slot];
+        awayX = d === 0 ? 1 : d === 1 ? -1 : d === 4 ? 1 : 0;
+        awayY = d === 2 ? 1 : d === 3 ? -1 : 0;
+      }
+      let push = (config.fearPush ?? 2.0) * (people.fear[slot] / 255);
+      if (config.fearWoundsEnabled !== false) push *= 1 + (config.fearWoundMul ?? 1.0) * (people.injury[slot] / 255);
+      vx += (awayX > 0 ? 1 : awayX < 0 ? -1 : 0) * push;
+      vy += (awayY > 0 ? 1 : awayY < 0 ? -1 : 0) * push;
+    }
+
     // Roaming / curiosity jitter
-    const exploreChance = (drivesOn && suppressRoam) ? 0 : (curiosity + roaming) * 0.2;
+    const exploreChance = (drivesOn && suppressRoam) ? 0
+      : searching ? Math.max((curiosity + roaming) * 0.2, config.hungerSearchExplore ?? 0.6)
+      : (curiosity + roaming) * 0.2;
     if (prng.next() < exploreChance) {
       const jDir = prng.nextInt(0, 4);
       if (jDir === 0) vx += 0.8;
@@ -347,6 +432,14 @@ export class Rules {
       return secondaryDir;
     }
 
+    // S3x: a frightened person hemmed in by water takes any passable step that is not back toward the centre.
+    if (afraid) {
+      for (let d = 0; d < 4; d++) {
+        const back = (d === 0 && awayX < 0) || (d === 1 && awayX > 0) || (d === 2 && awayY < 0) || (d === 3 && awayY > 0);
+        if (!back && d !== primaryDir && d !== secondaryDir && Rules.canStep(px, py, d, land)) return d;
+      }
+    }
+
     // Both blocked or water: stay
     return 4;
   }
@@ -368,7 +461,8 @@ export class Rules {
   ): boolean {
     const cell = (people.y[slot] << 8) | people.x[slot];
     const plants = land.food[cell];
-    const heap = config.stockpilesEnabled !== false ? land.pile[cell] : 0;
+    const heap = config.stockpilesEnabled === false ? 0
+      : config.adjacentStoresEnabled !== false ? land.pileInReach(people.x[slot], people.y[slot]) : land.pile[cell];
     const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
     if (hungry && heap <= 1.0 && plants <= (config.landGrazingFloor ?? 1.0) + 0.5) return false;
     let upkeepShare = 1;
@@ -385,7 +479,8 @@ export class Rules {
     const max = land.capacityAt(cell, config);
     const ref = max > 0 ? max : config.stayRefFood ?? 10;
     const wander = 1 + (config.roamStayWeight ?? 0.5) * ((roaming + curiosity) / 2 - 0.5) * 2;
-    const need = (config.stayFoodFraction ?? 0.5) * upkeepShare * wander * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1);
+    const need = (config.stayFoodFraction ?? 0.5) * upkeepShare * wander * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1)
+      * Rules.fearStayMul(slot, people, config);
     return plants + heap >= need * ref;
   }
 
@@ -592,6 +687,194 @@ export class Rules {
   }
 
   /**
+   * S3x: a defeat (a lost clash or a wolf bite) frightens only the person who suffered it. A loss
+   * near the place of earlier losses stacks and draws the centre toward the new spot; a loss
+   * elsewhere starts a new place, keeping half the old fear. No random numbers.
+   */
+  public static addFear(slot: number, x: number, y: number, people: People, config: Readonly<SimulationConfig>): void {
+    if (config.fearEnabled === false) return;
+    const add = config.fearPerLoss ?? 60;
+    const r = config.fearRadius ?? 8;
+    const f = people.fear[slot];
+    if (f > 0) {
+      const dx = wrapDiff(x, people.fearX[slot]);
+      const dy = wrapDiff(y, people.fearY[slot]);
+      if (dx * dx + dy * dy <= r * r) {
+        const nf = f + add > 255 ? 255 : f + add;
+        const w = add / (f + add);
+        people.fearX[slot] = (people.fearX[slot] + Math.round(dx * w)) & 0xff;
+        people.fearY[slot] = (people.fearY[slot] + Math.round(dy * w)) & 0xff;
+        people.fear[slot] = nf;
+        return;
+      }
+      const nf = f * 0.5 + add;
+      people.fear[slot] = nf > 255 ? 255 : nf;
+    } else {
+      people.fear[slot] = add > 255 ? 255 : add;
+    }
+    people.fearX[slot] = x & 0xff;
+    people.fearY[slot] = y & 0xff;
+  }
+
+  /** S3x: whether a person stands inside the region they fear. */
+  public static inFearRegion(slot: number, people: People, config: Readonly<SimulationConfig>): boolean {
+    if (people.fear[slot] <= 0 || config.fearEnabled === false) return false;
+    const r = config.fearRadius ?? 8;
+    const dx = wrapDiff(people.x[slot], people.fearX[slot]);
+    const dy = wrapDiff(people.y[slot], people.fearY[slot]);
+    return dx * dx + dy * dy <= r * r;
+  }
+
+  /** S3x: how much more food a frightened person needs before a tile is worth staying on (1 = no change). */
+  public static fearStayMul(slot: number, people: People, config: Readonly<SimulationConfig>): number {
+    if (!Rules.inFearRegion(slot, people, config)) return 1;
+    return 1 + (config.fearStayMul ?? 2) * (people.fear[slot] / 255);
+  }
+
+  /**
+   * S3x contest: is a fight worth it? Each side weighs the food at stake (what they could eat of it,
+   * beyond the half they'd get by sharing) against their own estimate of the odds and the real cost
+   * of losing (energy, the upkeep of a wound until it heals, and their share of the stake).
+   * Belligerence sets risk appetite. Refinements (each with a switch): residents value the stake more;
+   * each side judges the odds from their own confidence; close matches cost more.
+   * Returns 0 for no fight, 1 for a fight, -1 when A attacks and B gives way, -2 when B attacks and
+   * A gives way. No random numbers: the odds of the noisy fight score are computed exactly.
+   */
+  public static contest(
+    slotA: number, slotB: number, fixedA: number, fixedB: number, strA: number, strB: number,
+    bellA: number, bellB: number, people: People, land: Land, config: Readonly<SimulationConfig>
+  ): number {
+    const cell = (people.y[slotA] << 8) | people.x[slotA];
+    let stake = land.food[cell] - (config.landGrazingFloor ?? 1.0);
+    if (stake < 0) stake = 0;
+    if (config.stockpilesEnabled !== false) {
+      stake += config.adjacentStoresEnabled !== false ? land.pileInReach(people.x[slotA], people.y[slotA]) : land.pile[cell];
+    }
+    if (stake <= 0) return 0;
+    // Each side's own view of their chance (the noise difference is triangular on -2..2).
+    const pA = Rules.winChance(fixedA + Rules.confidenceNow(slotA, people, config) - fixedB);
+    const pB = Rules.winChance(fixedB + Rules.confidenceNow(slotB, people, config) - fixedA);
+    const maxE = config.maxEnergy ?? 100;
+    const lossShare = config.clashLossShare ?? 0.25;
+    const lootEff = config.clashLootEfficiency ?? 0.8;
+    const hurt = config.clashInjury ?? 60;
+    const hurtWin = hurt * (config.clashInjuryWinner ?? 0.25);
+    const w = config.contestRiskWeight ?? 0.5;
+    // main's strike damage, which a contest fight always carries (there is always a stake).
+    const flat = config.resourceClashEnabled !== false ? config.clashFlatDamage ?? 6.0 : 0;
+    const resOn = config.residenceEnabled !== false;
+    const resTicks = config.residentTicks ?? 10;
+    const resMul = config.residentValueMul ?? 1.5;
+    const eA = people.energy[slotA] > 0 ? people.energy[slotA] : 0;
+    const eB = people.energy[slotB] > 0 ? people.energy[slotB] : 0;
+    const headA = maxE - eA > 0 ? maxE - eA : 0;
+    const headB = maxE - eB > 0 ? maxE - eB : 0;
+    const valA = resOn && people.restTicks[slotA] >= resTicks ? resMul : 1;
+    const valB = resOn && people.restTicks[slotB] >= resTicks ? resMul : 1;
+    const mulA = Rules.matchMul(pA, config);
+    const mulB = Rules.matchMul(pB, config);
+    const half = stake * 0.5;
+    // What winning adds over sharing, for each side.
+    const keepA = valA * (Math.min(stake, headA) - Math.min(half, headA));
+    const keepB = valB * (Math.min(stake, headB) - Math.min(half, headB));
+    const shareA = valA * Math.min(half, headA);
+    const shareB = valB * Math.min(half, headB);
+    const drainA = Math.min(eA, (eA * lossShare + flat * (0.5 + 0.5 * strB)) * mulA);
+    const drainB = Math.min(eB, (eB * lossShare + flat * (0.5 + 0.5 * strA)) * mulB);
+    const lootA = Math.min(Math.min(eB, (eB * lossShare + flat * (0.5 + 0.5 * strA)) * mulA) * lootEff, headA);
+    const lootB = Math.min(Math.min(eA, (eA * lossShare + flat * (0.5 + 0.5 * strB)) * mulB) * lootEff, headB);
+    // Losing costs energy, a wound, and the share of the stake, since the loser is driven off.
+    const lossA = drainA + Rules.woundCost(slotA, hurt * mulA, people, config) + shareA;
+    const lossB = drainB + Rules.woundCost(slotB, hurt * mulB, people, config) + shareB;
+    const gainA = keepA + lootA - Rules.woundCost(slotA, hurtWin * mulA, people, config);
+    const gainB = keepB + lootB - Rules.woundCost(slotB, hurtWin * mulB, people, config);
+    const rA = w * (bellA / 255 - 1);
+    const rB = w * (bellB / 255 - 1);
+    // How far each side's expected fight beats leaving things as they are (sharing).
+    const fightA = (1 + rA) * pA * gainA - (1 - rA) * (1 - pA) * lossA;
+    const fightB = (1 + rB) * pB * gainB - (1 - rB) * (1 - pB) * lossB;
+    const marginA = keepA > 0 ? fightA : -1;
+    const marginB = keepB > 0 ? fightB : -1;
+    if (marginA <= 0 && marginB <= 0) return 0;
+    const aAttacks = marginA >= marginB;
+    // The defender fights back if fighting beats giving up their share of the stake.
+    if (aAttacks ? fightB > -shareB : fightA > -shareA) return 1;
+    return aAttacks ? -1 : -2;
+  }
+
+  /** S3x: the tick touches are being judged on, for the confidence fade (set by touchCell). */
+  public static nowTick = 0;
+
+  /** S3x self-assessment: a person's current belief in how much stronger they are, faded since it last changed. */
+  public static confidenceNow(slot: number, people: People, config: Readonly<SimulationConfig>): number {
+    if (config.selfAssessEnabled === false) return 0;
+    const c = people.confidence[slot];
+    if (c === 0) return 0;
+    const dt = Rules.nowTick - people.confTick[slot];
+    return dt > 0 ? c * Math.exp(-dt / (config.confFadeTicks ?? 360)) : c;
+  }
+
+  /** S3x self-assessment: a win or loss moves belief in one's own strength, clamped to +-confMax. */
+  public static shiftConfidence(slot: number, delta: number, people: People, config: Readonly<SimulationConfig>): void {
+    const m = config.confMax ?? 5;
+    const v = Rules.confidenceNow(slot, people, config) + delta;
+    people.confidence[slot] = v > m ? m : v < -m ? -m : v;
+    people.confTick[slot] = Rules.nowTick;
+  }
+
+  /** S3x match cost: how much of a fight's harm lands, from matchCostFloor (certain outcome) to 1 (even match). */
+  public static matchMul(p: number, config: Readonly<SimulationConfig>): number {
+    if (config.matchCostEnabled === false) return 1;
+    const f = config.matchCostFloor ?? 0.25;
+    return f + (1 - f) * (1 - Math.abs(2 * p - 1));
+  }
+
+  /**
+   * S3x concession (tolerated theft): the one who won the standoff takes food away in hand, from the
+   * plants here and then the heaps in reach, up to what they can carry and eat. Plant food is outside
+   * the energy ledger until eaten, as with any gathering. Returns how much was taken.
+   */
+  public static concede(taker: number, people: People, land: Land, config: Readonly<SimulationConfig>): number {
+    // Food is only ever carried with stockpiles on; without them the defender steps off instead.
+    if (config.stockpilesEnabled === false) return 0;
+    const kind = people.carryKind[taker];
+    if (kind !== CARRY_NONE && kind !== CARRY_FOOD) return 0;
+    const room = maxCarryCapacity(taker, CARRY_FOOD, people, config) - (kind === CARRY_FOOD ? people.carry[taker] : 0);
+    const head = (config.maxEnergy ?? 100) - people.energy[taker];
+    const want = room < head ? room : head;
+    if (want <= 0) return 0;
+    const x = people.x[taker], y = people.y[taker];
+    let got = land.graze(x, y, want, config, false);
+    if (got < want) {
+      got += config.adjacentStoresEnabled !== false ? land.takePileInReach(x, y, want - got) : land.takePile(x, y, want - got);
+    }
+    if (got > 0) {
+      people.carry[taker] = (kind === CARRY_FOOD ? people.carry[taker] : 0) + got;
+      people.carryKind[taker] = CARRY_FOOD;
+    }
+    return got;
+  }
+
+  /** S3x: chance that the side ahead by d in fixed fight score wins, when each adds noise uniform on 0..2. */
+  public static winChance(d: number): number {
+    return d <= -2 ? 0 : d >= 2 ? 1 : d < 0 ? ((d + 2) * (d + 2)) / 8 : 1 - ((2 - d) * (2 - d)) / 8;
+  }
+
+  /** S3x: the energy a wound of size inj costs in extra upkeep until it heals at this person's current rate. */
+  public static woundCost(slot: number, inj: number, people: People, config: Readonly<SimulationConfig>): number {
+    if (config.injuryEnabled === false) return 0;
+    const maxE = config.maxEnergy ?? 100;
+    const heal = config.injuryHeal ?? 0.3;
+    const healAbove = (config.injuryHealEnergy ?? 0.5) * maxE;
+    const floor = config.healFloor ?? 0.2;
+    const e = people.energy[slot] > 0 ? people.energy[slot] : 0;
+    const fed = e >= healAbove ? 1 : config.slowHealEnabled !== false ? floor + (1 - floor) * (e / healAbove) : floor;
+    const rate = heal * fed;
+    // Upkeep falls linearly as the wound heals, so the total is the mean upkeep times the healing time.
+    return ((config.metabolismCost ?? 0.25) * (config.injuryUpkeep ?? 0.3) * inj * inj) / (2 * 255 * rate);
+  }
+
+  /**
    * Counts nearby allies within 1 cell without heap allocations.
    */
   public static countNearbyAllies(
@@ -644,6 +927,7 @@ export class Rules {
     if (count < 2) return;
 
     // Rotating offset to vary pairing order across ticks
+    Rules.nowTick = tick;
     const rot = (tick + start) % count;
 
     for (let i = 0; i + 1 < count; i += 2) {
@@ -760,8 +1044,12 @@ export class Rules {
       const coldStakes = (land.sheltered(cell) || land.fire[cell] > 0) && land.coldAt(cell) > 0.2;
       const hasStakes = foodStakes || heapStakes || coldStakes;
 
+      // S3x: with the contest on, it decides below; the gates here apply only with it off.
+      const contestOn = config.contestEnabled !== false;
       let willClash: boolean;
-      if (resourceOn) {
+      if (contestOn) {
+        willClash = true;
+      } else if (resourceOn) {
         if (hasStakes) {
           // Competing material interests: lower threshold needed to fight
           const bonus = config.clashContestedResourceBonus ?? 1.5;
@@ -829,8 +1117,30 @@ export class Rules {
           strB *= stageWork(people.age[slotB], adultAge, elderAge, config.childWork ?? 0.6, config.elderWork ?? 0.8);
         }
 
+        if (contestOn) {
+          const fight = Rules.contest(slotA, slotB, strA * 10 + alliesA * 3, strB * 10 + alliesB * 3, strA, strB, bellA, bellB, people, land, config);
+          if (fight === 0) { Rules.clashStats.declined++; return; }
+          if (fight < 0) {
+            Rules.clashStats.yields++;
+            // Concession: the defender stays, unhurt, and lets the other take food away in hand.
+            // If nothing can be taken (hands full of something else), the defender steps off instead.
+            if (config.concedeEnabled !== false && Rules.concede(fight === -1 ? slotA : slotB, people, land, config) > 0) {
+              Rules.clashStats.concessions++;
+              return;
+            }
+            // The defender gives way: steps off the tile unhurt and leaves the stake.
+            // Walking away is an ordinary step, paid as one (no sprint, no parting blow: there was no fight).
+            const yielder = fight === -1 ? slotB : slotA;
+            const step = config.moveCost ?? 0.05;
+            people.energy[yielder] -= step;
+            ledger.move += step;
+            if (people.energy[yielder] < 0) { ledger.overdraft += -people.energy[yielder]; people.energy[yielder] = 0; }
+            Rules.retreatStep(yielder, people, land, prng);
+            return;
+          }
+        }
         // Primitive 76: Courage / tactical retreat before clash
-        if (config.clashCourageEnabled !== false) {
+        if (!contestOn && config.clashCourageEnabled !== false) {
           const powerA = strA * 10 + alliesA * 3;
           const powerB = strB * 10 + alliesB * 3;
           const oddsA = powerA / (powerA + powerB + 0.001);
@@ -893,8 +1203,13 @@ export class Rules {
           }
         }
 
+        Rules.clashStats.fights++;
         const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
         const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;
+        // S3x: a contest fight always has a stake, so main's strike damage and lethal collapse apply;
+        // close matches cost more (true odds, not either side's belief).
+        const stakesHere = hasStakes || contestOn;
+        const harm = contestOn ? Rules.matchMul(Rules.winChance(strA * 10 + alliesA * 3 - (strB * 10 + alliesB * 3)), config) : 1;
 
         const winnerSlot = scoreA >= scoreB ? slotA : slotB;
         const loserSlot = winnerSlot === slotA ? slotB : slotA;
@@ -905,11 +1220,11 @@ export class Rules {
         const lootEfficiency = config.clashLootEfficiency ?? 0.8;
         const maxEnergy = config.maxEnergy ?? 100.0;
 
-        let loserLoss = people.energy[loserSlot] * lossShare;
+        let loserLoss = people.energy[loserSlot] * lossShare * harm;
         if (resourceOn) {
-          if (hasStakes) {
+          if (stakesHere) {
             // Flat damage from strike, scaled by winner strength (3.0 to 6.0)
-            const flatDmg = (config.clashFlatDamage ?? 6.0) * (0.5 + 0.5 * winnerStr);
+            const flatDmg = (config.clashFlatDamage ?? 6.0) * (0.5 + 0.5 * winnerStr) * harm;
             loserLoss = Math.min(people.energy[loserSlot], loserLoss + flatDmg);
           } else {
             if (loserLoss < 0.5) loserLoss = Math.min(people.energy[loserSlot], 0.5);
@@ -928,15 +1243,16 @@ export class Rules {
         people.energy[loserSlot] -= loserLoss;
         people.energy[winnerSlot] += actualLoot;
         ledger.attack += struggleWaste;
+        Rules.addFear(loserSlot, px, py, people, config);
         let loserFell = people.energy[loserSlot] <= 0;
 
         if (config.injuryEnabled !== false) {
-          const hurt = config.clashInjury ?? 60;
+          const hurt = (config.clashInjury ?? 60) * harm;
           const newInjuryLoser = Math.min(255, people.injury[loserSlot] + hurt);
           people.injury[loserSlot] = newInjuryLoser;
           people.injury[winnerSlot] = Math.min(255, people.injury[winnerSlot] + hurt * (config.clashInjuryWinner ?? 0.25));
 
-          if (resourceOn && hasStakes && newInjuryLoser >= (config.clashLethalInjury ?? 220)) {
+          if (resourceOn && stakesHere && newInjuryLoser >= (config.clashLethalInjury ?? 220)) {
             loserFell = true;
           }
         }
@@ -976,7 +1292,12 @@ export class Rules {
           }
         }
 
-        if (config.experienceHabitsEnabled ?? true) {
+        if (contestOn && config.selfAssessEnabled !== false) {
+          // S3x: winning and losing change belief in one's own strength, not belligerence.
+          const step = config.confStep ?? 0.5;
+          Rules.shiftConfidence(winnerSlot, step, people, config);
+          Rules.shiftConfidence(loserSlot, -step, people, config);
+        } else if (config.experienceHabitsEnabled ?? true) {
           Rules.nudgeHabit(people, winnerSlot, HABIT_BELLIGERENCE, config.habitWinStep ?? 3);
           Rules.nudgeHabit(people, loserSlot, HABIT_BELLIGERENCE, -(config.habitLoseStep ?? 3));
         }
@@ -1033,6 +1354,11 @@ export class Rules {
       land.dropBrush(px, py, amount, config);
     } else if (kind === CARRY_STONE) {
       land.build(px, py, amount, config);
+    } else if (kind === CARRY_EARTH) {
+      land.build(px, py, amount, config, true);
+    } else if (kind === CARRY_WATER) {
+      // Spilled water soaks in unless the tile can hold a store.
+      land.pourWater((py << 8) | px, amount, config);
     }
   }
 
@@ -1048,6 +1374,7 @@ export class Rules {
     else if (rDir === 3) ny = (py - 1) & 0xff;
 
     if (!land.isWaterAt(nx, ny)) {
+      people.restTicks[slot] = 0;
       people.x[slot] = nx;
       people.y[slot] = ny;
     }

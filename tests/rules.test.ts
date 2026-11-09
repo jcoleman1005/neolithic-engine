@@ -233,6 +233,9 @@ describe('Phase 3 Rules & Invariants', () => {
       clashLossShare: 0.25,
       clashLootEfficiency: 0.8,
       cultureTouchEnabled: false,
+      // The fight's own accounting is checked here. With the S3x contest on, this much weaker
+      // defender gives way instead of fighting (covered in turmoil.test.ts), so the contest is off.
+      contestEnabled: false,
       resourceClashEnabled: false,
       clashCourageEnabled: false,
     };
@@ -292,6 +295,7 @@ describe('Phase 3 Rules & Invariants', () => {
       elevationEnabled: false,
       terrainEnabled: false,
       resourceClashEnabled: true,
+      contestEnabled: false, // main's resource gate applies only with the S3x contest off
       clashFlatDamage: 6.0,
       clashHungerThreshold: 35.0,
       cultureTouchEnabled: false,

@@ -1,6 +1,6 @@
 import type { SimulationConfig } from './types';
 import { seasonGrowthFactor, yearPhase } from './seasons';
-import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE } from './people';
+import { CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE, CARRY_EARTH, CARRY_WATER } from './people';
 import { stageWork, GENE_STRENGTH, maxCarryCapacity } from './people';
 import { FORM_NEST } from './land';
 import {
@@ -47,11 +47,18 @@ export class LifeSystem {
       config
     );
     land.refreshWarmth(config);
+    // Water stores belong with the other stores, so carried water also needs stockpiles on.
+    const waterOn = config.waterCarryEnabled !== false && config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && config.stockpilesEnabled !== false;
+    if (waterOn) land.refreshDrink();
+    if (config.farSightEnabled !== false && config.hungerSearchEnabled !== false && tick % (config.farSightInterval ?? 30) === 0) land.refreshBlockFood();
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
     if (config.buildingEnabled !== false) land.erode(tick, config);
     const pathsOn = config.pathsEnabled !== false;
     if (pathsOn) land.wearDown(tick, config);
+    if (waterOn) land.evaporateWater(config);
+    if (config.exposureEnabled === true || config.directionalBuildEnabled === true) land.setWind(yearPhase(tick, config));
+    if (config.exposureEnabled === true) land.updateExposure(tick, config);
     land.ageGraves();
 
     // 2. Scent fields: deposit land food scent & diffuse periodically
@@ -115,6 +122,9 @@ export class LifeSystem {
     const injurySlow = config.injurySlow ?? 0.6;
     const healAbove = (config.injuryHealEnergy ?? 0.5) * (config.maxEnergy ?? 100);
     const injuryHeal = config.injuryHeal ?? 0.3;
+    const slowHealOn = config.slowHealEnabled !== false;
+    const healFloor = config.healFloor ?? 0.2;
+    const healShelterMul = config.healShelterMul ?? 1.5;
     const graveTicks = config.graveTicks ?? 150;
     const stagesOn = config.stagesEnabled !== false;
     const childWork = config.childWork ?? 0.6;
@@ -151,6 +161,7 @@ export class LifeSystem {
     const thirstUpkeep = config.thirstUpkeep ?? 0.5;
     const dehydration = config.dehydrationDamage ?? 0.5;
     const hydration = people.hydration;
+    const thirstSeekLevel = config.thirstSeek ?? 60;
     const maxAge = config.maxAge ?? 21600;
     const maxEnergy = config.maxEnergy ?? 100.0;
     const forageBite = config.forageBite ?? 1.0;
@@ -209,7 +220,13 @@ export class LifeSystem {
         const extra = metabolism * injuryUpkeep * (injury[slot] / 255);
         energy[slot] -= extra;
         ledger.upkeep += extra;
-        if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
+        if (slowHealOn) {
+          // S3x: heal at any energy, slower when hungry, faster when sheltered.
+          const e = energy[slot] > 0 ? energy[slot] : 0;
+          const fed = e >= healAbove ? 1 : healFloor + (1 - healFloor) * (e / healAbove);
+          const rate = injuryHeal * fed * (land.sheltered(upCell) ? healShelterMul : 1);
+          injury[slot] = injury[slot] > rate ? injury[slot] - rate : 0;
+        } else if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
       }
       if (fatigueOn && fatigue[slot] > 0) {
         const extra = metabolism * fatigueUpkeep * (fatigue[slot] / 255);
@@ -255,7 +272,18 @@ export class LifeSystem {
       }
       if (thirstOn) {
         let h = hydration[slot] - thirstRate;
-        if (land.waterDist[(py[slot] << 8) | px[slot]] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
+        const wc = (py[slot] << 8) | px[slot];
+        if (land.waterDist[wc] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
+        else if (waterOn && land.waterInReach(px[slot], py[slot])) {
+          // S3w: drink from a store underfoot or beside them, as from a river.
+          h += land.drinkInReach(px[slot], py[slot], Math.min(drinkRate + thirstRate, thirstMax - h), config);
+        } else if (waterOn && h < thirstSeekLevel && people.carryKind[slot] === CARRY_WATER && people.carry[slot] > 0) {
+          // S3w: drink from what they carry.
+          const sip = Math.min(people.carry[slot], thirstMax - h);
+          h += sip;
+          people.carry[slot] -= sip;
+          if (people.carry[slot] <= 1e-3) { people.carry[slot] = 0; people.carryKind[slot] = CARRY_NONE; }
+        }
         if (h <= 0) {
           h = 0;
           energy[slot] -= dehydration;
@@ -350,7 +378,23 @@ export class LifeSystem {
     const berryBelow = (config.berryBelow ?? 0.8) * maxEnergy;
     const dropCrowd = config.dropCrowd ?? 3;
     const storeUnloadOn = config.storeUnloadEnabled !== false;
+    const adjacentOn = config.adjacentStoresEnabled !== false;
     const pathCut = config.pathCostCut ?? 0.5;
+    // Earth is part of building, which (like stone) needs stockpiles on.
+    const earthOn = config.earthBuildingEnabled !== false && buildOn;
+    const earthAbove = (config.earthEnergy ?? 0.6) * maxEnergy;
+    const earthBite = config.earthBite ?? 1.0;
+    const earthCarryMax = config.earthCarryMax ?? 6.0;
+    const earthDigCost = config.earthDigCost ?? 0.05;
+    const earthGain = config.earthBuildGain ?? 2;
+    const stoneGain = config.buildGain ?? 4;
+    const directionalOn = config.directionalBuildEnabled === true;
+    const waterCap = config.waterCarryMax ?? 20;
+    const fetchChance = config.waterFetchChance ?? 0.05;
+    const fetchHydration = config.waterFetchHydration ?? 90;
+    const waterSpill = config.waterSpill ?? 0.2;
+    const pourMinDist = config.waterPourMinDist ?? 4;
+    const occupiedCell = (c: number): boolean => spatial.cellStarts[c + 1] - spatial.cellStarts[c] > 0;
     const dropWhenFull = config.dropWhenFull ?? false;
     const carryDrag = config.carryDrag ?? 0.5;
     const bodyMul = (slot: number): number =>
@@ -379,7 +423,9 @@ export class LifeSystem {
             eaten += own;
           }
           if (eaten < maxEnergy - curE) {
-            eaten += land.takePile(px[slot], py[slot], Math.min(pileEatBite, maxEnergy - curE - eaten));
+            const bite = Math.min(pileEatBite, maxEnergy - curE - eaten);
+            // With adjacentStoresEnabled, heaps on the 8 tiles around count too (own tile first).
+            eaten += adjacentOn ? land.takePileInReach(px[slot], py[slot], bite) : land.takePile(px[slot], py[slot], bite);
           }
         }
         if (eaten < Math.min(fb, maxEnergy - curE)) {
@@ -486,12 +532,43 @@ export class LifeSystem {
           carryKind[slot] = CARRY_STONE;
         }
       }
+      if (
+        earthOn && energy[slot] >= earthAbove && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_EARTH) &&
+        people.carry[slot] < earthCarryMax * cm
+      ) {
+        // S3: well fed with empty hands on trodden ground: dig packed earth (it costs a little work).
+        const c = (py[slot] << 8) | px[slot];
+        const got = land.dig(c, Math.min(earthBite * cm, earthCarryMax * cm - people.carry[slot]), config);
+        if (got > 0) {
+          const work = got * earthDigCost;
+          energy[slot] -= work;
+          ledger.move += work;
+          people.carry[slot] += got;
+          carryKind[slot] = CARRY_EARTH;
+        }
+      }
+      if (
+        waterOn && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_WATER) &&
+        land.waterDist[(py[slot] << 8) | px[slot]] <= 1 && hydration[slot] >= fetchHydration &&
+        energy[slot] >= earthAbove && people.carry[slot] < waterCap * cm
+      ) {
+        // S3w: fed and watered beside a river or lake: now and then, fill up to carry water away
+        // (a hash of tick and slot, no random draw).
+        const hf = (Math.imul(tick + 17, 2654435761) ^ Math.imul(slot + 1, 2246822519)) >>> 0;
+        if (hf / 4294967296 < fetchChance) {
+          people.carry[slot] = waterCap * cm;
+          carryKind[slot] = CARRY_WATER;
+        }
+      }
     }
 
     // 5. Movement (Climb rule or Wander fallback)
     const climbOn = config.climbEnabled ?? true;
+    const residenceOn = config.contestEnabled !== false && config.residenceEnabled !== false;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 0) continue;
+      // S3x residence: count ticks standing still here (reset below by any step).
+      if (residenceOn && people.restTicks[slot] < 255) people.restTicks[slot]++;
 
       let dir = 4; // Stay
       if (climbOn) {
@@ -518,11 +595,20 @@ export class LifeSystem {
           carryKind[slot] = CARRY_NONE;
         }
       }
-      // A carrier resting where people congregate (off the rock) sets the stone down: it builds that tile up.
-      if (buildOn && dir === 4 && carryKind[slot] === CARRY_STONE && people.carry[slot] > 0) {
+      // A carrier resting where people congregate (off the rock) sets stone or earth down: it builds
+      // that tile up, or (S3a) the neighbouring tile that best keeps the wind off them.
+      const carryingStone = buildOn && carryKind[slot] === CARRY_STONE;
+      const carryingEarth = earthOn && carryKind[slot] === CARRY_EARTH;
+      if (dir === 4 && (carryingStone || carryingEarth) && people.carry[slot] > 0) {
         const c = (py[slot] << 8) | px[slot];
         if (land.stone[c] <= 0 && spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd) {
-          land.build(px[slot], py[slot], people.carry[slot], config);
+          let bx = px[slot], by = py[slot];
+          if (directionalOn) {
+            const gain = people.carry[slot] * (carryingEarth ? earthGain : stoneGain);
+            const n = land.bestShelterNeighbour(px[slot], py[slot], gain, occupiedCell, config);
+            if (n >= 0) { bx = n & 0xff; by = n >> 8; }
+          }
+          land.build(bx, by, people.carry[slot], config, carryingEarth);
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;
         }
@@ -533,6 +619,14 @@ export class LifeSystem {
         if (land.brush[c] >= igniteBrush && land.fire[c] === 0 && land.coldAt(c) > 0.2 && land.wooded[c] === 0) {
           const hsh = (Math.imul(tick + 1, 2654435761) ^ Math.imul(c + 1, 40503)) >>> 0;
           if (hsh / 4294967296 < igniteChance) land.ignite(c, config);
+        }
+      }
+      // S3w: a water carrier resting with others (or at a store), far enough from the river, pours it in.
+      if (waterOn && dir === 4 && carryKind[slot] === CARRY_WATER && people.carry[slot] > 0) {
+        const c = (py[slot] << 8) | px[slot];
+        if (land.waterDist[c] >= pourMinDist && (spatial.cellStarts[c + 1] - spatial.cellStarts[c] >= dropCrowd || land.waterStore[c] > 0)) {
+          people.carry[slot] -= land.pourWater(c, people.carry[slot], config);
+          if (people.carry[slot] <= 1e-3) { people.carry[slot] = 0; carryKind[slot] = CARRY_NONE; }
         }
       }
       // A carrier resting where people congregate (or who is full) unloads the food on the spot.
@@ -575,16 +669,23 @@ export class LifeSystem {
         if (!land.isWaterAt(nx, ny)) {
           px[slot] = nx;
           py[slot] = ny;
+          if (residenceOn) people.restTicks[slot] = 0;
           // Carrying food is heavy: the more carried, the dearer each step.
           const stepCost =
             carryKind[slot] === CARRY_FOOD ? moveCost * (1 + carryDrag * people.carry[slot] / (foodCarryMax * bodyMul(slot)))
             : carryKind[slot] === CARRY_BRUSH ? moveCost * (1 + carryDrag * people.carry[slot] / (brushCarryMax * bodyMul(slot)))
             : carryKind[slot] === CARRY_STONE ? moveCost * (1 + carryDrag * people.carry[slot] / (stoneCarryMax * bodyMul(slot)))
+            : carryKind[slot] === CARRY_WATER ? moveCost * (1 + carryDrag * people.carry[slot] / (waterCap * bodyMul(slot)))
             : moveCost;
           // S2: worn ground is easier going, and every step wears it a little more.
           const stepCell = (ny << 8) | nx;
           const pathCost = pathsOn ? stepCost * (1 - pathCut * (land.wear[stepCell] / 255)) : stepCost;
           if (pathsOn) land.trample(stepCell, config);
+          // S3w: carried water slops out a little with every step.
+          if (carryKind[slot] === CARRY_WATER) {
+            people.carry[slot] -= waterSpill;
+            if (people.carry[slot] <= 0) { people.carry[slot] = 0; carryKind[slot] = CARRY_NONE; }
+          }
           energy[slot] -= pathCost;
           ledger.move += pathCost;
           if (fatigueOn) fatigue[slot] = fatigue[slot] + fatigueMove > 255 ? 255 : fatigue[slot] + fatigueMove;
@@ -604,6 +705,50 @@ export class LifeSystem {
 
     // 6. Spatial indexing based on updated positions
     spatial.build(people);
+
+    // S3x: fear fades, very slowly inside the feared region and faster once out. Children are
+    // calmed by a parent within careRadius, or a little by an allied adult on or beside their tile.
+    // Runs after the index is built, so a loaded save steps the same.
+    if (config.fearEnabled !== false) {
+      const fear = people.fear;
+      const inside = config.fearDecayInside ?? 0.02;
+      const outside = config.fearDecayOutside ?? 0.3;
+      const parentCalm = config.fearChildParentDecay ?? 0.3;
+      const adultCalm = config.fearChildAdultDecay ?? 0.1;
+      const careR = config.careRadius ?? 4;
+      const stagger = config.decisionStaggerInterval ?? 8;
+      const adultAge = config.adultAge ?? 5760;
+      const cellStarts = spatial.cellStarts;
+      const cellPeople = spatial.cellPeople;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 0 || fear[slot] <= 0) continue;
+        let d = Rules.inFearRegion(slot, people, config) ? inside : outside;
+        if (age[slot] < adultAge) {
+          let calmed = false;
+          for (let k = 0; k < 2 && !calmed; k++) {
+            const pid = k === 0 ? motherId[slot] : fatherId[slot];
+            if (pid === 0 || !people.isValidId(pid)) continue;
+            const ps = slotFromId(pid);
+            const ex = Math.abs(px[ps] - px[slot]), ey = Math.abs(py[ps] - py[slot]);
+            if ((ex < 128 ? ex : 256 - ex) <= careR && (ey < 128 ? ey : 256 - ey) <= careR) calmed = true;
+          }
+          if (calmed) d += parentCalm;
+          else if ((tick + slot) % stagger === 0) {
+            // Checked every stagger ticks, so it counts stagger ticks' worth.
+            search: for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const c = (((py[slot] + dy) & 0xff) << 8) | ((px[slot] + dx) & 0xff);
+                for (let i = cellStarts[c]; i < cellStarts[c + 1]; i++) {
+                  const o = cellPeople[i];
+                  if (o !== slot && age[o] >= adultAge && Rules.isAllied(slot, o, people)) { d += adultCalm * stagger; break search; }
+                }
+              }
+            }
+          }
+        }
+        fear[slot] = fear[slot] > d ? fear[slot] - d : 0;
+      }
+    }
 
     // Refresh a slice of the root leader cache each tick
     const rootSlices = config.rootLeaderSliceCount ?? 8;

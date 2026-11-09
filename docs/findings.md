@@ -753,6 +753,175 @@ Starting values (new): `wearStep` 16, `wearDecaySlices` 8 (a full trail fades in
 
 Round 1 wore most of the land, so it read as worn ground everywhere rather than trails. Kept round 2: `wearStep` 16 to 4, `wearDecaySlices` 8 to 2, so a tile has to be stepped on about every 8 ticks to stay worn. The hamlet target is missed on seed 3; per the 2026-11-05 decision, tuning waits for the combined pass. On the map, worn ground forms bands along shores and around lakes and settlements more than trails that cross open land between camps; in the game view, people stand in lines along the worn ground near the largest settlement.
 
+## S3-pre packed earth and S3a layout test
+Starting values (new): `earthWear` 64, `earthBite` 1, `earthCarryMax` 6, `earthEnergy` 0.6, `earthDigCost` 0.05, `earthBuildGain` 2 (stone gives 4), `earthErodeSlices` 32. Prototype values: `exposureSlices` 8, `windWeight` 2, `brushBarrier` 4, `treeBarrier` 120, `cliffBarrier` 600, `directionalAvoidWear` 64. The wind turns once round the compass a year.
+
+Year 30, packed earth on in both columns; "test" adds the exposure field and directional building:
+
+| | Seed 1 earth | Seed 1 test | Seed 2 earth | Seed 2 test | Seed 3 earth | Seed 3 test |
+|:--|:--|:--|:--|:--|:--|:--|
+| People | 6135 | 6254 | 5980 | 5824 | 6277 | 6709 |
+| Built tiles, earth / stone | 80 / 45 | 442 / 125 | 95 / 45 | 398 / 119 | 103 / 49 | 521 / 125 |
+| Tiles at hut level | 23 | 342 | 34 | 312 | 26 | 375 |
+| Hamlets / villages | 4 / 5 | 6 / 5 | 8 / 1 | 16 / 2 | 11 / 5 | 13 / 8 |
+| Lasted 10 years or more | 14 | 39 | 19 | 36 | 25 | 51 |
+
+Layout of built tiles at year 30, seeds 1 and 3 (`npm run map` now prints this):
+
+| | Earth only | Test |
+|:--|:--|:--|
+| Standing alone | 70%, 88% | 20%, 18% |
+| In lines (2 or more built neighbours) | 4%, 2% | 47%, 47% |
+| Open tiles walled on 3 or more sides | 0, 0 | 42, 44 |
+
+Directional building turns scattered pillars into lines and some partial enclosures. In the zoomed images the lines mostly run along both banks of rivers and around shores, where people rest, rather than in rings round fires. Every wall tile at 60 durability still counts as a one-tile hut (shelter and half upkeep), which the exposure step (S3b) has to replace; until then walls give more shelter than they should.
+
+## S3w carried water and adjacent stores: first result
+Starting values (new): `waterCarryMax` 20, `waterFetchChance` 0.05, `waterFetchHydration` 90, `waterSpill` 0.2, `waterPourMinDist` 4, `waterStoreCap` 100, `waterEvaporation` 0.05, `waterEvapWarm` 2, `waterCoveredEvapMul` 0.25, `waterStoreFindMin` 10. Stores and heaps can be reached on the 8 tiles around a person (water always; food with `adjacentStoresEnabled`).
+
+Six seeds, 30 years, distance from natural fresh water of people standing still, sampled every 90 ticks from year 10 (`npm run compare`):
+
+| Comparison | Per-seed mean change (tiles) | Mean | 95% interval | Sign-flip p |
+|:--|:--|:--|:--|:--|
+| Carried water off to on | +0.32, +0.56, +0.11, +0.41, -0.06, -0.29 | +0.17 | -0.16 to +0.51 | 0.22 |
+| Adjacent eating off to on | +1.01, +0.31, +0.13, +0.28, +0.07, -0.22 | +0.26 | -0.17 to +0.70 | 0.16 |
+
+Neither is significant. Within-seed rank tests are large but disagree in direction from seed to seed; they count thousands of related samples from one run as independent, so the across-seed test is the one to read.
+
+Why carried water shows nothing (seed 1, years 5 to 15): 1.7% of people carry water at any time, none of them 4 or more tiles from water, and no store formed. Carriers fill up at the river, stay near the shore and drink it there. The mechanism works (tests), but nothing takes people inland for it to act on: the shore holds about twice the plant food, and people return to it. The result is "not exercised", not "no effect".
+
+## Shore against inland: lowland measured over 30 years
+Lowland only (no stone, upland below 0.5), grouped by steps from fresh water at the start; seeds 1 to 3, current defaults.
+
+| Steps from water | 1 | 2 to 3 | 4 to 6 | 7 to 12 | 13+ |
+|:--|:--|:--|:--|:--|:--|
+| Lowland tiles, seed 1 | 2664 | 4161 | 4124 | 5666 | 13747 |
+| Plant capacity, year 0 | 24.0 | 19.7 | 10.7 | 7.9 | 15.2 |
+| Plant capacity, year 30 | 19.8 to 20.6 | 11.8 to 13.2 | 8.3 to 8.9 | 7.0 to 7.4 | 14.4 to 15.1 |
+| Plant food standing, year 30 | 8.0 to 9.3 | 2.9 to 3.8 | 3.0 to 3.3 | 4.4 to 4.6 | 13.6 to 14.4 |
+| Worn-out soil (health below 0.6), year 30 | 10 to 18% | 5 to 10% | 1% | 0% | 0% |
+| People per 100 tiles, year 30 | 83 to 105 | 30 to 32 | 13 to 15 | 9 to 10 | 1.5 to 2.4 |
+
+The shore is not too rich: by year 30 it is worn down, holding about 40% of its capacity in standing food, with 10 to 18% of its soil worn out. Between 4 and 12 steps from water lies a naturally poor belt (fertility 0.3 to 0.4). Beyond 13 steps is the largest block of lowland (about 45%), nearly untouched, with about 14 food per tile standing. Food scent fades within 2 to 3 tiles, so nobody on the shore can sense it, and the hunger drive (primitive 18) switches off roaming when very hungry, so starving people on a worn shore search less, not more.
+
+## Shore tests 1 and 2: hunger search and far sight
+New values: `hungerSearchFlat` 0.5, `hungerSearchPersist` 1.2, `hungerSearchExplore` 0.6, `farSightInterval` 30, `farSightPull` 1.0, `farSightMargin` 0.2. Six seeds, 30 years, `npm run compare` on distance from water of people standing still:
+
+| Comparison | Mean change | 95% interval | Sign-flip p |
+|:--|:--|:--|:--|
+| Hunger search off to on (far sight on) | -0.07 | -0.35 to +0.21 | 0.56 |
+| Far sight off to on (hunger search on) | -0.13 | -0.48 to +0.23 | 0.41 |
+
+Neither is significant, and neither was really exercised. Seed 1, years 5 to 15: 78% of people stand still, 41% have energy of 90 or more, 6.7% are hungry (below 35) and 1.5% critically hungry; only 0.09% are ever searching, because plant scent gives a slope almost everywhere (median scent difference among the hungry 5.1, against the 0.5 trigger). The shore is worn to about 40% of capacity but still feeds everyone, so nothing pushes people off it. Population is still rising at year 30, and the share of people 13 or more steps from water rises in every run (1 to 6% at year 20, 4 to 9% at year 30). Next: long runs to see whether pressure arrives on its own.
+
+Trigger fixed: `hungerSearchFlat` (0.5, a scent-slope test that fired for 0.09% of people) replaced by `hungerSearchFood` 6: a hungry person searches when plant food on their tile and the 4 beside it averages below 6.
+
+## Long runs: overshoot and collapse (seed 1 unless noted, 80 years)
+| Run | Year 30 | Year 50 | Year 80 | Hungry at 80 | 13+ steps from fresh water at 80 |
+|:--|:--|:--|:--|:--|:--|
+| All settlement switches off (S1 to S3w, paths, earth, search, far sight) | 2964 | 694 | 289 | 12% | 1.7% |
+| S1 stay rules off only | 2771 | 650 | 183 | 10% | 1.1% |
+| Everything on, search trigger fixed | 5916 | 4096 | 2184 | 63% | 4.3% |
+| Everything on, seeds 1 / 2 / 3 (before the fix) | 5975 / 5589 / 6161 | 4143 / 4130 / 4195 | 2239 / 2587 / 2014 | 57 to 64% | 3 to 6% |
+
+Population peaks near year 30 and then falls by two thirds with everything on, and by 90% with the settlement work off. The collapse predates the settlement work: the Phase 1 check (steady for 200 years) no longer holds. With the settlement work off, few people are hungry while the population falls, so the cause is not starvation; with it on, the end state is starvation (about 60% hungry) with no spread inland. The fixed search trigger changes nothing measurable. Two likely reasons, not measured: hungry people cannot fetch water (fetching needs a full stomach), so searchers keep returning to the river; and "13 or more steps from fresh water" includes land beside the salt sea. Next: deaths by cause and births per decade.
+
+### Deaths by cause and wounds (2026-11-06)
+
+`scripts/death-probe.ts` and `scripts/wound-probe.ts` wrap `people.kill` and read state only. Population totals match the earlier runs exactly, so the probes change nothing. Seed 1, 80 years (death probe) and 50 years (wound probe, everything on). Each death gets the first matching label in this order: wolf, clash, old age, thirst, wound, sick, pregnant, child.
+
+| Over 80 years | All settlement switches off | Everything on |
+|---|---|---|
+| Ran out of energy while wounded | 6,870 (79%) | 14,259 (86%) |
+| Clash | 379 | 1,639 |
+| Wolf | 352 | 2 |
+| Child, not wounded, ran out of energy | 461 | 40 |
+| Old age (60) | 35 | 262 |
+| Thirst, sick, other | 680 | 233 |
+
+Average age at death is 11 to 23 years, so the founders do not die together. After year 30, births fall each decade while deaths stay high (everything on: 4,808 in years 21 to 30, then 3,352, 2,496 and 790 in years 71 to 80).
+
+| Years (everything on) | People | Wounded | Mean wound (of 255) | Wounded able to heal (energy 50+) | Children | Women fed enough to mate |
+|---|---|---|---|---|---|---|
+| 1 to 5 | 1,760 | 74% | 178 | 69% | 62% | 43% |
+| 21 to 25 | 5,621 | 95% | 217 | 51% | 68% | 26% |
+| 46 to 50 | 4,096 | 97% | 223 | 28% | 58% | 13% |
+
+No code bug found: clashes, wounds, healing, mating, childbirth and childcare do what their code says. Most people pass the belligerence threshold of 180 (habit plus cruelty gene, which averages about 256). Any two non-allies on one tile can clash every tick, children included, and most wounds go to children, about 6 per child per year. Wounds heal only above half energy, at 0.3 a tick, so injury builds to near the cap, and the wounded get hungrier and stop healing. The same pattern is there with the settlement switches off, at 74% wounded in years 1 to 5. Turmoil never drives the losers away: the stay check ignores danger, danger scent is a slope that is flat inside a fought-over camp, hunger halves fear, and a defeat is one random step. The response is S3x in `docs/SETTLEMENTS.md`.
+
+### S3x targets, set before running (2026-11-06)
+
+Seeds 1 to 3, 30 years (healing alone) and 50 years (with fear), wound and death probes. Compared against the same seeds with the S3x switch off. These are what to report, not things to tune toward:
+- **Slow healing:** share wounded at years 21 to 30 below off; mean injury of the wounded below off. Guardrails: no seed dies out; population at year 20 within 10% of off; perf within budget.
+- **Fear:** of people who lost a clash, the share more than `fearRadius` from the place of the loss 90 days later is higher than off (with fear off this is measured the same way, from where they lost). Winners: no different from off. Guardrails as in `docs/SETTLEMENTS.md` S3x.
+
+**S3x slow healing result** (seeds 1 to 3, 30 years, fear off in both arms, wound probe): target met, effect small.
+
+| Years 26 to 30 | Seed 1 off / on | Seed 2 off / on | Seed 3 off / on |
+|---|---|---|---|
+| Wounded | 96% / 94% | 96% / 93% | 94% / 89% |
+| Mean wound of the wounded | 219 / 209 | 221 / 210 | 214 / 204 |
+| People | 5,916 / 6,221 | 5,676 / 5,848 | 6,463 / 6,356 |
+
+Wounds still arrive faster than they can heal: a lost clash about every 55 ticks needs more than 1 point a tick, against 0.3 at most (0.45 sheltered). Healing does not fix the wound load by itself; fewer repeated clashes have to.
+
+**S3x fear result** (seeds 1 to 3, 50 years, slow healing on in all arms, wound probe). "Away" means more than 8 tiles from the spot of a clash 90 days later, found from the wound jump, so it is measured the same way with fear off.
+
+| Years 26 to 30 | Fear off | Fear on | Fear on, wounds not scaling it |
+|---|---|---|---|
+| Losers away, seeds 1 / 2 / 3 | 38.5 / 38.6 / 37.4% | 62.3 / 59.1 / 64.0% | 59.1 / 61.6 / 62.5% |
+| Winners away | 34.3 / 34.6 / 36.0% | 35.4 / 33.0 / 34.5% | 34.3 / 34.9 / 34.0% |
+
+The target is met on every seed: losers leave and winners don't (years 16 to 20: losers 49 / 45 / 52% against 23 / 23 / 22% off). Scaling fear by wounds adds little.
+
+Guardrails: no seed dies out, and child deaths are not up (7,817 / 8,335 / 8,584 on against 8,270 / 8,300 / 8,690 off). **Population falls further, though**: at year 50 it is 2,714 / 2,948 / 2,863 with fear on against 4,611 / 4,531 / 4,751 off, about 38% lower. Deaths are lower, but births fall faster. Women fed enough to mate drop to 5 to 7% (11 to 15% off), and pregnancy to 17 to 21% (37 to 48% off). The wound load does not fall (84 to 90% wounded, against 86 to 92% off), so leaving does not escape fighting: refugees meet strangers elsewhere. Likely causes, not measured: frightened people keep walking instead of grazing still, which costs energy and skips tilling, and they leave the richer shore. Not measured yet: settlements lasting 10 years or more, and perf (the machine was loaded).
+
+**Why fear lowers population** (`scripts/fear-probe.ts`, seed 1, adults sampled every 30 ticks from year 10 to 35):
+
+| Adults | Share | Standing still | Plant food underfoot | Tile capacity | Steps from water | Energy |
+|---|---|---|---|---|---|---|
+| Fear on: inside their feared region | 36% | 25% | 5.7 | 11.5 | 4.9 | 55.5 |
+| Fear on: afraid, outside the region | 41% | 57% | 5.9 | 12.1 | 5.6 | 68.0 |
+| Fear on: no fear | 23% | 68% | 5.4 | 11.9 | 19.7 | 65.3 |
+| Fear on: all | 100% | 48% | 5.7 | 11.8 | 8.6 | 62.9 |
+| Fear off: all | 100% | 61% | 7.0 | 15.5 | 7.8 | 66.8 |
+
+Fear is far too widespread: 77% of adults carry some. Everyone fights, and nearly everyone loses sometimes, so "only losers" ends up meaning almost everyone, and fear inside the region lasts years (60 fear takes about 3,000 ticks to fade there). Those inside the region stand still a quarter of the time, against two thirds for the unafraid. Across the population people stand still less (48% against 61%) and stand on land with about a quarter less capacity (11.8 against 15.5). They are pushed off the best ground and nobody holds it, because the winners lose elsewhere too. The probe's losses-per-year column did not work (wounds near the cap and same-tick healing hide the jump) and is left out.
+
+### Belligerence (2026-11-07)
+
+`scripts/bell-probe.ts`, seed 1, 30 years, everything on. A touch is one pairing of two people on a tile in one tick.
+
+| Years | People | Belligerence habit | Cruelty gene | Over the gate (habit + cruelty > 180) | Touches per person per year | Allied | Neither belligerent | Tolerated (culture) | Clash |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 to 5 | 1,860 | 134 | 126 | 83% | 37 | 79% | 1.8% | 13% | 5.2% |
+| 11 to 15 | 3,991 | 160 | 125 | 81% | 65 | 70% | 2.5% | 19% | 6.5% |
+| 26 to 30 | 5,234 | 216 | 126 | 94% | 79 | 62% | 0.6% | 27% | 8.4% |
+
+The belligerence gate filters almost nothing: under 3% of touches are stopped by it. Culture tolerance is the real filter. The belligerence habit climbs steadily, 134 to 216 in 30 years, while the cruelty gene stays flat. The winner gains 3 and the loser loses 3, so the drift must come from elsewhere. Likely, not isolated: followers copy their leaders' habits (leaders are strong, so winners), and losers die more often, removing low-belligerence people. As bands get diluted (allied touches 79% to 62%), more touches are between strangers and the clash share rises. Nothing in the decision to fight looks at food, hunger or the odds of winning.
+
+### S3x contest targets, set before running (2026-11-07)
+
+Seeds 1 to 3, 50 years, contest on against off, slow healing on in both, the replaced fear off in both. Wound probe. Reported, not tuned toward:
+- **Fewer fights:** fights per person-year lower than off on every seed, with yields making up part of the difference.
+- **Fewer wounds:** share wounded at years 26 to 30 lower than off.
+- **Belligerence drift:** the habit's climb (134 to 216 in 30 years off) is smaller.
+- **Guardrails:** no seed dies out; population at year 50 not below off; women fed enough to mate not below off; perf within budget.
+
+**S3x contest result** (seeds 1 to 3, 50 years, on against off, slow healing on and the replaced fear off in both):
+
+| Years 46 to 50 | Seed 1 off / on | Seed 2 off / on | Seed 3 off / on |
+|---|---|---|---|
+| Fights per person-year | 5.16 / 0.04 | 4.77 / 0.05 | 4.56 / 0.04 |
+| Yields per person-year | 0 / 3.17 | 0 / 3.22 | 0 / 3.11 |
+| Wounded | 92% / 5% | 88% / 5% | 86% / 4% |
+| Belligerence habit (126 to 138 at start) | 206 / 125 | 196 / 127 | 209 / 126 |
+| People | 4,611 / 6,203 | 4,531 / 6,160 | 4,751 / 6,631 |
+| Women fed enough to mate | 11% / 16% | 15% / 14% | 10% / 12% |
+
+All targets met. Fights fall by about 99%, and most contests end in a yield. Wounds almost vanish, belligerence stops climbing, and population at year 50 is about 35 to 40% higher, with no collapse through year 50 (it peaks at 6,100 to 7,200 around years 36 to 40, then dips 5 to 8%). Guardrails: no seed dies out. Fed women are not below off, except seed 2 at 14% against 15%. Perf: 7.2 µs per person per tick at 13,924 people.
+
+Deaths now come mostly from hunger without wounds: in years 46 to 50 there were 1,668 / 1,880 / 1,925 unwounded deaths against 280 / 284 / 268 wounded ones (old age left out). The limit is now the land. **Risk to watch:** the world may now be too peaceful. Fights are rare enough that clash deaths and chronicle battles nearly disappear, and later phases (raids, polities) need conflict to come from somewhere. That is left to the end-of-plan tuning (`contestRiskWeight`) and to the place cost, which makes yielding count.
 ## Combat Courage & Battlefield Looting (Primitives 76 & 78)
 - **Primitive 76 (Tactical Courage & Physical Retreat Costs)**: added `clashCourageEnabled` (default true), `courageOddsThreshold` (0.35), `clashRetreatMoveMul` (1.5), `clashRetreatFatigue` (6), `clashRetreatInjuryMul` (0.20), and `clashRetreatDropThreshold` (3.0). Outmatched combatants calculate power odds from strength and nearby allies; if odds are below `courageOddsThreshold * (1.2 - bravery)`, they disengage early via a retreat step. Fleeing imposes realistic physical costs: sprint movement energy (`1.5 * moveCost` booked to `ledger.move`), an adrenaline fatigue spike (+6), glancing scrapes/scratches from the aggressor's parting swipe (`20%` clash injury scaled by cruelty and belligerence), and panic-dropping heavy cargo (> 3.0 units) directly onto the land tile.
 - **Primitive 78 (Battlefield Looting)**: added `clashLootEnabled` (default true). The victor claims the loser's carried item (`people.carryKind`, `people.carry`). When the victor already carries a different resource or exceeds body capacity, excess drops directly to the tile as a ground heap.
@@ -777,6 +946,36 @@ Round 1 wore most of the land, so it read as worn ground everywhere rather than 
 - **Parity & Determinism**: Exact bit-for-bit fingerprint match when Phase 6a toggles and pre-phase tunables are pinned (`3846cf0469ad880d` and `b11b505bedb2a659`).
 - **Performance**: Measured at **9.519 µs / person / tick** at 8,347 people (well within the desktop budget of $\le 15.0$ µs per Rule 8).
 
+### S3x contest refinements: expectations, set before running (2026-11-08)
+
+Seeds 1 to 3, 50 years, on the merged code (`main` merged in). Runs: all on; each refinement off in turn; and the contest off, which leaves `main`'s resource gate and courage retreat in charge. Wound probe. Per rule 10, these are directional expectations across seeds, reported either way:
+- **Residence off:** fewer fights-back by defenders, so slightly fewer fights and more yields.
+- **Concession off:** yields become step-offs; concessions 0; heaps change hands less.
+- **Match cost off:** more wounds and deaths per fight.
+- **Self-assessment off:** belligerence drifts again (it did not with the contest alone, since most contests end without a fight); confidence spread 0.
+- **Contest off (`main`'s resource clashes):** more fights and fight deaths than with the contest; the wound share is the main comparison.
+- **Guardrails:** no seed dies out; perf within budget.
+
+**S3x contest refinements result** (seeds 1 to 3, 50 years, merged code, wound probe; years 46 to 50, deaths in fights summed over those 5 years):
+
+| Run | People (s1 / s2 / s3) | Wounded | Fights per person-year | Deaths in fights | Yields per person-year | Concessions per person-year |
+|---|---|---|---|---|---|---|
+| All on | 6,073 / 5,673 / 5,737 | 3 / 4 / 3% | 0.03 / 0.04 / 0.05 | 6 / 3 / 6 | 1.80 / 1.46 / 1.86 | 0.37 / 0.27 / 0.43 |
+| Residence off | 5,350 / 5,308 / 5,804 | 2 / 3 / 2% | 0.03 / 0.02 / 0.03 | 4 / 1 / 4 | 1.43 / 1.04 / 1.90 | 0.30 / 0.21 / 0.43 |
+| Concession off | 5,903 / 5,394 / 5,839 | 3 / 3 / 3% | 0.05 / 0.03 / 0.05 | 11 / 7 / 12 | 1.95 / 1.34 / 1.87 | 0 |
+| Match cost off | 5,348 / 5,567 / 5,837 | 2 / 3 / 2% | 0.01 / 0.01 / 0.01 | 2 / 2 / 2 | 1.85 / 1.66 / 1.45 | 0.40 / 0.34 / 0.32 |
+| Self-assessment off | 5,879 / 5,077 / 5,632 | 2 / 3 / 3% | 0.02 / 0.03 / 0.03 | 3 / 11 / 4 | 1.43 / 1.22 / 1.59 | 0.27 / 0.22 / 0.35 |
+| Contest off (`main`'s resource clashes) | 3,548 / 3,183 / 4,423 | 24 / 23 / 18% | 0.77 / 0.63 / 0.58 | 616 / 495 / 488 | 0 | 0 |
+
+- **The contest against `main`'s resource clashes is the big effect.** About 15 to 25 times fewer fights, about 100 times fewer deaths in fights, a wounded share of 3 to 4% against 18 to 24%, and 30 to 80% more people at year 50. With fewer people, `main`'s women are better fed (22 to 34% against 13 to 17%). Belligerence climbs a little under `main` (147 to 153) and stays flat with the contest (124 to 131).
+- **Each refinement on its own is small**, and some go against expectation:
+  - **Concession off:** as expected, concessions vanish, and deaths in fights roughly double on every seed (11 / 7 / 12 against 6 / 3 / 6).
+  - **Match cost off:** against expectation, fights fall to about a third, and so do deaths in fights. Without the discount for one-sided fights, every fight looks costly, so fewer are started. Match cost works mainly through the decision, not through the harm of a fight.
+  - **Self-assessment off:** confidence spread is 0, as expected. Belligerence does not drift either way, because fights are too rare for the old nudges to matter. My expectation of drift was wrong.
+  - **Residence off:** fewer yields on two seeds and lower population on two. The direction is not consistent across seeds.
+- **Population with any one refinement off** is between 12% lower and 2% higher than all on. That is within the spread between seeds, so no single refinement clearly helps or hurts population.
+- **Guardrails:** no seed dies out. Perf on the merged code is 7.4 µs per person per tick at about 13,900 people.
+- **Still open: the world is very peaceful.** About one death in a fight a year among 6,000 people, against about 100 under `main`'s rules. Conflict for later phases (raids, polities) will have to come from scarcer land, the place cost, and the end-of-plan tuning of `contestRiskWeight`.
 ## Persistent-walk jitter (src/sim/jitter.ts, not yet called from rules.ts)
 New tunables, all in `config.ts`, switch `jitterEnabled` (default true): `jitterMinAmp` 24, `jitterDashLog2` 3 (12.5% dash epochs), `jitterEpochShift` 4 (16 ticks), `jitterDashWeightPct` 150, `jitterRoadDampPct` 50. No old values; first introduction. Dash weight now also takes road damping. Nothing consumes it yet, so there is no behaviour change and no perf cost.
 

@@ -49,3 +49,10 @@
 1. Visual inspection in browser on desktop & phone (Rule 13) for Golden Crops & wolf chases.
 2. Phase 5f (Structures, Stone & Closed Rooms) or Phase 6b (Weather & Disaster).
 3. Combined tuning pass: wounds, population, childcare share, nest caps.
+
+## Settlements plan (branch `settlements-s3`, not yet merged)
+- **On `main` already:** T0 tools, S0 settlement labels, S1 staying pays, S2 paths.
+- **On this branch:** S3-pre packed earth; the S3a layout test (exposure, directional building; off until reviewed); S3w carried water and adjacent stores; the shore tests (hunger search, far sight); S3x turmoil: slow healing, and the contest (fights weighed against a real stake, the odds and the cost; the weaker side yields). The first fear design was built, measured and replaced (off). `main` was merged in on 2026-11-07: with the contest on, it decides whether to fight, and `main`'s resource gate and courage retreat apply only with it off. `main`'s lethality, looting and casualty reports apply either way.
+- **Results:** the contest cuts fights about 99% and the wounded share from about 90% to about 5%, and population at year 50 is about 35 to 40% higher (measured before the merge, against the old gate; to be re-measured against `main`'s resource clashes). Perf 7.2 µs per person per tick at 13,924 people, before the merge.
+- **Contest refinements built** (residence, concession, match cost, self-assessment), each with a switch. Against `main`'s resource clashes: about 100 times fewer deaths in fights, wounded 3 to 4% against 18 to 24%, and 30 to 80% more people at year 50. Each refinement on its own is small (`docs/findings.md`). Perf 7.4 µs on the merged code.
+- **Next:** the place-cost memory, then the S3a re-run. Open: full `npm run verify` on a quiet machine, the rule-13 watch, the inspector showing wounds and place cost, and the end-of-plan tuning, including whether the world is now too peaceful. Details in `docs/SETTLEMENTS.md` and `docs/findings.md`.

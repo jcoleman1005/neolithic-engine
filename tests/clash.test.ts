@@ -11,7 +11,8 @@ import { DEFAULT_CONFIG } from '../src/sim/config';
 
 describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', () => {
   it('Primitive 78 (Loot): victor with empty hands claims loser carried food and clears loser hands', () => {
-    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false };
+    // These check main's courage and loot under main's decision rule, which applies with the S3x contest off.
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false, contestEnabled: false };
     const people = new People(10);
     const land = new Land(config);
     const fields = new ScentFields();
@@ -57,7 +58,8 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
   });
 
   it('Primitive 78 (Loot): victor with full hands of different material knocks loser loot onto ground', () => {
-    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false };
+    // These check main's courage and loot under main's decision rule, which applies with the S3x contest off.
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false, contestEnabled: false };
     const people = new People(10);
     const land = new Land(config);
     const fields = new ScentFields();
@@ -99,7 +101,8 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
   });
 
   it('Primitive 76 (Courage): outmatched coward retreats before combat with realistic physical costs and cargo panic drop', () => {
-    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false };
+    // These check main's courage and loot under main's decision rule, which applies with the S3x contest off.
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false, contestEnabled: false };
     const people = new People(10);
     const land = new Land(config);
     const fields = new ScentFields();
@@ -163,7 +166,8 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
   });
 
   it('Primitive 76 (Courage): brave fighter stands and clashes even when odds are poor', () => {
-    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false };
+    // These check main's courage and loot under main's decision rule, which applies with the S3x contest off.
+    const config = { ...DEFAULT_CONFIG, elevationEnabled: false, terrainEnabled: false, cultureTouchEnabled: false, contestEnabled: false };
     const people = new People(10);
     const land = new Land(config);
     const fields = new ScentFields();
@@ -198,6 +202,16 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
     const wOff = new World({
       clashLootEnabled: false,
       clashCourageEnabled: false,
+      // Mechanics added on settlements-s3 after it left main, off so the world is main's.
+      earthBuildingEnabled: false,
+      waterCarryEnabled: false,
+      adjacentStoresEnabled: false,
+      hungerSearchEnabled: false,
+      farSightEnabled: false,
+      slowHealEnabled: false,
+      contestEnabled: false,
+      fearEnabled: false,
+      fearWoundsEnabled: false,
       tendingEnabled: false,
       herdScentEnabled: false,
       huntCarryMeatEnabled: false,

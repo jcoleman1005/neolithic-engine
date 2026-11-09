@@ -59,6 +59,53 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // S1 (docs/SETTLEMENTS.md): staying pays. Each piece has its own switch so it can be compared.
   // S2 (docs/SETTLEMENTS.md): paths. Steps wear the ground; worn ground is cheaper to walk and
   // lightly preferred, so routes reinforce themselves. Wear fades a little at a time when unused.
+  // S3-pre (docs/SETTLEMENTS.md): packed earth. Well-fed people with empty hands dig earth from
+  // trodden ground and set it down where people rest together, like stone. It builds less per load
+  // and wears away faster, so stone stays the better material near the hills.
+  // S3w (docs/SETTLEMENTS.md): carried water. Water is an ordinary carried item: fetched from
+  // rivers and lakes, drunk from the carry, and poured into small stores at camps away from the river.
+  // Shore test 1 (docs/findings.md): a hungry person on poor ground with no better smell nearby
+  // keeps walking the way they were going, instead of stopping to roam less.
+  hungerSearchEnabled: true,
+  hungerSearchFood: 6.0, // a hungry person searches when plant food on their tile and the 4 beside it averages below this (was a scent-slope test that never fired)
+  hungerSearchPersist: 1.2, // pull to keep going the same way
+  hungerSearchExplore: 0.6, // chance of a random step while searching
+  // Shore test 2: a searching person can see which neighbouring 16-tile block holds the most standing
+  // plant food, and heads that way (sight across open land, not smell).
+  farSightEnabled: true,
+  farSightInterval: 30, // ticks between refreshes of the block food map
+  farSightPull: 1.0, // pull toward the best block
+  farSightMargin: 0.2, // a neighbouring block must hold this much more food (share) to draw them
+  waterCarryEnabled: true, // a water store can be drunk from on its tile or any of the 8 around it, like a river
+  adjacentStoresEnabled: true, // hungry people also eat from food heaps on the 8 tiles around them
+  waterCarryMax: 20.0, // hydration a person can carry
+  waterFetchChance: 0.05, // per tick, for someone who could fetch (keeps hands free for other work)
+  waterFetchHydration: 90.0, // only someone this well watered fills up
+  waterSpill: 0.2, // carried water lost per step
+  waterPourMinDist: 4, // stores only this far or further from natural fresh water
+  waterStoreCap: 100.0, // most water one tile's store holds
+  waterEvaporation: 0.05, // store lost per tick in cool weather ...
+  waterEvapWarm: 2.0, // ... times (1 + this x warmth) in warm weather
+  waterCoveredEvapMul: 0.25, // ... and times this on a built tile (a covered jar)
+  waterStoreFindMin: 10.0, // a store this full is found by thirsty people; it drops out below half
+  earthBuildingEnabled: true,
+  earthWear: 64, // earth comes only from ground worn at least this much (bare, trodden soil)
+  earthBite: 1.0, // earth dug per tick
+  earthCarryMax: 6.0,
+  earthEnergy: 0.6, // digs only above this fraction of maxEnergy
+  earthDigCost: 0.05, // energy spent per unit dug
+  earthBuildGain: 2.0, // durability per unit of earth (stone gives buildGain)
+  earthErodeSlices: 32, // earth-built tiles also lose 1 durability per this many ticks
+  // S3a layout test (prototype, off until reviewed): an exposure field and carriers who set
+  // material down on the neighbouring tile that best shelters them from the seasonal wind.
+  exposureEnabled: false,
+  exposureSlices: 8, // exposure is refreshed on 1 / this of the map each tick
+  windWeight: 2.0, // how much more the upwind side counts than the others
+  brushBarrier: 4.0, // barrier per unit of brush on a tile
+  treeBarrier: 120.0, // barrier of a full stand of trees
+  cliffBarrier: 600.0, // barrier per unit of height a neighbour stands above this tile
+  directionalBuildEnabled: false,
+  directionalAvoidWear: 64, // carriers do not build on tiles worn at least this much (they are routes)
   pathsEnabled: true,
   wearStep: 4, // wear added to a tile each time someone steps onto it, 0 to 255 (S2 tuning: was 16)
   wearDecaySlices: 2, // every tile loses 1 wear once per this many ticks (S2 tuning: was 8)
@@ -275,6 +322,54 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   injurySlow: 0.6, // fraction of steps lost at full injury
   injuryHealEnergy: 0.5, // heals only above this fraction of maxEnergy
   injuryHeal: 0.3, // injury healed per tick
+  // S3x slow healing: wounds also heal below injuryHealEnergy, more slowly the hungrier the person
+  // (healFloor of injuryHeal at zero energy, rising to the full rate at injuryHealEnergy), and
+  // healShelterMul faster on a sheltered tile (cave, fire, hut, nest). Healing costs no energy.
+  slowHealEnabled: true,
+  // S3x contest: a fight is weighed, not gated. Each side compares the food at stake (what they could
+  // eat beyond the half they'd get by sharing) with the exact odds and the real cost of losing; the
+  // weaker side may yield and step off unhurt. Belligerence (habit + cruelty) sets risk appetite,
+  // from -contestRiskWeight to +contestRiskWeight. Replaces the habit + cruelty > 180 gate.
+  contestEnabled: true,
+  contestRiskWeight: 0.5,
+  // S3x contest refinements (contest literature; docs/SETTLEMENTS.md S3x item 4). Residence: someone
+  // who has stood residentTicks on a tile values its food residentValueMul times more (they expect to
+  // keep using it). Concession: a defender who gives way lets the attacker take food away in hand
+  // instead of stepping off. Match cost: fight losses and wounds scale with how even the match was,
+  // from matchCostFloor (certain) to 1 (even). Self-assessment: a win adds confStep to a person's
+  // belief in their own fight score and a loss takes it away (clamped to +-confMax), fading with
+  // time constant confFadeTicks; it replaces the belligerence nudges on wins and losses.
+  residenceEnabled: true,
+  residentTicks: 10,
+  residentValueMul: 1.5,
+  concedeEnabled: true,
+  matchCostEnabled: true,
+  matchCostFloor: 0.25,
+  selfAssessEnabled: true,
+  confStep: 0.5,
+  confMax: 5.0,
+  confFadeTicks: 360,
+  healFloor: 0.2, // fraction of injuryHeal at zero energy
+  healShelterMul: 1.5, // healing multiplier on a sheltered tile
+  // S3x fear: the loser of a clash, or someone bitten by a wolf, gains fearPerLoss, felt only within
+  // fearRadius of where they were beaten. Losses there stack; a loss elsewhere starts a new place
+  // keeping half. Inside the region fear raises the food staying needs (x 1 + fearStayMul at full fear)
+  // and pushes away from the centre (fearPush at full fear). It fades by fearDecayInside a tick inside
+  // the region and fearDecayOutside once out. A child near a parent (careRadius) loses
+  // fearChildParentDecay more a tick; near an allied adult (on or beside their tile), fearChildAdultDecay.
+  fearEnabled: false, // replaced by the place cost (S3x, 2026-11-07); off until that lands, then removed
+  fearPerLoss: 60,
+  fearRadius: 8,
+  fearStayMul: 2.0,
+  fearPush: 2.0, // above the strongest leader pull (1.6), so a badly frightened follower breaks away
+  fearDecayInside: 0.02,
+  fearDecayOutside: 0.3,
+  fearChildParentDecay: 0.3,
+  fearChildAdultDecay: 0.1,
+  // S3x: wounds make fear push harder (x 1 + fearWoundMul at full injury), and hunger no longer
+  // halves the danger aversion of someone who is afraid.
+  fearWoundsEnabled: false,
+  fearWoundMul: 1.0,
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite
   graveTicks: 150, // how long a fresh grave mark stays visible

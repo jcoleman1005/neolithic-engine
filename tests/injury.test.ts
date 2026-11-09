@@ -25,9 +25,18 @@ describe('Combat injury and grave marks', () => {
     expect(paid(200)).toBeGreaterThan(paid(0));
   });
 
-  it('a fed person heals; a hungry one does not', () => {
+  // S3x changed this rule on purpose: with slow healing a hungry person heals too, only more slowly.
+  it('a fed person heals; a hungry one heals more slowly (slow healing on)', () => {
     const a = lone(); a.w.people.injury[a.slot] = 100; a.w.people.energy[a.slot] = 90;
     const b = lone(); b.w.people.injury[b.slot] = 100; b.w.people.energy[b.slot] = 10;
+    a.w.step(); b.w.step();
+    expect(b.w.people.injury[b.slot]).toBeLessThan(100);
+    expect(a.w.people.injury[a.slot]).toBeLessThan(b.w.people.injury[b.slot]);
+  });
+
+  it('a fed person heals; a hungry one does not (slow healing off)', () => {
+    const a = lone({ slowHealEnabled: false }); a.w.people.injury[a.slot] = 100; a.w.people.energy[a.slot] = 90;
+    const b = lone({ slowHealEnabled: false }); b.w.people.injury[b.slot] = 100; b.w.people.energy[b.slot] = 10;
     a.w.step(); b.w.step();
     expect(a.w.people.injury[a.slot]).toBeLessThan(100);
     expect(b.w.people.injury[b.slot]).toBe(100);

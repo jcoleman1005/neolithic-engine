@@ -71,6 +71,9 @@ const COLOR_FARM_RGB = 0x3068a8; // rgb(168, 104, 48), warm terracotta
 const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
 const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
 const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food heap never reads as brown
+// Carry marks by kind: none, seed, food, brush, stone, earth, water.
+const CARRY_MARK_COLOURS = ['', '#e9c86a', '#e8863a', '#8a5a2b', '#9a9a9a', '#6b4a2e', '#4f8fd6', ''];
+const COLOR_WATERSTORE_RGB = 0xd68f4f; // rgb(79, 143, 214), stored water
 const COLOR_PATH_RGB = 0x3f5f80; // rgb(128, 95, 63), trodden earth on worn paths
 const COLOR_BRUSH_RGB = 0x305a7d; // rgb(125, 90, 48), wood stick flecks for brush heaps
 const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
@@ -240,6 +243,8 @@ export class CanvasRenderer {
   private readonly lookBytes = new Uint8Array(65536);
   private readonly slotGenerations = new Uint8Array(65536);
   private readonly rootLeaderIds = new Uint32Array(65536);
+  /** What each person carries: kind in bits 0 to 2, amount above (see PERSON_FRAME_BYTES). */
+  private readonly carryBytes = new Uint8Array(65536);
   private readonly personFacing = new Uint8Array(65536);
   private readonly bandSizes = new Map<number, number>();
   public colorMode: ColorMode = 'status';
@@ -870,6 +875,7 @@ export class CanvasRenderer {
       const gen = buf[offset + 5];
       const rId =
         (buf[offset + 6] | (buf[offset + 7] << 8) | (buf[offset + 8] << 16) | (buf[offset + 9] << 24)) >>> 0;
+      const carried = buf[offset + 10];
       offset += PERSON_FRAME_BYTES;
 
       if (slot >= 65536) continue;
@@ -887,6 +893,7 @@ export class CanvasRenderer {
       this.currX[slot] = x;
       this.currY[slot] = y;
       this.lookBytes[slot] = look;
+      this.carryBytes[slot] = carried;
       this.rootLeaderIds[slot] = rId;
       this.bandSizes.set(rId, (this.bandSizes.get(rId) ?? 0) + 1);
       newMask[slot] = 1;
@@ -1135,8 +1142,12 @@ export class CanvasRenderer {
         else if (desert >= 2) c = (((85 + desert * 20) << 24) | COLOR_DESERT_RGB) >>> 0; // stripped land: pale sand
         else if (farm === 1) c = (((70 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // barely worked
         // S2: worn paths show as trodden earth, stronger the more they are used.
-        const path = paths ? paths[i] : 0;
+        const ground = paths ? paths[i] : 0;
+        const path = ground & 7;
         if (path >= 2) c = ((50 + path * 22) << 24) | COLOR_PATH_RGB;
+        // S3w: a water store on the tile, stronger as it fills.
+        const stored = ground >> 6;
+        if (stored > 0) c = ((120 + stored * 40) << 24) | COLOR_WATERSTORE_RGB;
         // Heaps and granary floors sit on top of everything else.
         const st = structures ? structures[i] : 0;
         if (waterArr && waterArr[i] > 0) {
@@ -1915,6 +1926,14 @@ export class CanvasRenderer {
         Math.round(fx - spr.anchorX * ap), Math.round(fy - spr.anchorY * ap),
         Math.round(spr.w * ap), Math.round(spr.h * ap)
       );
+    }
+
+    // What they carry: a small mark at the hip, coloured by kind (placeholder until carry poses exist).
+    const carriedKind = this.carryBytes[slot] & 7;
+    if (carriedKind !== 0) {
+      const size = Math.max(2, Math.round(2 * ap));
+      this.ctx.fillStyle = CARRY_MARK_COLOURS[carriedKind];
+      this.ctx.fillRect(Math.round(fx + 1.5 * ap), Math.round(fy - 5 * ap), size, size);
     }
 
     // Band Leader Star: gently bobbing golden star hovering above the head

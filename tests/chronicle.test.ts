@@ -4,6 +4,14 @@ import { Chronicle } from '../src/sim/chronicle';
 import { Rules, CLASH_RING } from '../src/sim/rules';
 import { WorldEventDetector } from '../src/sim/events';
 
+// The battle-report tests pin a world with two bands at tick 600; the observer's wording is what they check, so the
+// S3 mechanics (docs/SETTLEMENTS.md), which reshape where bands form and whether they fight, are off.
+// (Same pin as the 11/6 session's 6af8be2 on settlements-s3-b, plus the S3x contest.)
+const S3_OFF = {
+  earthBuildingEnabled: false, waterCarryEnabled: false, adjacentStoresEnabled: false, hungerSearchEnabled: false,
+  farSightEnabled: false, slowHealEnabled: false, fearEnabled: false, fearWoundsEnabled: false, contestEnabled: false,
+};
+
 function run(ticks: number, chronicle?: Chronicle, seed = 11, config = {}): { world: World; texts: string[] } {
   const world = new World({ initialPopulation: 300, ...config }, seed);
   const texts: string[] = [];
@@ -16,7 +24,7 @@ function run(ticks: number, chronicle?: Chronicle, seed = 11, config = {}): { wo
 
 describe('Phase 4 chronicle', () => {
   it('a fight is reported after it ends, with its size and outcome', () => {
-    const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1 }, 5);
+    const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1, ...S3_OFF }, 5);
     const chronicle = new Chronicle();
     for (let i = 0; i < 600; i++) {
       world.step();
@@ -60,7 +68,7 @@ describe('Phase 4 chronicle', () => {
   });
 
   it('fights are sized skirmish, battle or great battle by their clashes', () => {
-    const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1, chronicleBattleCooldown: 0 }, 5);
+    const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1, chronicleBattleCooldown: 0, ...S3_OFF }, 5);
     const chronicle = new Chronicle();
     for (let i = 0; i < 600; i++) {
       world.step();
