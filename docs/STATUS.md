@@ -2,6 +2,19 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## Save version check (branch `claude/visual-verification-setup-x8cmbi`, not yet merged to `main`)
+- **Done**:
+  - Saves carry `schema` (`SAVE_SCHEMA`, now 2, in `src/sim/world.ts`). A build refuses a save with a higher schema. Saves with no stamp still load.
+  - `People.importState` refuses a save whose people carry a field this build does not know (`PERSON_FIELDS` in `src/sim/people.ts`, exhaustive against `PackedPerson` at compile time, so a new field fails `tsc` until it is registered). `mateSlot` is allowed as a legacy name.
+  - At server start a refused save stops the server and leaves the file untouched (autosave begins only in `listen()`).
+  - `tsconfig.server.json` no longer type-checks `scripts/capture.ts` and `scripts/visual-check.ts`, so `npm run server` builds without Playwright installed.
+  - `main` merged in with no conflicts; the six S3 person fields (`fear`, `fearX`, `fearY`, `restTicks`, `confidence`, `confTick`) are registered and schema went 1 to 2.
+- **Measured** (cloud container, not the S21; earlier figures in this file are from other hardware):
+  - `VERIFY_VISUAL=1 npm run verify`: `ok check`, `ok test`, `ok build`, `ok visual-check`.
+  - Perf: **3.852 µs / person / tick** at 13,811 people (53.202 ms/tick; desktop budget: <= 15.0 µs). One run, no before-merge baseline.
+- **Not done**: a real `data/` save has not been loaded against the new check; the S21 perf check (30 µs budget) is still open; no Rule-13 watch of this build.
+- **Next**: merge to `main` once agreed; bump `SAVE_SCHEMA` and add to `PERSON_FIELDS` whenever a save gains per-person state.
+
 ## Persistent-walk jitter (branch `ccr-72645d63-0n3gjg`, shelved)
 - **State**: `src/sim/jitter.ts`, its test and six `jitter*` tunables stay in the tree, **unused and off** (`jitterEnabled: false`). `Rules.climb` and `life.ts` are back to the original; the wiring is saved as `scripts/probes/jitter-wiring.patch` (`git apply` it to retry). Default fingerprints are unchanged.
 - **Why shelved**: measured as a behavioural no-op (see `docs/findings.md`); roaming pressure from the land is in the Parking lot. Probes and ideas: `scripts/probes/README.md`.
