@@ -47,8 +47,16 @@ import {
 import { fastBase64Encode } from './base64';
 import type { FoodPatch, FoodRegion, SimulationConfig, WorldMetrics } from './types';
 
+/**
+ * Bumped whenever a save gains state that an older build would silently drop or default. A build
+ * refuses a save with a higher schema than its own. Saves with no schema (written before this
+ * stamp existed) still load; the per-person field check in people.ts covers those.
+ */
+export const SAVE_SCHEMA = 1;
+
 export interface WorldState {
   readonly formatVersion: 1;
+  readonly schema?: number;
   readonly tick: number;
   readonly seed: number;
   readonly prngState?: number;
@@ -511,6 +519,7 @@ export class World {
   public exportState(): WorldState {
     return {
       formatVersion: 1,
+      schema: SAVE_SCHEMA,
       tick: this.tick,
       seed: this.seed,
       prngState: this.prng.getState(),
@@ -528,6 +537,12 @@ export class World {
   public static fromState(state: WorldState): World {
     if (state.formatVersion !== 1) {
       throw new Error(`Unknown format version: ${(state as any).formatVersion ?? (state as any).version}`);
+    }
+    if (typeof state.schema === 'number' && state.schema > SAVE_SCHEMA) {
+      throw new Error(
+        `This world was saved by a newer build (save schema ${state.schema}; this build reads up to ${SAVE_SCHEMA}). ` +
+          'Update this checkout, or start a new world (move the data folder aside first).'
+      );
     }
     const world = new World(state.config, state.seed);
     world.tick = state.tick;

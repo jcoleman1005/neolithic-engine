@@ -68,6 +68,34 @@ export interface PackedPerson {
   readonly rootLeaderId?: number;
 }
 
+/**
+ * Every field a saved person may carry. The Record type makes the compiler demand an entry here
+ * whenever a field is added to PackedPerson, so the unknown-field check below cannot drift.
+ */
+const PERSON_FIELDS: Record<keyof PackedPerson, true> = {
+  id: true, x: true, y: true, energy: true, sex: true, age: true, generation: true, pregnant: true,
+  mateId: true, motherId: true, fatherId: true, genes: true, habits: true, leaderId: true,
+  prevDir: true, carry: true, carryKind: true, hydration: true, injury: true, fatigue: true,
+  sick: true, rootLeaderId: true,
+};
+
+/** Names older builds wrote that importState still reads. */
+const LEGACY_PERSON_FIELDS: ReadonlySet<string> = new Set(['mateSlot']);
+
+/**
+ * Fields in saved people that this build does not know. A non-empty answer means the save was
+ * written by a build with more per-person state; loading it would silently drop that state.
+ */
+export function unknownPersonFields(people: readonly object[]): string[] {
+  const unknown = new Set<string>();
+  for (const p of people) {
+    for (const key of Object.keys(p)) {
+      if (!(key in PERSON_FIELDS) && !LEGACY_PERSON_FIELDS.has(key)) unknown.add(key);
+    }
+  }
+  return [...unknown].sort();
+}
+
 export interface PeopleState {
   readonly capacity: number;
   readonly count: number;
@@ -444,6 +472,14 @@ export class People {
   }
 
   public importState(state: PeopleState): void {
+    const unknown = unknownPersonFields(state.people);
+    if (unknown.length > 0) {
+      throw new Error(
+        `This save has per-person fields this build does not know (${unknown.slice(0, 6).join(', ')}). ` +
+          'It was probably saved by a newer or different branch; loading it here would silently drop that state. ' +
+          'Run the build that wrote it, or start a new world (move the data folder aside first).'
+      );
+    }
     const targetCap = Math.max(INITIAL_PEOPLE_CAPACITY, state.capacity);
     // Expand arrays FIRST before setting this.capacity so growTo actually grows
     this.growTo(targetCap);
