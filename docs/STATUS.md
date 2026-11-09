@@ -4,6 +4,12 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## S3x place cost (branch `s3x-place-cost`, unit A)
+
+- **Built:** `placeCostEnabled` (on): per-person `placeCost`, `costX`, `costY`. A clash loss adds the energy lost and a wolf bite adds the bite; a win takes the loot off (floor 0). One region per person within `costRadius`; it fades over `costMemoryTicks`. Inside the region the stay check counts `placeCost / costMemoryTicks` as upkeep, and a shelter holds only while the cold it saves beats that. Children learn from a parent within `careRadius` (`costChildLearn`), or, with none in range, more weakly from the nearest adult (`costAdultLearn`, user decision 2026-11-09). `SAVE_SCHEMA` is now 3.
+- **Checks:** fingerprint with `--placeCostEnabled false` equals main at 1800 ticks (`cdd6570302cb9c9f`). Perf 3.976 µs per person per tick (main 3.871).
+- **Result:** losers do not leave measurably more (missed target); few adults carry a cost (5 to 6%); population and grazing unchanged; settlements lasting 10 years down 4 to 23%; child deaths slightly up on 2 of 3 seeds. See `docs/findings.md`. Fights are too rare since the contest for the cost to matter much.
+- **Next:** the user decides whether to keep it as is, tune it, or switch it off. Wall crossing (unit D) waits for this merge.
 ## S3 art: contests, building, earth walls, carry marks, paths (branch `viewer-s3-art`, unit B)
 
 Viewer work for the 2026-11-09 watch, which found building and fights unreadable. Fingerprint unchanged (`fa5596d7e60c04ca` before and after).
@@ -17,7 +23,7 @@ Viewer work for the 2026-11-09 watch, which found building and fights unreadable
 
 ## Save version check (branch `claude/visual-verification-setup-x8cmbi`)
 - **Done**:
-  - Saves carry `schema` (`SAVE_SCHEMA`, now 2, in `src/sim/world.ts`). A build refuses a save with a higher schema. Saves with no stamp still load.
+  - Saves carry `schema` (`SAVE_SCHEMA`, now 3 after the S3x place cost, in `src/sim/world.ts`). A build refuses a save with a higher schema. Saves with no stamp still load.
   - `People.importState` refuses a save whose people carry a field this build does not know (`PERSON_FIELDS` in `src/sim/people.ts`, exhaustive against `PackedPerson` at compile time, so a new field fails `tsc` until it is registered). `mateSlot` is allowed as a legacy name.
   - At server start a refused save stops the server and leaves the file untouched (autosave begins only in `listen()`).
   - `tsconfig.server.json` no longer type-checks `scripts/capture.ts` and `scripts/visual-check.ts`, so `npm run server` builds without Playwright installed.

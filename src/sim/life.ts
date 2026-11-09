@@ -766,6 +766,63 @@ export class LifeSystem {
       }
     }
 
+    // S3x unit A: the place cost fades by 1 / costMemoryTicks a tick. A child within careRadius of a
+    // living parent moves costChildLearn of the gap toward that parent's memory, taking the parent's
+    // centre when the parent's memory is larger. A child with no parent in range learns the same way,
+    // more weakly (costAdultLearn), from the nearest other adult within careRadius (user decision
+    // 2026-11-09); that search runs every decisionStaggerInterval ticks with the rate compounded to
+    // match, and never stacks with a parent. An orphan with nobody near only fades. No random numbers.
+    if (config.placeCostEnabled !== false) {
+      const placeCost = people.placeCost;
+      const costX = people.costX;
+      const costY = people.costY;
+      const keep = 1 - 1 / (config.costMemoryTicks ?? 360);
+      const learn = config.costChildLearn ?? 0.05;
+      const careR = config.careRadius ?? 4;
+      const adultAge = config.adultAge ?? 5760;
+      const stagger = Math.max(1, config.decisionStaggerInterval ?? 8);
+      const adultLearn = 1 - Math.pow(1 - (config.costAdultLearn ?? learn * 0.5), stagger);
+      const cellStarts = spatial.cellStarts;
+      const cellPeople = spatial.cellPeople;
+      for (let slot = 0; slot < cap; slot++) {
+        if (alive[slot] === 0) continue;
+        if (placeCost[slot] > 0) placeCost[slot] = placeCost[slot] > 1e-3 ? placeCost[slot] * keep : 0;
+        if (age[slot] >= adultAge) continue;
+        let teacher = -1, rate = 0;
+        for (let k = 0; k < 2; k++) {
+          const pid = k === 0 ? motherId[slot] : fatherId[slot];
+          if (pid === 0 || !people.isValidId(pid)) continue;
+          const ps = slotFromId(pid);
+          const ex = Math.abs(px[ps] - px[slot]), ey = Math.abs(py[ps] - py[slot]);
+          if ((ex < 128 ? ex : 256 - ex) > careR || (ey < 128 ? ey : 256 - ey) > careR) continue;
+          teacher = ps; rate = learn;
+          break;
+        }
+        if (teacher < 0 && (tick + slot) % stagger === 0) {
+          // Nearest other adult by ring (Chebyshev distance), first found within the ring.
+          const cx = px[slot], cy = py[slot];
+          search: for (let r = 0; r <= careR; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+              const edge = dy === -r || dy === r;
+              for (let dx = -r; dx <= r; dx += edge ? 1 : 2 * r) {
+                const c = (((cy + dy) & 0xff) << 8) | ((cx + dx) & 0xff);
+                for (let i = cellStarts[c]; i < cellStarts[c + 1]; i++) {
+                  const o = cellPeople[i];
+                  if (o !== slot && alive[o] === 1 && age[o] >= adultAge) { teacher = o; rate = adultLearn; break search; }
+                }
+                if (r === 0) break;
+              }
+            }
+          }
+        }
+        if (teacher < 0) continue;
+        const tc = placeCost[teacher];
+        if (tc === 0 && placeCost[slot] === 0) continue;
+        if (tc > placeCost[slot]) { costX[slot] = costX[teacher]; costY[slot] = costY[teacher]; }
+        placeCost[slot] += rate * (tc - placeCost[slot]);
+      }
+    }
+
     // Refresh a slice of the root leader cache each tick
     const rootSlices = config.rootLeaderSliceCount ?? 8;
     people.refreshRootLeadersSlice(tick % rootSlices, rootSlices);

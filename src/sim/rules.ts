@@ -304,19 +304,25 @@ export class Rules {
     const afraid = Rules.inFearRegion(slot, people, config);
     if (!afraid && config.coldEnabled !== false && people.energy[slot] >= (config.coldSeekEnergy ?? 0.5) * (config.maxEnergy ?? 100)) {
       const here = (py << 8) | px;
-      if (land.coldAt(here) > 0.2) {
-        if (land.sheltered(here)) return 4;
-        const hd = land.warmDist[here];
-        if (hd < 255) {
-          let best = 4;
-          let bestD = hd;
-          for (let d = 0; d < 4; d++) {
-            const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
-            const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
-            const nd = land.warmDist[(ny << 8) | nx];
-            if (nd < bestD && Rules.canStep(px, py, d, land)) { best = d; bestD = nd; }
+      // S3x unit A: shelter is weighed, not overridden. While this place costs more than the cold upkeep a
+      // shelter saves, the cold rule neither holds them in a shelter nor walks them to one; the ordinary
+      // stay check decides.
+      if (land.coldAt(here) > 0.2 && Rules.shelterOutweighsCost(slot, here, people, land, config)) {
+        if (land.sheltered(here)) {
+          return 4;
+        } else {
+          const hd = land.warmDist[here];
+          if (hd < 255) {
+            let best = 4;
+            let bestD = hd;
+            for (let d = 0; d < 4; d++) {
+              const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
+              const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
+              const nd = land.warmDist[(ny << 8) | nx];
+              if (nd < bestD && Rules.canStep(px, py, d, land)) { best = d; bestD = nd; }
+            }
+            if (best !== 4) return best;
           }
-          if (best !== 4) return best;
         }
       }
     }
@@ -336,7 +342,8 @@ export class Rules {
       const max = land.capacityAt(cell, config);
       if (max > 0) {
         const hungry = people.energy[slot] < (config.habitHungerEnergy ?? 0.25) * (config.maxEnergy ?? 100);
-        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1) * Rules.fearStayMul(slot, people, config);
+        const need = (config.stayFoodFraction ?? 0.5) * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1) * Rules.fearStayMul(slot, people, config)
+          * Rules.placeCostStayMul(slot, 1, people, config);
         if (land.food[cell] >= need * max) return 4;
       }
     }
@@ -481,7 +488,7 @@ export class Rules {
     const ref = max > 0 ? max : config.stayRefFood ?? 10;
     const wander = 1 + (config.roamStayWeight ?? 0.5) * ((roaming + curiosity) / 2 - 0.5) * 2;
     const need = (config.stayFoodFraction ?? 0.5) * upkeepShare * wander * (hungry ? 1 + (config.hungerStayPenalty ?? 0.5) : 1)
-      * Rules.fearStayMul(slot, people, config);
+      * Rules.fearStayMul(slot, people, config) * Rules.placeCostStayMul(slot, upkeepShare, people, config);
     return plants + heap >= need * ref;
   }
 
@@ -730,6 +737,63 @@ export class Rules {
   public static fearStayMul(slot: number, people: People, config: Readonly<SimulationConfig>): number {
     if (!Rules.inFearRegion(slot, people, config)) return 1;
     return 1 + (config.fearStayMul ?? 2) * (people.fear[slot] / 255);
+  }
+
+  /**
+   * S3x unit A, place cost. `amount` is the energy actually lost (positive: a lost clash, a wolf bite)
+   * or the loot gained (negative: a won clash). A loss within costRadius of the centre adds and nudges
+   * the centre toward the event, weighted by size; a loss farther away starts a new memory there and
+   * drops the old one. A win only pays off the region it happens in, and the cost never goes below 0.
+   * No random numbers.
+   */
+  public static addPlaceCost(slot: number, x: number, y: number, amount: number, people: People, config: Readonly<SimulationConfig>): void {
+    if (config.placeCostEnabled === false || amount === 0) return;
+    const cost = people.placeCost[slot];
+    const r = config.costRadius ?? 8;
+    const dx = wrapDiff(x, people.costX[slot]);
+    const dy = wrapDiff(y, people.costY[slot]);
+    const inside = cost > 0 && dx * dx + dy * dy <= r * r;
+    if (amount < 0) {
+      if (!inside) return;
+      const left = cost + amount;
+      people.placeCost[slot] = left > 0 ? left : 0;
+      return;
+    }
+    if (inside) {
+      const w = amount / (cost + amount);
+      people.costX[slot] = (people.costX[slot] + Math.round(dx * w)) & 0xff;
+      people.costY[slot] = (people.costY[slot] + Math.round(dy * w)) & 0xff;
+      people.placeCost[slot] = cost + amount;
+      return;
+    }
+    people.placeCost[slot] = amount;
+    people.costX[slot] = x & 0xff;
+    people.costY[slot] = y & 0xff;
+  }
+
+  /** S3x unit A: the expected cost a tick of living where the person stands (0 outside their region). */
+  public static placeCostUpkeep(slot: number, people: People, config: Readonly<SimulationConfig>): number {
+    const cost = people.placeCost[slot];
+    if (cost <= 0 || config.placeCostEnabled === false) return 0;
+    const r = config.costRadius ?? 8;
+    const dx = wrapDiff(people.x[slot], people.costX[slot]);
+    const dy = wrapDiff(people.y[slot], people.costY[slot]);
+    if (dx * dx + dy * dy > r * r) return 0;
+    return cost / (config.costMemoryTicks ?? 360);
+  }
+
+  /** S3x unit A: whether the cold upkeep a shelter saves on cell `here` beats the expected cost of this place (true with no cost). */
+  public static shelterOutweighsCost(slot: number, here: number, people: People, land: Land, config: Readonly<SimulationConfig>): boolean {
+    const pc = Rules.placeCostUpkeep(slot, people, config);
+    return pc === 0 || pc < (config.metabolismCost ?? 0.25) * (config.coldUpkeep ?? 0.6) * land.coldAt(here);
+  }
+
+  /** S3x unit A: the place cost as a multiplier on the food staying needs (real upkeep plus expected cost, over real upkeep). */
+  public static placeCostStayMul(slot: number, upkeepShare: number, people: People, config: Readonly<SimulationConfig>): number {
+    const extra = Rules.placeCostUpkeep(slot, people, config);
+    if (extra <= 0) return 1;
+    const base = (config.metabolismCost ?? 0.25) * (upkeepShare > 0 ? upkeepShare : 1);
+    return 1 + extra / base;
   }
 
   /**
@@ -1248,6 +1312,9 @@ export class Rules {
         people.energy[winnerSlot] += actualLoot;
         ledger.attack += struggleWaste;
         Rules.addFear(loserSlot, px, py, people, config);
+        // S3x unit A: the loser remembers what this place cost them; the winner's loot pays theirs off.
+        Rules.addPlaceCost(loserSlot, px, py, loserLoss, people, config);
+        Rules.addPlaceCost(winnerSlot, px, py, -actualLoot, people, config);
         let loserFell = people.energy[loserSlot] <= 0;
 
         if (config.injuryEnabled !== false) {

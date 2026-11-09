@@ -1018,3 +1018,42 @@ Causes: (1) the mechanism was gated by the calm-stay branch, where most people s
 Grazing does deplete tiles (about half a unit per stay tick, and nearly every stay ends on a depleted tile), so the earlier guess that regrowth outpaces eating was wrong. But unoccupied land sits at 99% of capacity: about 1,000 adults on 65,536 tiles. A depleted forager only needs the next tile along, so the environment forces short foraging hops, not wandering. Movement is local and the 85% standing share is the long tail of stays (90th percentile 19 to 27 ticks), not people sitting on rich ground. Not measured: why the 35% of stays below the threshold stay (leader pull, hut or heap value, thirst, cold).
 
 Jitter shelved: `Rules.climb` and `life.ts` reverted to the original, `jitterEnabled` set to false (it was true during the runs above), wiring saved in `scripts/probes/jitter-wiring.patch`. Default fingerprints are back to their pre-jitter values.
+
+
+### S3x place cost: targets, set before running (2026-11-09)
+
+Unit A, branch `s3x-place-cost` (`placeCostEnabled`, `docs/SETTLEMENTS.md` S3x item 2). Seeds 1, 2, 3, 50 years, place cost on against `--placeCostEnabled false`, slow healing on in both arms, contest and its refinements on (main's defaults). Probe: `scripts/place-cost-probe.ts` (adapted from the wound probe; clash losers and winners are taken from `Rules.touch` itself, so it measures the same in both arms). Starting values, not tuned: `costRadius` 8 (the old `fearRadius`), `costMemoryTicks` 360 (a year, as the spec says), `costChildLearn` 0.05. `costAdultLearn` 0.025: children with no parent in range learn from the nearest adult (user decision 2026-11-09, added before these runs; a first set of runs was stopped unfinished when the rule changed and is not reported).
+
+These are the directions to report, not numbers to tune toward:
+- **Losers leave:** the share of clash losers more than `costRadius` from the clash 90 days later is higher with the place cost on, on all 3 seeds.
+- **Winners stay:** the winners' share away is no higher with it on (within 2 points of off, or lower).
+- **Not everyone carries it:** the share of adults with a cost of 1 energy or more is well under the 77% the first fear design reached.
+- **People still graze:** the share of adults standing still is not more than 10 points below off (fear cost 13 points).
+- Also reported, no direction set: tile capacity underfoot, births per head per year, settlements lasting 10 years or more.
+
+Guardrails, reported and not targets: no seed dies out; population at year 50 within 10% of off; settlements lasting 10 years or more not down by more than 25%; child deaths not up; `npm run perf` at or under 15.0 µs per person per tick.
+
+**S3x place cost result** (seeds 1 to 3, 50 years, `scripts/place-cost-probe.ts`, place cost on against `--placeCostEnabled false`, slow healing and the contest on in both; children learn from parents and, more weakly, from the nearest adult). Logs: `logs/run-pc-s<seed>-<on|off>.log` (not committed). Away = more than `costRadius` (8) from the clash tile 90 days later.
+
+| | Seed 1 off / on | Seed 2 off / on | Seed 3 off / on |
+|---|---|---|---|
+| Losers away | 21.5 / 22.4% | 24.3 / 24.0% | 24.0 / 24.2% |
+| Winners away | 22.6 / 23.9% | 25.3 / 24.8% | 23.3 / 23.1% |
+| Adults with a cost of 1+ (years 10 to 50) | 0 / 5.3% | 0 / 6.1% | 0 / 5.7% |
+| Adults standing still | 73.1 / 74.1% | 73.9 / 73.7% | 72.2 / 72.9% |
+| Tile capacity underfoot | 15.61 / 15.64 | 15.75 / 15.68 | 14.91 / 14.84 |
+| Births per head per year | 0.0702 / 0.0701 | 0.0745 / 0.0735 | 0.0686 / 0.0692 |
+| Fights in 50 years | 6,708 / 6,445 | 7,758 / 8,404 | 7,834 / 7,527 |
+| Population at year 50 | 5,778 / 5,849 | 5,865 / 5,555 | 5,514 / 5,390 |
+| Settlements lasting 10y+ (of all) | 23 / 22 (149 / 145) | 30 / 23 (154 / 120) | 45 / 40 (195 / 197) |
+| Child deaths | 5,248 / 5,128 | 5,829 / 5,903 | 5,958 / 6,189 |
+
+Against the targets:
+- **Losers leave: missed.** +1.0, −0.4 and +0.2 points: no consistent effect.
+- **Winners stay: met.** Within 2 points on every seed (+1.2, −0.5, −0.2).
+- **Not everyone carries it: met.** 5 to 6% of adults carry a cost of 1 or more, against 77% for the first fear design.
+- **People still graze: met.** Standing still within a point of off.
+
+Guardrails: no seed dies out. Population at year 50 is within 10% of off (+1.2%, −5.3%, −2.2%). Settlements lasting 10 years or more are down on all 3 seeds (−4%, −23%, −11%), inside the 25% limit, but seed 2 is close to it. Child deaths are down on seed 1 and up on seeds 2 and 3 (+1.3%, +3.9%), so "not up" is not met on 2 of 3 seeds; the rises are small. Perf: 3.976 µs per person per tick against main's 3.871 (same machine, back to back, nothing else running).
+
+Why the effect is small, from the numbers above: since the contest, fights are rare (about 6,500 to 8,400 in 50 years among about 4,000 people, roughly 0.04 a person a year), so few people ever carry a cost. A typical clash loss is a few to about 20 energy, which over `costMemoryTicks` 360 is under 0.06 energy a tick of expected cost against a metabolism of 0.25. That raises the food staying needs by at most about a fifth, for a few months. The mechanism works (tests), but at today's fight rate it has little to act on. Not tuned: one round, no values changed. Making it bite would mean a shorter memory or a larger weight, which would be tuning toward a where-people-go target, which the spec rules out. Left for the user.
