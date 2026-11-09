@@ -298,6 +298,16 @@ export class People {
     this.initFreeList(oldCap, newCap);
   }
 
+  /**
+   * Makes sure at least `n` slots are free, growing now if not. `grow()` replaces every typed
+   * array, so a system that caches `people.alive`, `people.energy` and so on in locals must call
+   * this before it takes them: a `spawn` that grows mid-loop would leave those locals pointing at
+   * the old arrays, and writes through them would be lost.
+   */
+  public reserve(n: number): void {
+    while (this.freeCount < n) this.grow();
+  }
+
   public spawn(
     x: number,
     y: number,
