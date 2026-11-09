@@ -99,6 +99,22 @@ export class LifeSystem {
       fields.step(config);
     }
 
+    // Births spawn people, and a spawn with no free slot replaces every typed array (People.grow).
+    // The locals below would then point at the old arrays for the rest of the tick, so make room
+    // for every mother who can deliver this tick before taking them. A mother can only deliver if
+    // she is at or past gestationTicks - 1 now; nobody gets there mid-tick (mating starts at 0).
+    {
+      const due = (config.gestationTicks ?? 270) - 1;
+      const pAlive = people.alive;
+      const pSex = people.sex;
+      const pPreg = people.pregnant;
+      let births = 0;
+      for (let s = 0, n = people.capacity; s < n; s++) {
+        if (pAlive[s] === 1 && pSex[s] === 0 && pPreg[s] >= due) births++;
+      }
+      if (births > 0) people.reserve(births);
+    }
+
     const cap = people.capacity;
     const alive = people.alive;
     const px = people.x;
