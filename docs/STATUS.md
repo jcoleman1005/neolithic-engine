@@ -4,6 +4,19 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## S3 Phase 5f exposure port (branch `s3-exposure-port`, unit C)
+
+- **Built:** three switches, all on by default.
+  - `exposureRaysEnabled`: a tile with a wall or cave within 4 tiles N, S, W and E drops to indoor exposure 15.
+  - `windShadowEnabled`: a wall, cave, wood or rise within 3 tiles upwind drops it to 115.
+  - `hearthAnchorEnabled`: the settlement observer counts walls of durability 30 or more as built.
+  - The first two act only while `exposureEnabled` (off by default) is on.
+- **Checks:**
+  - **Fingerprint:** with defaults, unchanged from main (`fa5596d7e60c04ca`).
+  - **Tests:** exposure and settlements tests added. Full suite 371 of 371; `npm run check` and `npm run build` exit 0 (run directly, because `verify.sh` won't parse with CRLF line endings on Windows).
+  - **Perf with exposure on:** 4.05 to 4.34 µs, against 3.96 without the new code.
+- **On the map:** nothing changes yet, because no rule reads exposure. Camp counts at year 30 on seed 1 are unchanged (47, 11, 5), and camps lasting 10 years rise from 34 to 36. See `docs/findings.md`.
+- **Next:** S3b, which makes exposure matter (shelter and cold). After that, decide whether rays should require a closed room and whether walls need a hearth to anchor a camp.
 ## S3 art: contests, building, earth walls, carry marks, paths (branch `viewer-s3-art`, unit B)
 
 Viewer work for the 2026-11-09 watch, which found building and fights unreadable. Fingerprint unchanged (`fa5596d7e60c04ca` before and after).

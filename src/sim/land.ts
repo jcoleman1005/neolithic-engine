@@ -832,11 +832,14 @@ export class Land {
   /**
    * S3 unit C idea 2: a wall (durability >= wallThreshold), cave, wood or ground higher by more than
    * windShadowRise within windShadowReach tiles upwind. (windX, windY) points to where the wind comes
-   * from (setWind), so upwind is along its sign; a component under 0.2 counts as no wind that way.
+   * from (setWind), so upwind is along its sign. The ray takes the nearest of the 8 compass steps: a
+   * component under sin(22.5 deg) counts as no wind that way (the old 5f code's 0.2 snapped most
+   * headings to a diagonal, because main's wind turns smoothly round the year).
    */
   public inWindShadow(x: number, y: number, config: Readonly<SimulationConfig>): boolean {
-    const ux = this.windX > 0.2 ? 1 : this.windX < -0.2 ? -1 : 0;
-    const uy = this.windY > 0.2 ? 1 : this.windY < -0.2 ? -1 : 0;
+    const cut = 0.3827; // sin(22.5 deg)
+    const ux = this.windX > cut ? 1 : this.windX < -cut ? -1 : 0;
+    const uy = this.windY > cut ? 1 : this.windY < -cut ? -1 : 0;
     if (ux === 0 && uy === 0) return false;
     const reach = config.windShadowReach ?? 3;
     const wall = config.wallThreshold ?? 30;

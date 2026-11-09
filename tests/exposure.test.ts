@@ -165,6 +165,13 @@ describe('S3a: exposure and directional building', () => {
     expect(off.land.exposureOf(cell(78, 80), off.config)).toBe(255);
   });
 
+  it('unit C wind shadow: a nearly-east wind still casts a wall\'s shadow straight west', () => {
+    const w = quietWorld({ exposureRaysEnabled: false });
+    w.land.setWind(0.04); // about 14 degrees off east
+    w.land.durability[cell(80, 80)] = 60;
+    expect(w.land.exposureOf(cell(78, 80), w.config)).toBe(Math.max(w.config.windShadowFloor, 255 - w.config.windbreakReduction));
+  });
+
   it('unit C wind shadow: woods, caves and higher ground cast it; the reach is windShadowReach', () => {
     const w = quietWorld({ exposureRaysEnabled: false });
     w.land.setWind(0.25); // wind from the south (+y)

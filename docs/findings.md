@@ -1018,3 +1018,26 @@ Causes: (1) the mechanism was gated by the calm-stay branch, where most people s
 Grazing does deplete tiles (about half a unit per stay tick, and nearly every stay ends on a depleted tile), so the earlier guess that regrowth outpaces eating was wrong. But unoccupied land sits at 99% of capacity: about 1,000 adults on 65,536 tiles. A depleted forager only needs the next tile along, so the environment forces short foraging hops, not wandering. Movement is local and the 85% standing share is the long tail of stays (90th percentile 19 to 27 ticks), not people sitting on rich ground. Not measured: why the 35% of stays below the threshold stay (leader pull, hut or heap value, thirst, cold).
 
 Jitter shelved: `Rules.climb` and `life.ts` reverted to the original, `jitterEnabled` set to false (it was true during the runs above), wiring saved in `scripts/probes/jitter-wiring.patch`. Default fingerprints are back to their pre-jitter values.
+
+### S3 unit C: Phase 5f exposure port (2026-11-09)
+
+Branch `s3-exposure-port`. Three ideas from the old 5f exposure code, each behind its own switch, ported into main's S3a exposure. Starting values, not tuned (taken from the 5f code): `wallThreshold` 30, `roomMaxSpan` 4, `indoorBaseExposure` 15, `windShadowReach` 3, `windShadowRise` 0.05, `windbreakReduction` 140, `windShadowFloor` 30, `settlementWallMin` 30. One change from the 5f code: the upwind ray snaps to the nearest of 8 compass steps with a cutoff of sin(22.5°), not 0.2, because main's wind turns smoothly round the year. With 0.2, about three quarters of headings took a diagonal ray, so a wall straight upwind cast no shadow.
+
+Perf, `npm run perf` (which now takes config overrides), 10,000 people, back to back on a quiet machine. Main 2ad00f0 measured 3.871 µs on the same machine.
+
+| Arm | µs / person / tick |
+|---|---|
+| Defaults (`exposureEnabled` off) | 3.802 |
+| `--exposureEnabled true --directionalBuildEnabled true`, rays and shadow off (main's S3a) | 3.963 |
+| + ray enclosure | 4.094 |
+| + wind shadow | 4.344 (4.050 after the cutoff fix) |
+
+Hearth anchor: observer only, so not in `npm run perf` (which runs no observer). With defaults the fingerprint is unchanged: `fa5596d7e60c04ca` at 1,000 ticks and `cdd6570302cb9c9f` at 1,800, both the same as main.
+
+Maps, `npm run map -- --seed 1 --years 30 --exposureEnabled true --directionalBuildEnabled true`. Before = main 2ad00f0, after = this branch (PNGs in `scratch/`, not committed). Year 30, both: 5,485 people; 47 camps, 11 hamlets and 5 villages; 564 built tiles. Settlement records seen: 179 before and 194 after. Lasting 10 years or more: 34 before and 36 after. Population and building are identical because nothing in the sim reads `land.exposure` yet (S3b will). Only the hash differs (`ffcf9c9994e26f58` before, `d677bc87b5dee151` after), since exposure is hashed while on.
+
+Known limits, from review, left as ported:
+- **Rays don't check for a closed room.** They only look for any wall on each of the four axes, so a street ringed by separate huts counts as indoors.
+- **Walls count as built without a hearth.** With the hearth anchor on, walls of 30 or more count as built even with no fire, so ruins can found or keep a camp. Wall cells also count toward tier thresholds.
+- **Diagonal shadow rays.** On a diagonal wind the shadow ray steps diagonally, so it reaches about 4.2 tiles.
+- **Two wall settings.** `wallThreshold` and `settlementWallMin` both set what counts as a wall.

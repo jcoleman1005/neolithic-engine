@@ -6,7 +6,7 @@
  */
 import { World } from '../src/sim/world';
 import { FORM_NEST } from '../src/sim/land';
-import { isBuiltCell } from '../src/sim/settlements';
+import { builtWallMin, isBuiltCell } from '../src/sim/settlements';
 import { slotFromId } from '../src/sim/people';
 import type { SimulationConfig } from '../src/sim/types';
 import { parseArgs } from './args';
@@ -21,7 +21,7 @@ const zone = (): Zone => ({ n: 0, energy: 0, gain: 0, survivors: 0, died: 0, sta
 function campMask(w: World, out: Uint8Array): void {
   out.fill(0);
   for (let c = 0; c < CELLS; c++) {
-    if (!isBuiltCell(w.land, c) && w.land.pile[c] <= 1) continue;
+    if (!isBuiltCell(w.land, c, builtWallMin(w.config)) && w.land.pile[c] <= 1) continue;
     const x = c & 255, y = c >> 8;
     for (let dy = -RADIUS; dy <= RADIUS; dy++) for (let dx = -RADIUS; dx <= RADIUS; dx++) out[(((y + dy) & 255) << 8) | ((x + dx) & 255)] = 1;
   }
