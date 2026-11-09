@@ -31,7 +31,7 @@ Those games get settlements from a player or a script, which rule 4 bans here. S
 
 ## Build stages
 
-**Current stage:** T0 to S2 merged. On `settlements-s3`: S3-pre, the S3a layout test, S3w carried water and the shore tests are built. Next is S3x: slow healing is built; next the contest (fights over a real stake), then the place-cost memory that replaces the first fear design. Then the S3a re-run. See `docs/STATUS.md`.
+**Current stage:** T0 to S3 (S3-pre, the S3a layout test (off), S3w, the shore tests and S3x healing and contest) merged to `main` on 2026-11-08. Watched by the user on 2026-11-09 on the merged code: **S0, S1 and S2 pass** (rule 13); building does not read in the viewer yet (see the art queue in `docs/ROADMAP.md`). Next: the place-cost memory, the Phase 5f port, then the S3a re-run. See `docs/STATUS.md`.
 
 One branch per stage, starting with `phase-5h-settlements` off the **latest** `main`, not `phase-5f-structures`, which is 7 commits behind. Line numbers below are from before those commits, so find code by name. New mechanics get a switch in `src/sim/config.ts`, are saved and hashed, and are tested for mechanisms only.
 
