@@ -356,6 +356,8 @@ These ideas are deferred on purpose; revisit them after Phase 10 or when a phase
   - Draw building in progress: send built tiles below hut strength (durability 1 to 59) to the viewer, and draw them as a low mound or a ring of packed earth or stones that grows with durability. Today they are invisible.
   - Tell earth from stone: rammed-earth huts and walls in warm brown, stone in grey, from `Land.material`.
   - A dirt-path sprite for worn ground (S2), so trails read as paths rather than a tint.
+  - Clearly different carry marks for brush, earth and stone. Today brush (`#8a5a2b`) and earth (`#6b4a2e`) are near-identical browns, so a carrier switching loads is hard to read.
+  - A brief contest marker: one flash for a fight and a different one for giving way (a concession or a step aside). Without it the S3x contest cannot be watched (rule 13); today the only visible trace is a grave mark.
 - Group odds in fights between bands (Lanchester's laws; Wrangham's imbalance of power): chimpanzees join a fight between groups only with about a 1.5 to 1 advantage, and lethal raids happen when the attacker's cost is low. The S3x contest counts allies as a flat +3 each. Revisit for raids and polities (Phase 8). Human war data fit the square law poorly, so treat it as a starting point.
 - Seas, rivers you can sail, and boats
 - Trade, markets and debt networks

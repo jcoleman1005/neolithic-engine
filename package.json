@@ -7,6 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "postinstall": "node scripts/patch-vitest.js",
     "test": "vitest run",
     "test:fast": "vitest run --reporter=dot",
     "test:watch": "vitest",
