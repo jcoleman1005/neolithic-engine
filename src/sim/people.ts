@@ -70,6 +70,9 @@ export interface PackedPerson {
   readonly fear?: number;
   readonly fearX?: number;
   readonly fearY?: number;
+  readonly placeCost?: number;
+  readonly costX?: number;
+  readonly costY?: number;
   readonly restTicks?: number;
   readonly confidence?: number;
   readonly confTick?: number;
@@ -86,7 +89,7 @@ const PERSON_FIELDS: Record<keyof PackedPerson, true> = {
   prevDir: true, carry: true, carryKind: true, hydration: true, injury: true, fatigue: true,
   sick: true, rootLeaderId: true,
   // Settlements S3 (turmoil): fear from defeat, rest, and contest confidence.
-  fear: true, fearX: true, fearY: true, restTicks: true, confidence: true, confTick: true,
+  fear: true, fearX: true, fearY: true, placeCost: true, costX: true, costY: true, restTicks: true, confidence: true, confTick: true,
 };
 
 /** Names older builds wrote that importState still reads. */
@@ -150,6 +153,10 @@ export class People {
   public fear: Float32Array;
   public fearX: Uint8Array;
   public fearY: Uint8Array;
+  /** S3x place cost: net energy lost in one region (centre costX, costY), fading by 1 / costMemoryTicks a tick. */
+  public placeCost: Float32Array;
+  public costX: Uint8Array;
+  public costY: Uint8Array;
   /** S3x residence: ticks standing still on the current tile, capped at 255; any step resets it. */
   public restTicks: Uint8Array;
   /** S3x self-assessment: how much stronger (in fight-score units) a person believes they are; fades from confTick. */
@@ -187,6 +194,9 @@ export class People {
     this.fear = new Float32Array(this.capacity);
     this.fearX = new Uint8Array(this.capacity);
     this.fearY = new Uint8Array(this.capacity);
+    this.placeCost = new Float32Array(this.capacity);
+    this.costX = new Uint8Array(this.capacity);
+    this.costY = new Uint8Array(this.capacity);
     this.restTicks = new Uint8Array(this.capacity);
     this.confidence = new Float32Array(this.capacity);
     this.confTick = new Uint32Array(this.capacity);
@@ -214,6 +224,9 @@ export class People {
       this.fear[i] = 0;
       this.fearX[i] = 0;
       this.fearY[i] = 0;
+      this.placeCost[i] = 0;
+      this.costX[i] = 0;
+      this.costY[i] = 0;
       this.restTicks[i] = 0;
       this.confidence[i] = 0;
       this.confTick[i] = 0;
@@ -284,6 +297,9 @@ export class People {
     this.fear = copyF32(this.fear);
     this.fearX = copyU8(this.fearX);
     this.fearY = copyU8(this.fearY);
+    this.placeCost = copyF32(this.placeCost);
+    this.costX = copyU8(this.costX);
+    this.costY = copyU8(this.costY);
     this.restTicks = copyU8(this.restTicks);
     this.confidence = copyF32(this.confidence);
     this.confTick = copyU32(this.confTick);
@@ -350,6 +366,9 @@ export class People {
     this.fear[slot] = 0;
     this.fearX[slot] = 0;
     this.fearY[slot] = 0;
+    this.placeCost[slot] = 0;
+    this.costX[slot] = 0;
+    this.costY[slot] = 0;
     this.restTicks[slot] = 0;
     this.confidence[slot] = 0;
     this.confTick[slot] = 0;
@@ -395,6 +414,9 @@ export class People {
     this.fear[slot] = 0;
     this.fearX[slot] = 0;
     this.fearY[slot] = 0;
+    this.placeCost[slot] = 0;
+    this.costX[slot] = 0;
+    this.costY[slot] = 0;
     this.restTicks[slot] = 0;
     this.confidence[slot] = 0;
     this.confTick[slot] = 0;
@@ -518,6 +540,9 @@ export class People {
           fear: this.fear[slot],
           fearX: this.fearX[slot],
           fearY: this.fearY[slot],
+          placeCost: this.placeCost[slot],
+          costX: this.costX[slot],
+          costY: this.costY[slot],
           restTicks: this.restTicks[slot],
           confidence: this.confidence[slot],
           confTick: this.confTick[slot],
@@ -587,6 +612,9 @@ export class People {
       this.fear[slot] = p.fear ?? 0;
       this.fearX[slot] = p.fearX ?? 0;
       this.fearY[slot] = p.fearY ?? 0;
+      this.placeCost[slot] = p.placeCost ?? 0;
+      this.costX[slot] = p.costX ?? 0;
+      this.costY[slot] = p.costY ?? 0;
       this.restTicks[slot] = p.restTicks ?? 0;
       this.confidence[slot] = p.confidence ?? 0;
       this.confTick[slot] = p.confTick ?? 0;

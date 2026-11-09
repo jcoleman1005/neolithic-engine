@@ -214,6 +214,7 @@ export class Wolves {
               ledger.deathFat += bite;
               if (config.injuryEnabled !== false) people.injury[s] = Math.min(255, people.injury[s] + (config.wolfInjury ?? 150));
               Rules.addFear(s, nbX[k], nbY[k], people, config);
+              Rules.addPlaceCost(s, nbX[k], nbY[k], bite, people, config); // S3x unit A
               e = Math.min(maxE, e + bite);
               fields.depositDanger(nbX[k], nbY[k], dangerDeath);
               if (people.energy[s] <= 0) {

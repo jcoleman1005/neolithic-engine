@@ -370,6 +370,18 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // halves the danger aversion of someone who is afraid.
   fearWoundsEnabled: false,
   fearWoundMul: 1.0,
+  // S3x unit A, place cost (docs/SETTLEMENTS.md S3x item 2): people remember the net energy a place
+  // has cost them. A clash loser adds the energy lost and a wolf's victim the bite; a winner takes
+  // their loot off. Never below 0. One region per person: an event within costRadius of the centre
+  // adds and nudges the centre (weighted by size); one farther away starts a new memory there. It
+  // fades by 1 / costMemoryTicks a tick, and inside the region the stay check counts
+  // placeCost / costMemoryTicks a tick as upkeep. A child within careRadius of a parent moves
+  // costChildLearn of the gap a tick toward the parent's memory. A pressure, never an order.
+  placeCostEnabled: true,
+  costRadius: 8,
+  costMemoryTicks: 360,
+  costChildLearn: 0.05,
+  costAdultLearn: 0.025, // a child with no parent in range learns from the nearest adult (user decision 2026-11-09)
   wolfBiteEnergy: 25, // energy a wolf takes in a bite on a lone person
   wolfInjury: 150, // injury from a wolf bite
   graveTicks: 150, // how long a fresh grave mark stays visible

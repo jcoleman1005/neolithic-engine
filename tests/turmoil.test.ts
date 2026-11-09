@@ -41,7 +41,7 @@ import { GENE_COUNT, GENE_CRUELTY, HABIT_BELLIGERENCE, HABIT_COUNT } from '../sr
 
 /** An empty open world; people are placed by hand. */
 function empty(config: Record<string, number | boolean> = {}): World {
-  const w = new World({ initialPopulation: 0, wolfInitialCount: 0, thirstEnabled: false, coldEnabled: false, diseaseEnabled: false, fearEnabled: true, fearWoundsEnabled: true, contestEnabled: false, ...config }, 4);
+  const w = new World({ initialPopulation: 0, wolfInitialCount: 0, thirstEnabled: false, coldEnabled: false, diseaseEnabled: false, fearEnabled: true, fearWoundsEnabled: true, contestEnabled: false, placeCostEnabled: false, ...config }, 4);
   w.land.isWater.fill(0);
   w.land.food.fill(0);
   w.fields.reset();
@@ -351,6 +351,192 @@ describe('S3x contest refinements', () => {
     const a = new World({ initialPopulation: 300 }, 8);
     for (let t = 0; t < 400; t++) a.step();
     const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
+    expect(b.stateHash()).toBe(a.stateHash());
+    for (let t = 0; t < 150; t++) { a.step(); b.step(); }
+    expect(b.stateHash()).toBe(a.stateHash());
+  });
+});
+
+// S3x unit A: the place cost (docs/SETTLEMENTS.md S3x item 2).
+describe('S3x place cost', () => {
+  const on = { fearEnabled: false, fearWoundsEnabled: false, placeCostEnabled: true };
+  function fightPair(cfg: Record<string, number | boolean> = {}): { w: World; a: number; b: number } {
+    const w = empty({ ...on, ...cfg });
+    const hA = new Uint8Array(HABIT_COUNT).fill(0), hB = new Uint8Array(HABIT_COUNT).fill(255);
+    hA[HABIT_BELLIGERENCE] = 255; hB[HABIT_BELLIGERENCE] = 255;
+    const g = new Uint8Array(GENE_COUNT).fill(128); g[GENE_CRUELTY] = 255;
+    const a = put(w, 50, 60, 60, hA, g), b = put(w, 50, 60, 60, hB, g);
+    w.spatial.build(w.people);
+    return { w, a, b };
+  }
+
+  it('a lost clash adds the energy actually lost; the win takes the loot off the winner\'s cost', () => {
+    const { w, a, b } = fightPair();
+    for (const s of [a, b]) { w.people.placeCost[s] = 5; w.people.costX[s] = 50; w.people.costY[s] = 60; }
+    const eA = w.people.energy[a], eB = w.people.energy[b];
+    Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, new PRNG(1));
+    const loser = w.people.energy[a] < eA ? a : b, winner = loser === a ? b : a;
+    const lost = (loser === a ? eA : eB) - w.people.energy[loser];
+    const gained = w.people.energy[winner] - (winner === a ? eA : eB);
+    expect(lost).toBeGreaterThan(0);
+    expect(gained).toBeGreaterThan(0);
+    expect(w.people.placeCost[loser]).toBeCloseTo(5 + lost, 4);
+    expect(w.people.placeCost[winner]).toBeCloseTo(Math.max(0, 5 - gained), 4);
+  });
+
+  it('a win never takes the cost below 0, and a win outside the region changes nothing', () => {
+    const w = empty(on);
+    const s = put(w, 10, 10);
+    Rules.addPlaceCost(s, 10, 10, 10, w.people, w.config);
+    Rules.addPlaceCost(s, 200, 200, -4, w.people, w.config);
+    expect(w.people.placeCost[s]).toBe(10);
+    Rules.addPlaceCost(s, 11, 10, -100, w.people, w.config);
+    expect(w.people.placeCost[s]).toBe(0);
+    Rules.addPlaceCost(s, 11, 10, -5, w.people, w.config);
+    expect(w.people.placeCost[s]).toBe(0);
+  });
+
+  it('a loss inside costRadius adds and nudges the centre by size; a far loss starts a new region', () => {
+    const w = empty(on);
+    const s = put(w, 10, 10);
+    Rules.addPlaceCost(s, 10, 10, 10, w.people, w.config);
+    Rules.addPlaceCost(s, 14, 10, 10, w.people, w.config);
+    expect(w.people.placeCost[s]).toBeCloseTo(20, 5);
+    expect(w.people.costX[s]).toBe(12); // the new loss weighs 10 of 20
+    Rules.addPlaceCost(s, 100, 100, 7, w.people, w.config);
+    expect(w.people.placeCost[s]).toBeCloseTo(7, 5); // the old place is dropped
+    expect([w.people.costX[s], w.people.costY[s]]).toEqual([100, 100]);
+  });
+
+  it('nudges the centre across the wrapped map edge', () => {
+    const w = empty(on);
+    const s = put(w, 0, 0);
+    Rules.addPlaceCost(s, 254, 0, 10, w.people, w.config);
+    Rules.addPlaceCost(s, 2, 0, 10, w.people, w.config);
+    expect(w.people.placeCost[s]).toBeCloseTo(20, 5);
+    expect(w.people.costX[s]).toBe(0);
+  });
+
+  it('fades by 1 / costMemoryTicks a tick', () => {
+    const w = empty(on);
+    const s = put(w, 150, 150, 90);
+    Rules.addPlaceCost(s, 150, 150, 36, w.people, w.config);
+    w.step();
+    expect(w.people.placeCost[s]).toBeCloseTo(36 * (1 - 1 / 360), 4);
+  });
+
+  it('counts the expected cost as upkeep in the stay check, only inside the region', () => {
+    const w = empty(on);
+    const s = put(w, 50, 50, 90);
+    const cell = (50 << 8) | 50;
+    const max = w.land.capacityAt(cell, w.config);
+    w.land.food[cell] = (max > 0 ? max : w.config.stayRefFood) * 0.6; // just worth staying: the need is half the capacity
+    const stay = () => Rules.worthStaying(s, w.people, w.land, w.config, 1, 0.5, 0.5);
+    expect(stay()).toBe(true);
+    Rules.addPlaceCost(s, 50, 50, 90, w.people, w.config); // 0.25 a tick, the same as metabolism
+    expect(Rules.placeCostUpkeep(s, w.people, w.config)).toBeCloseTo(0.25, 5);
+    expect(stay()).toBe(false);
+    w.people.costX[s] = 150; // the same cost, belonging to a place far away
+    expect(Rules.placeCostUpkeep(s, w.people, w.config)).toBe(0);
+    expect(stay()).toBe(true);
+  });
+
+  it('a shelter holds only while the cold upkeep it saves exceeds the cost', () => {
+    const w = empty({ ...on, coldEnabled: true });
+    const s = put(w, 50, 50, 90);
+    const cell = (50 << 8) | 50;
+    w.land.cave[cell] = 1;
+    w.land.coldAt = () => 0.9; // force a cold tile; the cold rule reads coldAt
+    const saved = w.config.metabolismCost * w.config.coldUpkeep * 0.9;
+    Rules.addPlaceCost(s, 50, 50, saved * 360 * 0.5, w.people, w.config);
+    expect(Rules.shelterOutweighsCost(s, cell, w.people, w.land, w.config)).toBe(true);
+    expect(Rules.climb(s, w.people, w.land, w.fields, w.config, new PRNG(3))).toBe(4);
+    w.people.placeCost[s] = saved * 360 * 2;
+    expect(Rules.shelterOutweighsCost(s, cell, w.people, w.land, w.config)).toBe(false);
+  });
+
+  it('a costly place stops the cold rule walking someone back to a shelter in it', () => {
+    const w = empty({ ...on, coldEnabled: true });
+    const s = put(w, 51, 50, 90); // one tile east of a cave
+    const cave = (50 << 8) | 50, here = (50 << 8) | 51;
+    w.land.cave[cave] = 1;
+    w.land.coldAt = () => 0.9;
+    w.land.warmDist.fill(255);
+    w.land.warmDist[cave] = 0;
+    w.land.warmDist[here] = 1;
+    const saved = w.config.metabolismCost * w.config.coldUpkeep * 0.9;
+    Rules.addPlaceCost(s, 50, 50, saved * 360 * 0.5, w.people, w.config);
+    expect(Rules.climb(s, w.people, w.land, w.fields, w.config, new PRNG(3))).toBe(1); // west, into the cave
+    w.people.placeCost[s] = saved * 360 * 2;
+    expect(Rules.climb(s, w.people, w.land, w.fields, w.config, new PRNG(3))).not.toBe(1);
+  });
+
+  it('a child with no parent near learns from the nearest adult, more slowly than from a parent', () => {
+    const w = empty({ ...on, costChildLearn: 0.1, costAdultLearn: 0.05, decisionStaggerInterval: 1 });
+    const stranger = put(w, 50, 50, 90);
+    const kidNearStranger = put(w, 52, 50, 90, undefined, undefined, 100);
+    const mom = put(w, 120, 120, 90);
+    const kidNearMom = put(w, 122, 120, 90, undefined, undefined, 100, w.people.idOf(mom));
+    Rules.addPlaceCost(stranger, 30, 30, 50, w.people, w.config);
+    Rules.addPlaceCost(mom, 30, 30, 50, w.people, w.config);
+    w.step();
+    const fromAdult = w.people.placeCost[kidNearStranger], fromParent = w.people.placeCost[kidNearMom];
+    expect(fromAdult).toBeGreaterThan(0.05 * 50 * (1 - 1 / 360) - 1e-4);
+    expect(fromAdult).toBeLessThan(0.05 * 50 + 1e-4);
+    expect(fromParent).toBeGreaterThan(fromAdult);
+    expect([w.people.costX[kidNearStranger], w.people.costY[kidNearStranger]]).toEqual([30, 30]);
+  });
+
+  it('a child near a parent learns the parent\'s view; an orphan\'s memory only fades', () => {
+    const w = empty({ ...on, costChildLearn: 0.1 });
+    const mom = put(w, 50, 50, 90);
+    const kid = put(w, 51, 50, 90, undefined, undefined, 100, w.people.idOf(mom));
+    const orphan = put(w, 150, 150, 90, undefined, undefined, 100);
+    Rules.addPlaceCost(mom, 30, 30, 50, w.people, w.config);
+    Rules.addPlaceCost(orphan, 150, 150, 50, w.people, w.config);
+    w.step();
+    const momNow = w.people.placeCost[mom];
+    expect(momNow).toBeCloseTo(50 * (1 - 1 / 360), 4);
+    // The kid learns from the mother's memory before or after her fade this tick, by slot order.
+    expect(w.people.placeCost[kid]).toBeGreaterThan(0.1 * momNow - 1e-4);
+    expect(w.people.placeCost[kid]).toBeLessThan(0.1 * 50 + 1e-4);
+    expect([w.people.costX[kid], w.people.costY[kid]]).toEqual([30, 30]);
+    expect(w.people.placeCost[orphan]).toBeCloseTo(50 * (1 - 1 / 360), 4);
+  });
+
+  it('resets on kill and slot reuse', () => {
+    const w = empty(on);
+    const s = put(w, 10, 10);
+    Rules.addPlaceCost(s, 10, 10, 10, w.people, w.config);
+    w.people.kill(s);
+    const t = put(w, 20, 20);
+    expect(t).toBe(s);
+    expect([w.people.placeCost[t], w.people.costX[t], w.people.costY[t]]).toEqual([0, 0, 0]);
+  });
+
+  it('with the switch off: no cost is kept, the clash draws the same numbers and ends the same', () => {
+    const runOne = (placeCostEnabled: boolean) => {
+      const { w, a, b } = fightPair({ placeCostEnabled });
+      const prng = new PRNG(1);
+      Rules.touch(a, b, w.people, w.land, w.fields, w.spatial, w.ledger, w.config, prng);
+      return { e: [w.people.energy[a], w.people.energy[b]], cost: w.people.placeCost[a] + w.people.placeCost[b], next: prng.next() };
+    };
+    const off = runOne(false), onRun = runOne(true);
+    expect(off.cost).toBe(0);
+    expect(onRun.cost).toBeGreaterThan(0);
+    expect(off.e).toEqual(onRun.e);
+    expect(off.next).toBe(onRun.next);
+    const w = new World({ initialPopulation: 300, placeCostEnabled: false }, 8);
+    for (let t = 0; t < 300; t++) w.step();
+    expect(w.people.placeCost.every((v) => v === 0)).toBe(true);
+  });
+
+  it('place-cost state survives a save round trip and the run continues identically', () => {
+    const a = new World({ initialPopulation: 300, placeCostEnabled: true }, 8);
+    for (let t = 0; t < 400; t++) a.step();
+    expect(a.people.placeCost.some((v) => v > 0)).toBe(true);
+    const b = World.fromState(JSON.parse(JSON.stringify(a.exportState())));
+    expect(Array.from(b.people.placeCost)).toEqual(Array.from(a.people.placeCost));
     expect(b.stateHash()).toBe(a.stateHash());
     for (let t = 0; t < 150; t++) { a.step(); b.step(); }
     expect(b.stateHash()).toBe(a.stateHash());

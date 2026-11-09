@@ -394,6 +394,12 @@ export interface SimulationConfig {
   fearDecayOutside: number;
   fearChildParentDecay: number;
   fearChildAdultDecay: number;
+  // S3x unit A: place cost
+  placeCostEnabled: boolean;
+  costRadius: number;
+  costMemoryTicks: number;
+  costChildLearn: number;
+  costAdultLearn: number;
   fearWoundsEnabled: boolean;
   fearWoundMul: number;
   wolfBiteEnergy: number;
