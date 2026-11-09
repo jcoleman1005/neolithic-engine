@@ -16,5 +16,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["server", "scripts/*.ts"]
+  "include": ["server", "scripts/*.ts"],
+  "exclude": ["scripts/capture.ts", "scripts/visual-check.ts"]
 }
