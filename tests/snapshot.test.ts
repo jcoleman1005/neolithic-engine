@@ -51,6 +51,11 @@ describe('Snapshots', () => {
     expect(() => World.fromState(state)).toThrow(/newer build/);
   });
 
+  it('still loads a save stamped with an older schema', () => {
+    const older = { ...plain(new World({ ...SMALL, seed: 1 }).exportState()), schema: SAVE_SCHEMA - 1 };
+    expect(() => World.fromState(older)).not.toThrow();
+  });
+
   it('still loads a save that predates the schema stamp', () => {
     const { schema: _schema, ...legacy } = plain(new World({ ...SMALL, seed: 1 }).exportState());
     expect(() => World.fromState(legacy as WorldState)).not.toThrow();
@@ -59,9 +64,9 @@ describe('Snapshots', () => {
   it('refuses a save whose people carry fields this build does not know', () => {
     const state = plain(new World({ ...SMALL, seed: 1 }).exportState());
     expect(state.people!.people.length).toBeGreaterThan(0);
-    const people = state.people!.people.map((p, i) => (i === 0 ? { ...p, fearX: 3 } : p));
+    const people = state.people!.people.map((p, i) => (i === 0 ? { ...p, notAFieldYet: 3 } : p));
     const bad = { ...state, people: { ...state.people!, people } } as unknown as WorldState;
-    expect(() => World.fromState(bad)).toThrow(/fearX/);
+    expect(() => World.fromState(bad)).toThrow(/notAFieldYet/);
   });
 
   it('accepts the legacy mateSlot name and every field a current save writes', () => {

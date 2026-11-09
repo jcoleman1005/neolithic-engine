@@ -52,7 +52,7 @@ import type { FoodPatch, FoodRegion, SimulationConfig, WorldMetrics } from './ty
  * refuses a save with a higher schema than its own. Saves with no schema (written before this
  * stamp existed) still load; the per-person field check in people.ts covers those.
  */
-export const SAVE_SCHEMA = 1;
+export const SAVE_SCHEMA = 2; // 2: Settlements S3 per-person state (fear, restTicks, confidence).
 
 export interface WorldState {
   readonly formatVersion: 1;

@@ -85,6 +85,8 @@ const PERSON_FIELDS: Record<keyof PackedPerson, true> = {
   mateId: true, motherId: true, fatherId: true, genes: true, habits: true, leaderId: true,
   prevDir: true, carry: true, carryKind: true, hydration: true, injury: true, fatigue: true,
   sick: true, rootLeaderId: true,
+  // Settlements S3 (turmoil): fear from defeat, rest, and contest confidence.
+  fear: true, fearX: true, fearY: true, restTicks: true, confidence: true, confTick: true,
 };
 
 /** Names older builds wrote that importState still reads. */
