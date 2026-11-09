@@ -227,7 +227,7 @@ export class World {
 
   /** S2 path wear for the viewer, base64 (see Land.packPaths). */
   public packLandPaths(): string {
-    this.land.packPaths(this.pathsBuffer);
+    this.land.packPaths(this.pathsBuffer, this.config);
     return fastBase64Encode(this.pathsBuffer);
   }
 
@@ -321,6 +321,10 @@ export class World {
         buf[offset++] = (rId >> 8) & 0xff;
         buf[offset++] = (rId >> 16) & 0xff;
         buf[offset++] = (rId >>> 24) & 0xff;
+        // What they carry: kind in the low 3 bits, amount (0 to 31) above it.
+        const kind = people.carryKind[slot] & 7;
+        const amt = kind === 0 ? 0 : Math.min(31, Math.ceil(people.carry[slot]));
+        buf[offset++] = kind | (amt << 3);
       }
     }
 
@@ -423,6 +427,10 @@ export class World {
     const genes = people.genes;
     const habits = people.habits;
 
+    const fearOn = this.config.fearEnabled !== false;
+    const contestOn = this.config.contestEnabled !== false;
+    const residenceOn = contestOn && this.config.residenceEnabled !== false;
+    const selfAssessOn = contestOn && this.config.selfAssessEnabled !== false;
     for (let slot = 0; slot < cap; slot++) {
       if (alive[slot] === 1) {
         h.updateInt(slot);
@@ -446,6 +454,16 @@ export class World {
         h.updateFloat(people.injury[slot]);
         h.updateInt(people.fatigue[slot]);
         h.updateInt(people.sick[slot]);
+        if (residenceOn) h.updateInt(people.restTicks[slot]);
+        if (selfAssessOn) {
+          h.updateFloat(people.confidence[slot]);
+          h.updateInt(people.confTick[slot]);
+        }
+        if (fearOn) {
+          h.updateFloat(people.fear[slot]);
+          h.updateInt(people.fearX[slot]);
+          h.updateInt(people.fearY[slot]);
+        }
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);
         const hOff = slot * HABIT_COUNT;
@@ -489,6 +507,13 @@ export class World {
     h.updateFloatArray(land.compaction);
     h.updateIntArray(land.form);
     if (this.config.pathsEnabled !== false) h.updateIntArray(land.wear);
+    if (this.config.earthBuildingEnabled !== false) h.updateIntArray(land.material);
+    if (this.config.farSightEnabled !== false && this.config.hungerSearchEnabled !== false) h.updateFloatArray(land.blockFood);
+    if (this.config.waterCarryEnabled !== false) {
+      h.updateFloatArray(land.waterStore);
+      h.updateIntArray(land.waterFindable);
+    }
+    if (this.config.exposureEnabled === true) h.updateIntArray(land.exposure);
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);
     h.updateFloatArray(land.fish);

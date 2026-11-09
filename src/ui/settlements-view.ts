@@ -37,6 +37,7 @@ export function settlementCardHTML(s: SettlementView, tick: number, ticksPerYear
       ${pill('People', s.residents)}
       ${pill('Built cells', s.built)}
       ${pill('Stored food', s.stores)}
+      ${pill('Stored water', s.water ?? 0)}
       <h3 class="panel-heading">History</h3>
       <ul class="settlement-history">${history}</ul>
     </div>`;
