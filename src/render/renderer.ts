@@ -1,5 +1,7 @@
 import type { WorldView } from '../sim/protocol';
 import {
+  CONTEST_CONCEDE,
+  CONTEST_FIGHT,
   PERSON_FRAME_BYTES,
   LOOK_SEX_MASK,
   LOOK_PREGNANT_MASK,
@@ -72,7 +74,9 @@ const COLOR_DESERT_RGB = 0xaadcee; // rgb(238, 220, 170), pale cream
 const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
 const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food heap never reads as brown
 // Carry marks by kind: none, seed, food, brush, stone, earth, water.
-const CARRY_MARK_COLOURS = ['', '#e9c86a', '#e8863a', '#8a5a2b', '#9a9a9a', '#6b4a2e', '#4f8fd6', ''];
+// Carry kinds, as in src/sim/people.ts (CARRY_SEED ... CARRY_WATER); the viewer keeps its own copy.
+const CARRY_KIND_SEED = 1, CARRY_KIND_BRUSH = 3, CARRY_KIND_STONE = 4, CARRY_KIND_EARTH = 5, CARRY_KIND_WATER = 6;
+const CARRY_MARK_COLOURS = ['', '#e9c86a', '#e8863a', '#9a6a35', '#a4a7ad', '#6b4a2e', '#3f8ff0', ''];
 const COLOR_WATERSTORE_RGB = 0xd68f4f; // rgb(79, 143, 214), stored water
 const COLOR_PATH_RGB = 0x3f5f80; // rgb(128, 95, 63), trodden earth on worn paths
 const COLOR_BRUSH_RGB = 0x305a7d; // rgb(125, 90, 48), wood stick flecks for brush heaps
@@ -106,6 +110,29 @@ const STUMP_SPOTS: readonly (readonly [number, number])[] = [[1, 1.5], [4.5, 0.8
 // Drawable kinds
 const D_TREE = 1, D_STUMPS = 2, D_STRUCT = 3, D_FISH = 4, D_CAVE = 5, D_GLOW = 6, D_FIRE = 7;
 const D_CARCASS = 8, D_WOLF = 9, D_DEER = 10, D_PERSON = 11, D_HUT = 12, D_GRAVE = 13, D_DETAIL = 14, D_CROPS = 15;
+const D_BUILD = 16, D_PATH = 17;
+// Ground channel (landPaths) bits: wear 0..2, build progress 3..4, packed earth 5, water store 6..7.
+const GROUND_BUILD_SHIFT = 3;
+const GROUND_EARTH = 32;
+// Contest markers (S3x): how long one shows, and how many can be on screen at once.
+const CONTEST_LIFE_MS = 4000;
+const CONTEST_CAP = 128;
+const CONTEST_HALO = 'rgba(20, 12, 6, 0.75)';
+const CONTEST_FIGHT_HOT = '#ff3b1f';
+const CONTEST_FIGHT_CORE = '#ffd23a';
+const CONTEST_YIELD_COL = '#7df0ff'; // light cyan: apart from the white shore rim and from fire
+const CONTEST_CONCEDE_COL = '#ffc93c';
+// The eight rays of a fight burst, unit vectors (diagonals shortened so the ring looks round).
+const BURST_DX = [1, 0.7, 0, -0.7, -1, -0.7, 0, 0.7];
+const BURST_DY = [0, 0.7, 1, 0.7, 0, -0.7, -1, -0.7];
+// Dirt paths at close zoom: trodden centre and darker ruts.
+const PATH_LIGHT = '#b0905f';
+const PATH_RUT = '#7d6140';
+// Carry marks, outlined so they read on grass, sand and snow.
+const CARRY_OUTLINE = '#1c1410';
+// In-progress build tiles on the far-zoom overlay (BGR, alpha added per level).
+const COLOR_BUILD_EARTH_RGB = PALETTE.earthWall.base & 0xffffff;
+const COLOR_BUILD_STONE_RGB = PALETTE.stoneWall.highlight & 0xffffff;
 // Sort keys: screen y of an object's base, biased positive and packed with its index so ties keep the order collected
 const GROUND_KEY = -50000; // flat ground marks sort before everything standing
 const KEY_BIAS = 65536;
@@ -183,6 +210,7 @@ export class CanvasRenderer {
     featurePositions?: Uint8Array;
     peopleCount?: number;
     running?: boolean;
+    ticksPerSecond?: number;
     getSelectedPerson?(): any;
   };
   private insets: ViewInsets = { top: 0, bottom: 0, left: 0, right: 0 };
@@ -227,6 +255,13 @@ export class CanvasRenderer {
   private lastOverlayVersion = -1;
   private lastStructuresVersion = -1;
   private lastPathsVersion = -1;
+  // Contest markers: a ring of recent fights and give-ways, faded by wall-clock age.
+  private readonly contestX = new Uint8Array(CONTEST_CAP);
+  private readonly contestY = new Uint8Array(CONTEST_CAP);
+  private readonly contestKind = new Uint8Array(CONTEST_CAP);
+  private readonly contestBorn = new Float64Array(CONTEST_CAP);
+  private contestHead = 0;
+  private lastContestsVersion = 0;
   private readonly peopleCanvas: HTMLCanvasElement;
   private readonly peopleCtx: CanvasRenderingContext2D;
   private readonly peopleImgData: ImageData;
@@ -427,6 +462,7 @@ export class CanvasRenderer {
     featurePositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
+      ticksPerSecond?: number;
       getSelectedPerson?(): any;
     }
   ) {
@@ -515,12 +551,16 @@ export class CanvasRenderer {
     featurePositions?: Uint8Array;
       peopleCount?: number;
       running?: boolean;
+      ticksPerSecond?: number;
       getSelectedPerson?(): any;
     }
   ): void {
     this.world = world;
     this.wolfCount = 0;
     this.deerCount = 0;
+    // A new world starts with no contest marks, and its batch counter starts over.
+    this.contestKind.fill(0);
+    this.lastContestsVersion = world.contestsVersion ?? 0;
   }
 
   public startLoop(): void {
@@ -1095,6 +1135,9 @@ export class CanvasRenderer {
       this.ctx.drawImage(this.overlayCanvas, 0, 0, 256, 256, this.panX, this.panY, worldPxW, worldPxH);
     }
 
+    // 3b. Recent fights and give-ways: brief marks on the ground, under everyone standing.
+    this.drawContests(width, height);
+
     // 4. Objects. Zoomed in: oblique sprites, collected, sorted by row and painted back to front.
     //    Zoomed out: flat dots and pixels, as before.
     if (isZoomedIn) {
@@ -1148,6 +1191,9 @@ export class CanvasRenderer {
         // S3w: a water store on the tile, stronger as it fills.
         const stored = ground >> 6;
         if (stored > 0) c = ((120 + stored * 40) << 24) | COLOR_WATERSTORE_RGB;
+        // S3: a tile being built up (not yet a hut), earth or stone, stronger as it rises.
+        const build = (ground >> GROUND_BUILD_SHIFT) & 3;
+        if (build > 0) c = ((70 + build * 35) << 24) | ((ground & GROUND_EARTH) !== 0 ? COLOR_BUILD_EARTH_RGB : COLOR_BUILD_STONE_RGB);
         // Heaps and granary floors sit on top of everything else.
         const st = structures ? structures[i] : 0;
         if (waterArr && waterArr[i] > 0) {
@@ -1594,6 +1640,7 @@ export class CanvasRenderer {
     const minCellY = this.wrapY ? Math.floor(-this.panY / cs) - 1 : Math.max(0, Math.floor(-this.panY / cs) - 1);
     const maxCellY = this.wrapY ? Math.ceil((screenH - this.panY) / cs) + 1 : Math.min(worldH - 1, Math.ceil((screenH - this.panY) / cs) + 1);
     const structures = this.world.landStructures;
+    const ground = this.world.landPaths;
     const water = this.world.elevation?.water;
     const treeKey = cs;
     const lowKey = q(2);
@@ -1620,6 +1667,21 @@ export class CanvasRenderer {
         const form = (st >> 3) & 3;
         const forest = this.isForest[idx] === 1;
         const thin = st >> 5;
+
+        if (ground) {
+          const g = ground[idx];
+          const build = (g >> GROUND_BUILD_SHIFT) & 3;
+          if (build > 0) {
+            this.push(D_BUILD, x0, y0, build | (g & GROUND_EARTH), wx | (wy << 8), GROUND_KEY + 1);
+          } else if ((g & 7) >= 2 && !forest) {
+            // A worn path: which neighbours are worn too, so the trail joins up.
+            const n = wy > 0 && (ground[((wy - 1) << 8) | wx] & 7) >= 2 ? 1 : 0;
+            const e = wx < 255 && (ground[(wy << 8) | (wx + 1)] & 7) >= 2 ? 2 : 0;
+            const so = wy < 255 && (ground[((wy + 1) << 8) | wx] & 7) >= 2 ? 4 : 0;
+            const we = wx > 0 && (ground[(wy << 8) | (wx - 1)] & 7) >= 2 ? 8 : 0;
+            this.push(D_PATH, x0, y0, n | e | so | we | ((g & 7) << 4), wx | (wy << 8), GROUND_KEY);
+          }
+        }
 
         if (forest) {
           if (thin === 6 && form === 0 && level === 0) {
@@ -1672,7 +1734,9 @@ export class CanvasRenderer {
         this.emitAt(D_CAVE, px, py, kind - 16, 0, q(5.5), screenW, screenH, worldPxW, worldPxH);
       } else if (kind >= 8 && kind < 12) {
         const mask = getWallBitmask(this.wallOccupancyMask, feats[i], feats[i + 1]);
-        this.emitAt(D_HUT, px, py, mask, 0, GROUND_KEY + 1, screenW, screenH, worldPxW, worldPxH);
+        const g = this.world.landPaths;
+        const earth = g ? g[(feats[i + 1] << 8) | feats[i]] & GROUND_EARTH : 0;
+        this.emitAt(D_HUT, px, py, mask, earth, GROUND_KEY + 1, screenW, screenH, worldPxW, worldPxH);
       } else if (kind === 5) {
         this.emitAt(D_GRAVE, px, py, 0, 0, q(6.2), screenW, screenH, worldPxW, worldPxH);
       } else {
@@ -1847,7 +1911,9 @@ export class CanvasRenderer {
       case D_CAVE: this.drawCave(x0, y0, a); break;
       case D_GLOW: this.drawGlow(x0, y0, a); break;
       case D_FIRE: this.drawFire(x0, y0, a); break;
-      case D_HUT: drawCutawayWall(this.ctx, x0, y0, this.cellSize, a); break;
+      case D_HUT: drawCutawayWall(this.ctx, x0, y0, this.cellSize, a, b !== 0 ? PALETTE.earthWall : PALETTE.stoneWall); break;
+      case D_BUILD: this.drawBuild(x0, y0, a, b & 255, b >> 8); break;
+      case D_PATH: this.drawPath(x0, y0, a, b & 255, b >> 8); break;
       case D_GRAVE: this.drawGrave(x0, y0); break;
       case D_CARCASS: this.drawCarcass(x0, y0, b & 255, b >> 8); break;
       case D_WOLF: this.drawWolf(x0, y0, (a & 1) === 1, a >> 1); break;
@@ -1928,13 +1994,9 @@ export class CanvasRenderer {
       );
     }
 
-    // What they carry: a small mark at the hip, coloured by kind (placeholder until carry poses exist).
+    // What they carry: an outlined load at the hip, its shape and colour by kind.
     const carriedKind = this.carryBytes[slot] & 7;
-    if (carriedKind !== 0) {
-      const size = Math.max(2, Math.round(2 * ap));
-      this.ctx.fillStyle = CARRY_MARK_COLOURS[carriedKind];
-      this.ctx.fillRect(Math.round(fx + 1.5 * ap), Math.round(fy - 5 * ap), size, size);
-    }
+    if (carriedKind !== 0) this.drawCarry(Math.round(fx + 1.5 * ap), Math.round(fy - 5.5 * ap), carriedKind);
 
     // Band Leader Star: gently bobbing golden star hovering above the head
     const isLeader =
@@ -1955,6 +2017,189 @@ export class CanvasRenderer {
         starX, starY, starW, starH
       );
     }
+  }
+
+  /**
+   * A carried load at (x, y), the top-left of a 4x3 art-pixel box: seeds a small pouch, food a bundle,
+   * brush crossed sticks, stone a grey block, earth a filled basket, water a blue skin with a glint.
+   */
+  private drawCarry(x: number, y: number, kind: number): void {
+    const ctx = this.ctx;
+    if (this.cellSize < 10) {
+      // Small figures: a plain 2 px mark, as before; an outline would turn a crowd into a dark blob.
+      ctx.fillStyle = CARRY_MARK_COLOURS[kind];
+      ctx.fillRect(x, y, 2, 2);
+      return;
+    }
+    const s = Math.max(1, Math.floor(this.ap * 0.8)); // a touch under the figure's own pixel, so the load never outweighs the body
+    // w, h in art pixels; one screen-pixel dark outline around the whole load.
+    const w = kind === CARRY_KIND_SEED ? 2 : kind === CARRY_KIND_BRUSH ? 4 : kind === CARRY_KIND_WATER ? 2 : 3;
+    const h = kind === CARRY_KIND_WATER ? 3 : kind === CARRY_KIND_STONE ? 3 : 2;
+    ctx.fillStyle = CARRY_OUTLINE;
+    ctx.fillRect(x - 1, y - 1, w * s + 2, h * s + 2);
+    ctx.fillStyle = CARRY_MARK_COLOURS[kind];
+    ctx.fillRect(x, y, w * s, h * s);
+    if (kind === CARRY_KIND_BRUSH) {
+      // Two sticks, the lower one offset: a bundle, not a block.
+      ctx.fillStyle = '#5a3a1a';
+      ctx.fillRect(x, y + s, s, s);
+      ctx.fillRect(x + 3 * s, y, s, s);
+      ctx.fillStyle = '#7fa04a';
+      ctx.fillRect(x + 3 * s, y + s, s, s);
+    } else if (kind === CARRY_KIND_STONE) {
+      ctx.fillStyle = '#d4d6da';
+      ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = '#5f6268';
+      ctx.fillRect(x + 2 * s, y + 2 * s, s, s);
+    } else if (kind === CARRY_KIND_EARTH) {
+      // A basket rim with a heap of earth showing above it.
+      ctx.fillStyle = '#b08050';
+      ctx.fillRect(x, y, 3 * s, s);
+    } else if (kind === CARRY_KIND_WATER) {
+      ctx.fillStyle = '#c8e8ff';
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+
+  /** A tile being built: a partial ring of earth or stone, rising side by side as the build goes on. */
+  private drawBuild(x0: number, y0: number, a: number, wx: number, wy: number): void {
+    const level = a & 3;
+    const ramp = (a & GROUND_EARTH) !== 0 ? PALETTE.earthWall : PALETTE.stoneWall;
+    const start = (wx * 73 + wy * 151) & 3;
+    // Loose material on the floor, so even the first course reads as work going on.
+    this.R(x0, y0, 3, 3, 2, 2, ramp.rimHex);
+    this.R(x0, y0, 3, 3, 1, 1, ramp.highlightHex);
+    for (let k = 0; k < 3; k++) {
+      if (k >= level) break;
+      const half = k === level - 1 && level < 3 ? (level === 1 ? 5 : 4) : 8;
+      this.buildSide(x0, y0, (start + k) & 3, half, ramp);
+    }
+  }
+
+  /** One side of a build ring, `len` art pixels long from its corner, two thick, lit on the north-west. */
+  private buildSide(x0: number, y0: number, side: number, len: number, ramp: typeof PALETTE.stoneWall): void {
+    // A dark course line under each side (rim), the course itself, and a lit north-west face.
+    if (side === 0) { this.R(x0, y0, 0, 0, len, 3, ramp.rimHex); this.R(x0, y0, 0, 0, len, 2, ramp.baseHex); this.R(x0, y0, 0, 0, len, 1, ramp.highlightHex); }
+    else if (side === 1) { this.R(x0, y0, 5, 0, 3, len, ramp.rimHex); this.R(x0, y0, 6, 0, 2, len, ramp.baseHex); this.R(x0, y0, 6, 0, 1, len, ramp.highlightHex); }
+    else if (side === 2) { this.R(x0, y0, 8 - len, 5, len, 3, ramp.rimHex); this.R(x0, y0, 8 - len, 5, len, 2, ramp.baseHex); this.R(x0, y0, 8 - len, 5, len, 1, ramp.highlightHex); }
+    else { this.R(x0, y0, 0, 8 - len, 3, len, ramp.rimHex); this.R(x0, y0, 0, 8 - len, 2, len, ramp.baseHex); this.R(x0, y0, 0, 8 - len, 1, len, ramp.highlightHex); }
+  }
+
+  /** A worn path tile: a trodden centre joined to worn neighbours, wider and rutted the more it is used. */
+  private drawPath(x0: number, y0: number, a: number, wx: number, wy: number): void {
+    const wear = a >> 4;
+    const lo = wear >= 5 ? 1.5 : 2.5;
+    const span = 8 - 2 * lo;
+    this.R(x0, y0, lo, lo, span, span, PATH_LIGHT);
+    if (a & 1) this.R(x0, y0, lo, 0, span, lo, PATH_LIGHT);
+    if (a & 2) this.R(x0, y0, 8 - lo, lo, lo, span, PATH_LIGHT);
+    if (a & 4) this.R(x0, y0, lo, 8 - lo, span, lo, PATH_LIGHT);
+    if (a & 8) this.R(x0, y0, 0, lo, lo, span, PATH_LIGHT);
+    if (this.cellSize < 10) return; // ruts only where a rut pixel is smaller than the strip
+    const h = (Math.imul(wx + 1, 374761393) ^ Math.imul(wy + 1, 668265263)) >>> 0;
+    this.R(x0, y0, lo + (h & 1), lo + ((h >> 1) & 3) % 3, 1, 1, PATH_RUT);
+    if (wear >= 4) this.R(x0, y0, 4 + ((h >> 3) & 1), 3 + ((h >> 4) & 1), 1, 1, PATH_RUT);
+  }
+
+  /** Contest marks showing now, as [x, y, kind, age ms] (for scripts/capture checks). */
+  public liveContestMarks(): number[][] {
+    const now = performance.now();
+    const out: number[][] = [];
+    for (let k = 0; k < CONTEST_CAP; k++) {
+      if (this.contestKind[k] === 0) continue;
+      const age = now - this.contestBorn[k];
+      if (age >= 0 && age < CONTEST_LIFE_MS) out.push([this.contestX[k], this.contestY[k], this.contestKind[k], Math.round(age)]);
+    }
+    return out;
+  }
+
+  /** Takes in the latest contest batch once, dating each by how many ticks ago it happened. */
+  private ingestContests(now: number): void {
+    const version = this.world.contestsVersion ?? 0;
+    if (version === this.lastContestsVersion) return;
+    this.lastContestsVersion = version;
+    const list = this.world.contests;
+    if (!list) return;
+    const tps = Math.max(0, this.world.ticksPerSecond ?? 0);
+    const tick = this.world.tick;
+    for (let i = 0; i + 3 < list.length; i += 4) {
+      // A tick ahead of the world's is from a world since reset or loaded over: skip it.
+      const ago = tick - list[i + 3];
+      if (ago < 0) continue;
+      const lagMs = tps > 0 ? (ago / tps) * 1000 : 0;
+      if (lagMs >= CONTEST_LIFE_MS / 2) continue;
+      const k = this.contestHead;
+      this.contestX[k] = list[i];
+      this.contestY[k] = list[i + 1];
+      this.contestKind[k] = list[i + 2];
+      this.contestBorn[k] = now - lagMs;
+      this.contestHead = (k + 1) % CONTEST_CAP;
+    }
+  }
+
+  /**
+   * Fights as a red burst, give-ways as pale chevrons parting, conceded food as amber chevrons;
+   * each grows a little and fades over CONTEST_LIFE_MS. Ground marks: drawn before anyone standing.
+   */
+  private drawContests(screenW: number, screenH: number): void {
+    const now = performance.now();
+    this.ingestContests(now);
+    const ctx = this.ctx;
+    const cs = this.cellSize;
+    const u = Math.max(2, Math.round(cs / 8) * 2); // dot size: one art pixel doubled, never under 2 px
+    const base = Math.max(9, cs * 0.9); // at far zoom a mark still spans about 20 px, bigger than a crowd dot
+    let drew = false;
+    for (let k = 0; k < CONTEST_CAP; k++) {
+      const kind = this.contestKind[k];
+      if (kind === 0) continue;
+      const age = now - this.contestBorn[k];
+      if (age >= CONTEST_LIFE_MS) { this.contestKind[k] = 0; continue; }
+      const cx = Math.round(this.contestX[k] * cs + this.panX + cs / 2);
+      const cy = Math.round(this.contestY[k] * cs + this.panY + cs / 2);
+      if (cx < -40 || cy < -40 || cx > screenW + 40 || cy > screenH + 40) continue;
+      const t = age / CONTEST_LIFE_MS;
+      ctx.globalAlpha = t < 0.5 ? 1 : 2 - 2 * t; // full for the first half, then fades
+      drew = true;
+      const r = base * (0.7 + 0.5 * t);
+      if (kind === CONTEST_FIGHT) {
+        // Eight short spark streaks radiating out: yellow at the root, red at the tip.
+        const q = Math.max(2, u >> 1);
+        for (let pass = 0; pass < 2; pass++) {
+          for (let d = 0; d < 8; d++) {
+            for (let j = 0; j < 3; j++) {
+              const f = r * (0.45 + 0.25 * j);
+              const x = Math.round(cx + BURST_DX[d] * f - q / 2);
+              const y = Math.round(cy + BURST_DY[d] * f - q / 2);
+              if (pass === 0) {
+                ctx.fillStyle = CONTEST_HALO;
+                ctx.fillRect(x - 1, y - 1, q + 2, q + 2);
+              } else {
+                ctx.fillStyle = j === 0 ? CONTEST_FIGHT_CORE : CONTEST_FIGHT_HOT;
+                ctx.fillRect(x, y, q, q);
+              }
+            }
+          }
+        }
+      } else {
+        // Two chevrons pointing away from each other: the two parting.
+        const col = kind === CONTEST_CONCEDE ? CONTEST_CONCEDE_COL : CONTEST_YIELD_COL;
+        for (let side = -1; side <= 1; side += 2) {
+          const tipX = Math.round(cx + side * r);
+          for (let j = 0; j < 3; j++) {
+            const x = tipX - side * j * u - (side < 0 ? 0 : u);
+            const yA = cy - u / 2 - j * u;
+            const yB = cy - u / 2 + j * u;
+            ctx.fillStyle = CONTEST_HALO;
+            ctx.fillRect(x - 1, Math.round(yA) - 1, u + 2, u + 2);
+            if (j > 0) ctx.fillRect(x - 1, Math.round(yB) - 1, u + 2, u + 2);
+            ctx.fillStyle = col;
+            ctx.fillRect(x, Math.round(yA), u, u);
+            if (j > 0) ctx.fillRect(x, Math.round(yB), u, u);
+          }
+        }
+      }
+    }
+    if (drew) ctx.globalAlpha = 1;
   }
 
   /**
@@ -2330,7 +2575,9 @@ export class CanvasRenderer {
       for (let x0 = sx; x0 < screenWidth; x0 += this.wrapX ? worldPxW : screenWidth + 1) {
         for (let y0 = sy; y0 < screenHeight; y0 += this.wrapY ? worldPxH : screenHeight + 1) {
           if (kind >= 8 && kind < 12) {
-            ctx.fillStyle = '#a49a90'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
+            const g = this.world.landPaths;
+            const earth = g !== undefined && g !== null && (g[(feats[i + 1] << 8) | feats[i]] & GROUND_EARTH) !== 0;
+            ctx.fillStyle = earth ? PALETTE.earthWall.highlightHex : '#a49a90'; ctx.fillRect(x0, y0, Math.max(2, cs), Math.max(2, cs));
             ctx.fillStyle = '#2a2420'; ctx.fillRect(x0 + cs * 0.35, y0 + cs * 0.55, Math.max(1, cs * 0.3), Math.max(1, cs * 0.4));
             continue;
           }

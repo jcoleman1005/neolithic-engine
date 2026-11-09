@@ -1,3 +1,4 @@
+import { CONTEST_CONCEDE, CONTEST_FIGHT, CONTEST_YIELD } from './protocol';
 import type { SimulationConfig } from './types';
 import {
   type People,
@@ -1126,6 +1127,7 @@ export class Rules {
             // If nothing can be taken (hands full of something else), the defender steps off instead.
             if (config.concedeEnabled !== false && Rules.concede(fight === -1 ? slotA : slotB, people, land, config) > 0) {
               Rules.clashStats.concessions++;
+              land.contests.record(px, py, CONTEST_CONCEDE, Rules.nowTick);
               return;
             }
             // The defender gives way: steps off the tile unhurt and leaves the stake.
@@ -1135,6 +1137,7 @@ export class Rules {
             people.energy[yielder] -= step;
             ledger.move += step;
             if (people.energy[yielder] < 0) { ledger.overdraft += -people.energy[yielder]; people.energy[yielder] = 0; }
+            land.contests.record(px, py, CONTEST_YIELD, Rules.nowTick);
             Rules.retreatStep(yielder, people, land, prng);
             return;
           }
@@ -1204,6 +1207,7 @@ export class Rules {
         }
 
         Rules.clashStats.fights++;
+        land.contests.record(px, py, CONTEST_FIGHT, Rules.nowTick);
         const scoreA = strA * 10 + alliesA * 3 + prng.next() * 2;
         const scoreB = strB * 10 + alliesB * 3 + prng.next() * 2;
         // S3x: a contest fight always has a stake, so main's strike damage and lethal collapse apply;

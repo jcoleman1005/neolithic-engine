@@ -2,6 +2,7 @@ import { type ElevationField, generateElevation } from './elevation';
 import { type TerrainField, generateTerrain } from './terrain';
 import { PRNG } from './prng';
 import type { SimulationConfig } from './types';
+import { ContestLog } from './contest-log';
 
 export const GRID_SIZE = 256;
 export const TOTAL_CELLS = GRID_SIZE * GRID_SIZE; // 65536
@@ -118,6 +119,8 @@ export class Land {
   public readonly stone: Float32Array;
   /** Build progress per cell, 0..durabilityCap; erodes slowly. Saved. */
   public readonly durability: Uint8Array;
+  /** Observer only: recent contests for the viewer (not saved, not hashed; see ContestLog). */
+  public readonly contests = new ContestLog();
   /** S2: how worn the ground is by feet, 0 to 255. Saved; hashed only while paths are on. */
   public readonly wear: Uint8Array;
   /** S3: what a built tile is made of: 0 nothing, 1 packed earth, 2 stone. */
@@ -603,12 +606,17 @@ export class Land {
 
   /** S2: path wear for the viewer, 0 to 7 per tile. */
   public packPaths(out: Uint8Array, config?: Readonly<SimulationConfig>): void {
-    // Ground channel: wear in bits 0 to 2 and (S3w) the water store level in bits 6 and 7.
+    // Ground channel: wear in bits 0 to 2, (S3 viewer) build progress on a not-yet-hut tile in bits 3 and 4
+    // (0 none, 1 to 3 thirds of hutDurability), packed earth in bit 5, and (S3w) the water store level in bits 6 and 7.
     const cap = config?.waterStoreCap ?? 100;
+    const hut = Math.max(1, config?.hutDurability ?? 60);
     for (let i = 0; i < TOTAL_CELLS; i++) {
       const s = this.waterStore[i];
       const lvl = s <= 0 ? 0 : s < cap / 3 ? 1 : s < (2 * cap) / 3 ? 2 : 3;
-      out[i] = (this.wear[i] >> 5) | (lvl << 6);
+      const d = this.durability[i];
+      const build = d === 0 || this.structure[i] !== 0 ? 0 : Math.min(3, 1 + Math.floor((d * 3) / hut));
+      const earth = d !== 0 && this.material[i] === 1 ? 32 : 0;
+      out[i] = (this.wear[i] >> 5) | (build << 3) | earth | (lvl << 6);
     }
   }
 

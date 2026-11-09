@@ -8,6 +8,11 @@ import type { SimulationConfig, WorldMetrics } from './types';
 export const PANEL_INTERVAL_MS = 200;
 /** The land overlay (desert, farmland, seeds) changes slowly, so it goes out this often. */
 export const OVERLAY_INTERVAL_MS = 2000;
+
+/** The ground channel (wear, water stores, build progress) is sent when any of its parts is on. */
+function sendsGround(c: Readonly<SimulationConfig>): boolean {
+  return c.pathsEnabled !== false || c.waterCarryEnabled !== false || c.buildingEnabled !== false;
+}
 /** Ticks never pile up beyond this much lag (e.g. after the tab was hidden). */
 const MAX_LAG_MS = 250;
 
@@ -214,6 +219,9 @@ export class SimulationHost {
     this.chronicle = new Chronicle();
     this.pendingEvents = [];
     this.eventLog = [];
+    // A reset or load starts the contest watermark over, so the old world's fights are never sent as new.
+    this.world?.land.contests.clear();
+    this.contestsSent = 0;
   }
 
   private scheduleNext(): void {
@@ -227,6 +235,8 @@ export class SimulationHost {
     this.timer = null;
   }
 
+  /** How many of the world's contests have already gone to viewers (see ContestLog). */
+  private contestsSent = 0;
   private overlayDirty = true;
   private overlaySentAt = -Infinity;
 
@@ -250,7 +260,7 @@ export class SimulationHost {
       foodRegions: world.foodRegions.map((r) => ({ ...r })),
       landOverlay: world.packLandOverlay(),
       landStructures: world.packLandStructures(),
-      ...(world.config.pathsEnabled !== false || world.config.waterCarryEnabled !== false ? { landPaths: world.packLandPaths() } : {}),
+      ...(sendsGround(world.config) ? { landPaths: world.packLandPaths() } : {}),
       settlements: this.chronicle.settlementViews(),
       events: this.eventLog.slice(),
     };
@@ -306,6 +316,14 @@ export class SimulationHost {
     return { ...base, panels };
   }
 
+  /** Contests recorded since the last send, oldest first, four numbers each: x, y, kind, tick (read only). */
+  private drainContests(): number[] {
+    const log = this.world.land.contests;
+    const out = log.since(this.contestsSent);
+    this.contestsSent = log.count;
+    return out;
+  }
+
   private postFrame(fromStep: boolean, withPanels: boolean): void {
     if (this.viewers.size === 0) {
       this.pendingEvents = [];
@@ -321,7 +339,9 @@ export class SimulationHost {
     const base = {
       ...this.baseFrame(fromStep),
       ...(terrainDue && terrain ? { terrain: terrain.exportState() } : {}),
-      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews(), ...(this.world.config.pathsEnabled !== false || this.world.config.waterCarryEnabled !== false ? { landPaths: this.world.packLandPaths() } : {}) } : {}),
+      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews(), ...(sendsGround(this.world.config) ? { landPaths: this.world.packLandPaths() } : {}) } : {}),
+      // Contests ride every panel frame (a few numbers), so a fight shows while the two are still there.
+      ...(withPanels ? { contests: this.drainContests() } : {}),
     };
     if (overlayDue) {
       this.overlayDirty = false;

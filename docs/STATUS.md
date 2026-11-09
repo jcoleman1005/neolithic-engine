@@ -2,6 +2,17 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## S3 art: contests, building, earth walls, carry marks, paths (branch `viewer-s3-art`, unit B)
+
+Viewer work for the 2026-11-09 watch, which found building and fights unreadable. Fingerprint unchanged (`fa5596d7e60c04ca` before and after).
+
+- **Fight and give-way marks.** `ContestLog` (`src/sim/contest-log.ts`, one per Land, observer only: not saved, not hashed, no random draws) keeps an even per-tick sample of contests: up to 4 fights and 3 give-ways a tick, picked by a hash of count and tick. A busy tick holds 60+ contests, so a plain ring only ever showed the last tick. The host sends what is new with every panel frame (`contests`), not only every 2 s with the overlay, so a mark shows while the two people are still there. The viewer draws a red and yellow spark burst for a fight, light-cyan chevrons parting for a give-way and amber chevrons for conceded food. Marks sit on the ground under figures, at full strength for 2 s, then fade out by 4 s. At far zoom they span about 20 px.
+- **Building in progress and earth or stone.** The ground channel (`Land.packPaths`) had three free bits. It now carries build progress on a tile that is not yet a hut (bits 3 and 4: thirds of `hutDurability`) and packed earth (bit 5). Close up, an in-progress tile is an open ring of one, two or three courses with loose material on the floor. Far away, it is a clay or stone tint. Finished walls are drawn in a new `earthWall` clay ramp or in stone. Limits: a ruin washing away below `hutKeep` looks the same as a wall going up (the legend says so), and a wall's material arrives with the 2 s ground channel.
+- **Carry marks.** Each load has its own outlined shape and colour: a seed pouch, a food bundle, crossed sticks for brush, a grey block with a highlight for stone, a basket of earth, and a blue skin with a glint for water.
+- **Dirt paths.** Close up, each worn tile is a trodden strip joined to its worn neighbours, wider and rutted as wear rises. The far-zoom tint is unchanged.
+- **Checks:** `VERIFY_VISUAL=1 npm run verify`: ok on check, test, build and visual-check. Baselines 07 and 08 were regenerated on purpose; only the new path strips changed them. `npm run perf`: 7.205 µs per person per tick at about 13,800 people. Browser frame time was not measured.
+- **Watch for (rule 13):** red bursts where bands meet, and cyan chevrons near crowded camps. Open grey or clay rings beside finished walls in a settlement. Clay-coloured huts where earth building is going on. Blue water skins on people walking from the shore. Tan trails linking camps.
+
 ## Save version check (branch `claude/visual-verification-setup-x8cmbi`)
 - **Done**:
   - Saves carry `schema` (`SAVE_SCHEMA`, now 2, in `src/sim/world.ts`). A build refuses a save with a higher schema. Saves with no stamp still load.

@@ -47,6 +47,7 @@ export const PALETTE_DF_CLASSIC = {
   rock: makeRamp('#aaadb5', '#6f737b', '#53565e', '#2c2e33'),
   snow: makeRamp('#ffffff', '#d5deeb', '#b1c0d4', '#586c87'),
   stoneWall: makeRamp('#9fa3a9', '#7a8089', '#5a6069', '#25282d'),
+  earthWall: makeRamp('#d2a873', '#a87c4c', '#7c5733', '#3d2915'), // S3 packed earth walls: warm clay, lighter than bare soil
   timber: makeRamp('#9c7247', '#7c5632', '#5c3d20', '#331f0d'),
   hearthFire: makeRamp('#ffe066', '#f59f00', '#d9480f', '#3b0d0c'),
 } as const;
@@ -61,6 +62,7 @@ export const PALETTE_DF_MOUNTAINHOME = {
   rock: makeRamp('#828b9c', '#444b56', '#2f343d', '#1b1e23'),
   snow: makeRamp('#ffffff', '#cddae9', '#a8bbd3', '#4f6482'),
   stoneWall: makeRamp('#a0a8b4', '#6b7381', '#474e5a', '#1e2229'),
+  earthWall: makeRamp('#c9a06c', '#9c7246', '#71502f', '#372513'), // S3 packed earth walls: warm clay, lighter than bare soil
   timber: makeRamp('#946b43', '#724f2e', '#53361c', '#2c1a0c'),
   hearthFire: makeRamp('#ffe066', '#f59f00', '#d9480f', '#3b0d0c'),
 } as const;
@@ -75,6 +77,7 @@ export const PALETTE_DF_WILDS = {
   rock: makeRamp('#7d857d', '#4a504a', '#353a35', '#1e221e'),
   snow: makeRamp('#f0f4f5', '#cbd6dc', '#a3b4bf', '#506371'),
   stoneWall: makeRamp('#8e9590', '#636b65', '#434a45', '#1f2320'),
+  earthWall: makeRamp('#b9976d', '#8c6c4a', '#664d33', '#33261a'), // S3 packed earth walls: warm clay, lighter than bare soil
   timber: makeRamp('#87623e', '#66472a', '#4a311b', '#27170b'),
   hearthFire: makeRamp('#ffe066', '#f59f00', '#d9480f', '#3b0d0c'),
 } as const;
