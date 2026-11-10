@@ -163,6 +163,7 @@ const sim: SimulationClient = new SimulationClient({
     pill.update(false, sim.ticksPerSecond);
     renderer.resize();
     renderer.render();
+    settingsView.sync(sim.config);
     refreshPanels();
   },
   events: (fresh) => {
@@ -173,8 +174,14 @@ const sim: SimulationClient = new SimulationClient({
     );
     refreshPanels();
   },
-  error: (msg) => showNotice(msg),
-  config: () => refreshPanels(),
+  error: (msg) => {
+    settingsView.commandFailed();
+    showNotice(msg);
+  },
+  config: () => {
+    settingsView.sync(sim.config);
+    refreshPanels();
+  },
   connection: (connected) => {
     if (connected) notice.hidden = true;
     else showNotice('Lost connection to server; reconnecting…');
@@ -285,14 +292,14 @@ $('.settings-backdrop').addEventListener('click', () => {
   settingsOverlay.hidden = true;
 });
 
-new SettingsView($('#settings-container'), {
-  onReset: (seed) => {
-    sim.reset(seed);
+const settingsView = new SettingsView($('#settings-container'), {
+  onReset: (seed, cfg) => {
+    sim.reset(seed, cfg);
     settingsOverlay.hidden = true;
   },
-  onNewSeed: () => {
+  onNewSeed: (cfg) => {
     const seed = Math.floor(Math.random() * 1000000);
-    sim.reset(seed);
+    sim.reset(seed, cfg);
     settingsOverlay.hidden = true;
   },
   onSaveFile: () => {
