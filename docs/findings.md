@@ -1210,3 +1210,11 @@ The year-40 numbers match the overnight sweep exactly (6199, −8.5%, +10.6%). T
 - **H4 (noise) fits best.** The gap changes sign by seed (−6.0%, −12.9% and +9.0% at year 50). It shrinks from −8.5% at year 40 to −3.8% at year 50. Seed 2 is already 15% behind at year 10, before any measured flow (2591 against 2193).
 
 The best reading is that the population gap comes from runs diverging early, not from spoilage starving anyone. To settle it, run 6 or more seeds with flows measured from year 0. Any S4b change should target store volume and yield, not spoilage.
+
+## Phase 6b-1 climate and moisture: targets (written 2026-11-10, before the runs)
+
+Branch `phase-6b-weather`, switch `weatherEnabled` (off by default). Runs: seeds 1 to 6, 60 years, weather on against off, `scripts/weather-probe.ts`.
+- **Droughts happen and show:** every seed has at least one drought year in 60; in drought years the share of land below `moistureDryPoint` is at least twice the normal-year share.
+- **Climate varies by place:** the wettest tenth of blocks gets at least 4 times the mean rain of the driest tenth (`rainNormalP90 / rainNormalP10`).
+- **Guardrails (reported, not tuned toward):** no seed dies out; population at year 60 within −25% to +10% of weather off (a starting range for the user to confirm); perf at or under 15 µs per person per tick.
+- First look (seed 1, 10 years): droughts in years 3 to 7 raised dry land from about 5% to 19% and withering land from 4% to 13%; rain spread P10 0.007, P50 0.014, P90 0.054; perf 8.95 against 8.62 µs off.

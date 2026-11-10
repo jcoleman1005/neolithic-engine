@@ -51,6 +51,12 @@ export class LifeSystem {
     const waterOn = config.waterCarryEnabled !== false && config.finiteResourcesEnabled !== false && config.thirstEnabled !== false && config.stockpilesEnabled !== false;
     if (waterOn) land.refreshDrink();
     if (config.farSightEnabled !== false && config.hungerSearchEnabled !== false && tick % (config.farSightInterval ?? 30) === 0) land.refreshBlockFood();
+    // 6b-1: the air moves, rains and dries the soil before plants grow on it.
+    if (config.weatherEnabled === true) {
+      const phase = yearPhase(tick, config);
+      land.setWind(phase);
+      land.stepWeather(tick, 0.5 + 0.5 * Math.sin(2 * Math.PI * (phase - 0.125)), tick % (config.ticksPerYear || 360) === 0, config);
+    }
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
     if (config.buildingEnabled !== false) land.erode(tick, config);

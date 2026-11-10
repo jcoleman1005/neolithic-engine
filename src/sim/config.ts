@@ -496,6 +496,34 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   moveCost: 0.05,
   forageBite: 1.0,
   landFoodMax: 25.0,
+  // Phase 6b-1 (src/sim/weather.ts): climate from the map and per-tile soil moisture. Off until measured.
+  weatherEnabled: false,
+  weatherAirSpeed: 0.4, // blocks (16 tiles) the air moves a day
+  weatherEvaporation: 0.06, // humidity a block gains a day per share of water tiles (x 0.5 + warmth)
+  weatherBaseRain: 0.04, // share of a block's humidity that rains out a day on flat ground
+  weatherUplift: 6.0, // extra share per unit of rise against the upwind block (rain shadows)
+  weatherForestRecycle: 0.5, // share of rain on wooded tiles returned to the air
+  weatherLatitudeAmp: 0.5, // wet band / dry band swing over the map's height
+  weatherHumidityMax: 4, // most humidity a block's air holds
+  weatherNormalYears: 2, // years over which a block's mean rain (its climate) is averaged
+  weatherDroughtChance: 0.15, // chance a year is a drought year
+  weatherWetChance: 0.15, // chance a year is a wet year
+  weatherDroughtPersist: 0.35, // chance a drought runs on into the next year
+  weatherDroughtSupply: 0.55, // evaporation off water in a drought year (x normal)
+  weatherWetSupply: 1.4, // evaporation off water in a wet year (x normal)
+  weatherStormRain: 0.25, // block rain a day that can grow a thunderstorm
+  weatherStormWarm: 0.5, // storms only grow when the season's warmth is at least this (0 winter, 1 summer)
+  weatherStormChance: 0.3, // chance a day that the wettest warm block grows a storm
+  weatherStormBoost: 1.0, // extra rain under a storm, as a share of the rain that grew it
+  moistureSlices: 4, // soil moisture is updated on 1 / this of the map each day
+  moistureRainGain: 220, // soil moisture (0 to 255) gained per unit of rain
+  moistureDryRate: 3, // soil moisture lost a day (x 0.5 + warmth)
+  moistureRiparianHold: 160, // soil beside water never dries below this x riparian (0 to 1)
+  moistureDryPoint: 40, // below this moisture plants stop growing
+  moistureWetPoint: 150, // at or above this moisture plants grow at weatherGrowthMax
+  weatherGrowthMax: 1.25, // plant regrowth multiplier on well-watered ground
+  moistureWitherBelow: 25, // below this moisture standing plant food withers
+  moistureWither: 0.01, // fraction of standing plant food lost a day while withering (never below the grazing floor)
   landRegrowthRate: 0.05,
   landGrazingFloor: 1.0,
   adultAge: 5760, // 16 years * 360 ticks

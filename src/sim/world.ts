@@ -52,7 +52,7 @@ import type { FoodPatch, FoodRegion, SimulationConfig, WorldMetrics } from './ty
  * refuses a save with a higher schema than its own. Saves with no schema (written before this
  * stamp existed) still load; the per-person field check in people.ts covers those.
  */
-export const SAVE_SCHEMA = 3; // 2: Settlements S3 per-person state (fear, restTicks, confidence). 3: S3x place cost (placeCost, costX, costY).
+export const SAVE_SCHEMA = 4; // 2: Settlements S3 per-person state (fear, restTicks, confidence). 3: S3x place cost (placeCost, costX, costY). 4: 6b-1 soil moisture and weather state (land.moisture, land.weather).
 
 export interface WorldState {
   readonly formatVersion: 1;
@@ -528,6 +528,14 @@ export class World {
       h.updateIntArray(land.waterFindable);
     }
     if (this.config.exposureEnabled === true) h.updateIntArray(land.exposure);
+    if (this.config.weatherEnabled === true) {
+      // 6b-1: soil moisture and the weather's own state (humidity, storms, year, its PRNG).
+      h.updateIntArray(land.moisture);
+      h.updateFloatArray(land.weather.humidity);
+      h.updateInt(land.weather.yearKind);
+      h.updateInt(land.weather.storms.length);
+      h.updateInt(land.weather.prng.getState());
+    }
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);
     h.updateFloatArray(land.fish);

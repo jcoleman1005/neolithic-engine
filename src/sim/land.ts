@@ -3,6 +3,7 @@ import { type TerrainField, generateTerrain } from './terrain';
 import { PRNG } from './prng';
 import type { SimulationConfig } from './types';
 import { ContestLog } from './contest-log';
+import { BLOCK, BLOCKS, BLOCK_COUNT, Weather, type BlockGround, type WeatherState } from './weather';
 
 export const GRID_SIZE = 256;
 export const TOTAL_CELLS = GRID_SIZE * GRID_SIZE; // 65536
@@ -56,6 +57,9 @@ export interface LandState {
   /** What built tiles are made of (S3); absent in older saves. */
   readonly material?: readonly number[];
   readonly exposure?: readonly number[];
+  /** 6b-1: soil moisture and the weather's own state; absent in older saves. */
+  readonly moisture?: readonly number[];
+  readonly weather?: WeatherState;
   /** Carried-water stores (S3w); absent in older saves. */
   readonly waterStore?: readonly number[];
   readonly waterFindable?: readonly number[];
@@ -127,6 +131,14 @@ export class Land {
   public readonly material: Uint8Array;
   /** S3a: how open a tile is to the wind, 0 enclosed to 255 open. Refreshed in slices, so saved. */
   public readonly exposure: Uint8Array;
+  /** 6b-1: soil moisture, 0 bone dry to 255 waterlogged (water tiles 255). Saved; hashed while weather is on. */
+  public readonly moisture: Uint8Array;
+  /** 6b-1: how close a tile is to water, 0 to 255, from the elevation field (derived, not saved). */
+  public readonly riparian: Uint8Array;
+  /** 6b-1: the air over the map. Saved through this Land's state. */
+  public readonly weather: Weather;
+  /** 6b-1: what each 16 x 16 block offers the air (derived; wood share refreshed now and then). */
+  public readonly blockGround: BlockGround = { waterShare: new Float32Array(BLOCK_COUNT), meanUp: new Float32Array(BLOCK_COUNT), woodShare: new Float32Array(BLOCK_COUNT) };
   /** Shore test 2: mean standing plant food per 16 x 16 block, refreshed on a fixed interval. Saved; hashed when on. */
   public readonly blockFood = new Float32Array(256);
   /** S3w: water poured into a store on this tile. Saved; hashed only while carried water is on. */
@@ -194,6 +206,10 @@ export class Land {
     this.waterFindable = new Uint8Array(TOTAL_CELLS);
     this.drinkDist = new Uint8Array(TOTAL_CELLS).fill(255);
     this.exposure = new Uint8Array(TOTAL_CELLS).fill(255);
+    this.moisture = new Uint8Array(TOTAL_CELLS).fill(120);
+    this.riparian = new Uint8Array(TOTAL_CELLS);
+    this.weather = new Weather(config.seed ?? 1);
+    this.weather.humidity.fill(1);
     this.structure = new Uint8Array(TOTAL_CELLS);
     this.fire = new Uint8Array(TOTAL_CELLS);
     this.fireNear = new Uint8Array(TOTAL_CELLS);
@@ -257,6 +273,7 @@ export class Land {
         }
         // Riparian & fertility lift
         const rip = elev.riparian && i < elev.riparian.length ? elev.riparian[i] / 255 : 0;
+        this.riparian[i] = elev.riparian && i < elev.riparian.length ? elev.riparian[i] : 0;
         const fert = elev.fertility && i < elev.fertility.length ? elev.fertility[i] / 255 : 0.5;
         f = Math.max(0.05, Math.min(1.0, fert * 0.7 + rip * 0.3));
       }
@@ -295,6 +312,10 @@ export class Land {
   public step(config: Readonly<SimulationConfig>, growthFactor = 1): void {
     const baseRate = (config.landRegrowthRate ?? 0.05) * growthFactor;
     const floor = config.landGrazingFloor ?? 1.0;
+    const weatherOn = config.weatherEnabled === true;
+    const mDry = config.moistureDryPoint ?? 40, mWet = config.moistureWetPoint ?? 150;
+    const gMax = config.weatherGrowthMax ?? 1.25, mWither = config.moistureWitherBelow ?? 25;
+    const witherKeep = 1 - (config.moistureWither ?? 0.01);
     const farm = config.farmingPhysicsEnabled !== false;
     const tillKeep = 1 - (config.tillDecay ?? 0.001);
     const tillBoost = config.tillRegrowBoost ?? 1.0;
@@ -385,6 +406,13 @@ export class Land {
         if (finite && fm > 0 && this.fish[i] < fm) this.fish[i] = Math.min(fm, this.fish[i] + fishRegrow * fm);
         continue;
       }
+      // 6b-1: soil moisture sets how fast plants grow here, and very dry ground withers.
+      let wet = 1;
+      if (weatherOn) {
+        const m = this.moisture[i];
+        wet = m <= mDry ? 0 : m >= mWet ? gMax : gMax * (m - mDry) / (mWet - mDry);
+        if (m < mWither && this.food[i] > floor) this.food[i] = Math.max(floor, this.food[i] * witherKeep);
+      }
       if (finite) {
         const tm = this.treeMax[i];
         if (tm > 0) {
@@ -394,11 +422,11 @@ export class Land {
             if (this.stumpAge[i] >= stumpRot) this.clearCell(i, config);
           } else {
             if (this.trees[i] < stumpBelow * tm) this.stumpAge[i] = 1;
-            else if (this.trees[i] < tm) this.trees[i] = Math.min(tm, this.trees[i] + treeRegrow * tm);
+            else if (this.trees[i] < tm) this.trees[i] = Math.min(tm, this.trees[i] + treeRegrow * wet * tm);
           }
         }
         const bm = this.berryMax[i];
-        if (bm > 0 && this.berries[i] < bm) this.berries[i] = Math.min(bm, this.berries[i] + berryRegrow * bm);
+        if (bm > 0 && this.berries[i] < bm) this.berries[i] = Math.min(bm, this.berries[i] + berryRegrow * wet * bm);
       }
       let cur = this.food[i];
       const max = this.maxFood[i];
@@ -449,7 +477,7 @@ export class Land {
       if (cur < cap) {
         // Growth is healthiest above floor, but still recovers slowly from below floor
         const effectiveCur = Math.max(floor * 0.1, cur);
-        const delta = rate * effectiveCur * (1 - cur / cap);
+        const delta = rate * wet * effectiveCur * (1 - cur / cap);
         this.food[i] = Math.min(cap, cur + Math.max(0.01, delta));
       }
     }
@@ -802,6 +830,57 @@ export class Land {
   }
 
   /** S3a: sets where this season's wind comes from (turning once round the compass a year). */
+  private groundReady = false;
+  /** Set once the wood share holds a real value (computed, or loaded from a save). */
+  private woodLoaded = false;
+
+  /**
+   * 6b-1: what each 16 x 16 block offers the air. Water share and mean height never change; the wood
+   * share does, so it is refreshed every 30 days and saved with the weather (a load must not refresh it
+   * early, or the loaded world would drift from the one that was saved).
+   */
+  public refreshBlockGround(wood: boolean): void {
+    const g = this.blockGround;
+    if (!this.groundReady) {
+      g.waterShare.fill(0); g.meanUp.fill(0);
+      for (let i = 0; i < TOTAL_CELLS; i++) {
+        const b = ((((i >> 8) / BLOCK) | 0) * BLOCKS) + (((i & 255) / BLOCK) | 0);
+        g.waterShare[b] += this.isWater[i];
+        g.meanUp[b] += this.upland[i];
+      }
+      for (let b = 0; b < BLOCK_COUNT; b++) { g.waterShare[b] /= BLOCK * BLOCK; g.meanUp[b] /= BLOCK * BLOCK; }
+      this.groundReady = true;
+    }
+    if (!wood) return;
+    g.woodShare.fill(0);
+    for (let i = 0; i < TOTAL_CELLS; i++) g.woodShare[((((i >> 8) / BLOCK) | 0) * BLOCKS) + (((i & 255) / BLOCK) | 0)] += this.wooded[i];
+    for (let b = 0; b < BLOCK_COUNT; b++) g.woodShare[b] /= BLOCK * BLOCK;
+  }
+
+  /** 6b-1: one day of weather; `warm` is 0 in midwinter to 1 in midsummer. */
+  public stepWeather(tick: number, warm: number, yearStart: boolean, config: Readonly<SimulationConfig>): void {
+    if (!this.groundReady || tick % 30 === 0) this.refreshBlockGround(tick % 30 === 0 || !this.woodLoaded);
+    this.woodLoaded = true;
+    this.weather.step(this.blockGround, this.windX, this.windY, warm, yearStart, config);
+    this.updateMoisture(tick, warm, config);
+  }
+
+  /** 6b-1: rain wets the soil and warmth dries it, on one slice of the map a day; ground beside water stays damp. */
+  public updateMoisture(tick: number, warm: number, config: Readonly<SimulationConfig>): void {
+    const slices = Math.max(1, config.moistureSlices ?? 4);
+    const gain = (config.moistureRainGain ?? 900) * slices;
+    const dry = (config.moistureDryRate ?? 3) * (0.5 + warm) * slices;
+    const hold = (config.moistureRiparianHold ?? 160) / 255;
+    const w = this.weather;
+    for (let i = tick % slices; i < TOTAL_CELLS; i += slices) {
+      if (this.isWater[i] === 1) { this.moisture[i] = 255; continue; }
+      let m = this.moisture[i] + gain * w.rainAt(i & 255, i >> 8) - dry;
+      const floorM = this.riparian[i] * hold;
+      if (m < floorM) m = floorM;
+      this.moisture[i] = m <= 0 ? 0 : m >= 255 ? 255 : m;
+    }
+  }
+
   public setWind(phase: number): void {
     this.windX = Math.cos(2 * Math.PI * phase);
     this.windY = Math.sin(2 * Math.PI * phase);
@@ -1287,6 +1366,8 @@ export class Land {
       waterFindable: Array.from(this.waterFindable),
       blockFood: Array.from(this.blockFood),
       exposure: Array.from(this.exposure),
+      moisture: Array.from(this.moisture),
+      weather: { ...this.weather.exportState(), woodShare: Array.from(this.blockGround.woodShare) },
       structure: Array.from(this.structure),
     };
   }
@@ -1344,6 +1425,15 @@ export class Land {
     if (state.material) for (let i = 0; i < len; i++) this.material[i] = state.material[i] ?? 0;
     this.exposure.fill(255);
     if (state.exposure) for (let i = 0; i < len; i++) this.exposure[i] = state.exposure[i] ?? 255;
+    this.moisture.fill(120);
+    if (state.moisture) for (let i = 0; i < len; i++) this.moisture[i] = state.moisture[i] ?? 120;
+    if (state.weather) {
+      this.weather.importState(state.weather);
+      if (state.weather.woodShare) {
+        for (let b = 0; b < BLOCK_COUNT; b++) this.blockGround.woodShare[b] = state.weather.woodShare[b] ?? 0;
+        this.woodLoaded = true;
+      }
+    }
     if (state.structure) for (let i = 0; i < len; i++) { this.structure[i] = state.structure[i] ?? 0; this.hutCount += this.structure[i]; }
   }
 }
