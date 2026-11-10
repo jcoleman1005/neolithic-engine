@@ -92,6 +92,8 @@ export class SimulationClient implements WorldView {
   public landStructuresVersion = 0;
   public landPaths: Uint8Array | null = null;
   public landPathsVersion = 0;
+  public landPathsChanged: number[] = [];
+  public landPathsFullVersion = 0;
   /** The latest batch of contests from the host (x, y, kind, tick, ...); the renderer fades them out. */
   public contests: readonly number[] = [];
   public contestsVersion = 0;
@@ -205,6 +207,8 @@ export class SimulationClient implements WorldView {
         if (message.landStructures) this.setStructures(message.landStructures);
         this.landPaths = message.landPaths ? fastBase64Decode(message.landPaths) : null;
         this.landPathsVersion++;
+        this.landPathsFullVersion = this.landPathsVersion;
+        this.landPathsChanged = [];
         this.contests = [];
         this.settlements = message.settlements ?? [];
         this.worldEvents = [...message.events];
@@ -223,6 +227,12 @@ export class SimulationClient implements WorldView {
         }
         if (message.landPaths) {
           this.landPaths = fastBase64Decode(message.landPaths);
+          this.landPathsVersion++;
+          this.landPathsFullVersion = this.landPathsVersion;
+          this.landPathsChanged = [];
+        }
+        if (message.landPathsDiff && this.landPaths) {
+          applyGroundDiff(this.landPaths, fastBase64Decode(message.landPathsDiff), this.landPathsChanged);
           this.landPathsVersion++;
         }
         this.peopleCount = message.peopleCount;
@@ -343,5 +353,15 @@ export class SimulationClient implements WorldView {
   }
   public getHistorySamples(): readonly HistorySample[] {
     return this.history;
+  }
+}
+
+/** Writes a ground diff (index low, index high, value per cell) into the ground channel in place, noting each cell in `changed`. */
+export function applyGroundDiff(ground: Uint8Array, diff: Uint8Array, changed?: number[]): void {
+  for (let o = 0; o + 2 < diff.length; o += 3) {
+    const i = diff[o] | (diff[o + 1] << 8);
+    if (i >= ground.length) continue;
+    ground[i] = diff[o + 2];
+    changed?.push(i);
   }
 }

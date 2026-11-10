@@ -130,6 +130,10 @@ export interface WorldView {
   readonly landStructuresVersion?: number;
   readonly landPaths?: Uint8Array | null;
   readonly landPathsVersion?: number;
+  /** Cells changed by ground diffs since the last full ground, oldest first (the overlay repaints just these). */
+  readonly landPathsChanged?: readonly number[];
+  /** landPathsVersion as of the last full ground; landPathsChanged starts there. */
+  readonly landPathsFullVersion?: number;
   /** Recent contests (x, y, kind, tick, ...) and when they arrived, newest last (see FromWorker frame contests). */
   readonly contests?: readonly number[];
   readonly contestsVersion?: number;
@@ -189,6 +193,8 @@ export type FromWorker =
       readonly landOverlay?: string;
       readonly landStructures?: string;
       readonly landPaths?: string;
+      /** Ground cells changed since the last send, between full ones: 3 bytes each (index low, index high, value), base64. */
+      readonly landPathsDiff?: string;
       /** Sent with the land overlay, not every frame. */
       readonly settlements?: readonly SettlementView[];
       /** Contests since the last overlay, four numbers each: x, y, kind (1 fight, 2 gave way, 3 conceded food), tick. */
