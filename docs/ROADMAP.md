@@ -133,7 +133,7 @@ Thirteen rules for the coding agent; paste this section into `AGENTS.md` as it s
 1. At the start of a session, read `AGENTS.md`, `docs/STATUS.md` and the current phase in `docs/ROADMAP.md`. At the end, update `docs/STATUS.md`: what was done, what is next.
 2. Work one phase at a time, on a branch per task off `main`. Merge when `npm run verify` passes; tick a phase's checks only when a run or the S21 confirms them.
 3. First reply on a task: a short plan only (files touched, new state, risks, open questions). Then build it.
-4. Script nothing at the level of groups. No raid, tribe, leader or state rules; change the land, bodies, costs or rewards instead.
+4. Script nothing at the level of people or groups. No raid, tribe, leader or state rules; change the land, bodies, costs or rewards instead. The environment may be scripted (user decision 2026-11-10): a climate schedule can decide drought and wet years, but what weather does to land and people comes only from physics.
 5. Every tunable number lives in `src/sim/config.ts`. Log each tuned value, old and new, and why, in `docs/findings.md`.
 6. Seeded random numbers only, in a fixed order. No `Math.random()` or `Date.now()` in simulation code, which never imports render or UI code.
 7. The tick loop uses typed arrays and allocates nothing per person.
@@ -283,13 +283,19 @@ Goal: the sky and the ground act on people, and you can read what happened from 
 
 Visible consequence: dry brown grass in drought, flooded riverbanks, black scorch marks after fire.
 
-- A moving weather field (rain fronts, dry spells), flooding along rivers and lakes, and fire that spreads through grass and forest from seeded lightning, all as fields and costs. Rewritten from the ideas in `artificial-life` `weather.ts` for 256 x 256 wrapped. No scripted disaster events. It builds on 5d's cold and fire.
+- A moving weather field (rain fronts, dry spells), flooding along rivers and lakes, and fire that spreads through grass and forest from seeded lightning, all as fields and costs. Rewritten from the ideas in `artificial-life` `weather.ts` for 256 x 256 wrapped. Weather patterns may be scripted (drought and wet years from a yearly draw); their consequences are physics. It builds on 5d's cold and fire.
 - Legibility rule: consequences are drawn on the terrain. Never an opaque cloud or rain overlay that hides people; any front indicator is faint and never covers figures.
 - Chronicle detectors for fire, flood and drought come with it.
 
 * [ ] A drought, a flood and a fire each happen in a typical run and leave marks you can see.
 * [ ] Burned ground regrows; floodplains are richer afterwards.
 * [ ] Bands visibly flee or suffer, with no group rule saying so.
+
+Stages (planned 2026-11-10; one branch and switch each, off until measured, your watch after each):
+- **6b-1 Climate and moisture** (`weatherEnabled`): humid air carried downwind over 16 x 16-tile blocks, gained over water, rained out where air rises (rain shadows), recycled by forest, with latitude bands; a yearly drought / normal / wet draw from a separate weather PRNG; thunderstorm cells; a per-tile `moisture` that sets plant growth (dry grass browns). A new `landWeather` viewer channel.
+- **6b-2 Wildfire** (`wildfireEnabled`): lightning only from storms, lighting dry fuel (dry lightning, storm edges); spread through fuel, downwind; burning costs people energy and injury and deposits danger scent; `scorch` timer and an ash fertility gain, so burned ground regrows lush; rain puts fires out.
+- **6b-3 Floods** (`floodsEnabled`): saturated catchments and wet-year pulses flood high-`riparian` land beside fresh water (`flood` timer; `isWater` unchanged); flooded tiles cost movement, drown food, wash heaps and wear built cells; silt raises fertility after.
+- **6b-4 Chronicle and legend**: drought, flood and wildfire detectors (observer only).
 
 ### Phase 7: Raids and defense
 
