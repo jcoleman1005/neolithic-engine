@@ -281,6 +281,14 @@ export class Land {
   public capacityAt(i: number, config: Readonly<SimulationConfig>): number {
     const max = this.maxFood[i];
     if (max <= 0) return 0;
+    // Experiment (2026-11-10): wild plant food grows only on patches (blocks of wildPatchSize tiles,
+    // a wildPatchShare of them, picked by a hash: no random draws). Sown tiles grow anywhere.
+    if (config.wildPatchesEnabled === true && this.seeds[i] <= 0) {
+      const b = Math.max(1, config.wildPatchSize ?? 4);
+      const bx = ((i & 255) / b) | 0, by = ((i >> 8) / b) | 0;
+      const h = (Math.imul(bx * 977 + by * 7919 + 1, 2654435761) >>> 0) / 4294967296;
+      if (h >= (config.wildPatchShare ?? 0.2)) return 0;
+    }
     if (config.farmingPhysicsEnabled === false) return max;
     const sf = Math.min(1, this.seeds[i] / (config.seedCap ?? 10));
     return max * this.soilHealth[i] * (1 + (config.seedCapacityBoost ?? 0.6) * sf);

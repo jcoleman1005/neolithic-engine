@@ -496,6 +496,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   moveCost: 0.05,
   forageBite: 1.0,
   landFoodMax: 25.0,
+  // Experiment (2026-11-10, branch exp-patchy-food): wild plant food only on patches; off by default.
+  wildPatchesEnabled: false,
+  wildPatchShare: 0.2,
+  wildPatchSize: 4,
   landRegrowthRate: 0.05,
   landGrazingFloor: 1.0,
   adultAge: 5760, // 16 years * 360 ticks

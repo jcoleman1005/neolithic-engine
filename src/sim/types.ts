@@ -144,6 +144,9 @@ export interface SimulationConfig {
   hearthAnchorEnabled: boolean;
   settlementWallMin: number;
   wallCrossingEnabled?: boolean;
+  wildPatchesEnabled?: boolean;
+  wildPatchShare?: number;
+  wildPatchSize?: number;
   wallCrossCostMul?: number;
   wallCrossWear?: number;
   directionalBuildEnabled: boolean;
