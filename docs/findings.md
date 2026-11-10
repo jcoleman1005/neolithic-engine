@@ -1080,3 +1080,32 @@ Known limits, from review, left as ported:
 - **Walls count as built without a hearth.** With the hearth anchor on, walls of 30 or more count as built even with no fire, so ruins can found or keep a camp. Wall cells also count toward tier thresholds.
 - **Diagonal shadow rays.** On a diagonal wind the shadow ray steps diagonally, so it reaches about 4.2 tiles.
 - **Two wall settings.** `wallThreshold` and `settlementWallMin` both set what counts as a wall.
+
+## S3 unit D: wall crossing and doorways (2026-11-09), targets written before the runs
+
+Built on this machine (Katie's laptop went offline). `wallCrossingEnabled` (off by default, with S3a): stepping onto a tile with durability `>= wallThreshold` costs `wallCrossCostMul` (0.5) more energy, booked as moving, and wears `wallCrossWear` (1) off it through `Land.crossWall`, which keeps the hut count in step as erosion does. The doorway extra from 5f that main lacked: directional unloading now also skips burning tiles (occupied, worn, cave and water tiles were already skipped). The yield step in `Rules.retreatStep` is unchanged (it already pays a flat move cost).
+
+**Runs:** seeds 1 to 3, 30 years, `exposureEnabled` and `directionalBuildEnabled` on in both arms, `wallCrossingEnabled` true against false (`npm run map`).
+
+**Targets (reported, not tests):**
+- No seed dies out; population at year 30 within 10% of the crossing-off arm.
+- Built cells (layout count) within 25% of off: crossing should open gaps, not dissolve walls.
+- Share of built cells in lines stays at or above 30%, and open tiles walled on 3+ sides stay above 0 on every seed.
+- Camps lasting 10 years or more not down by more than 25%.
+- `npm run perf` at or under 15 µs per person per tick.
+
+**Results (year 30, S3a on in both arms, crossing off → on):**
+
+| | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| People | 5485 → 5494 (+0.2%) | 4968 → 5119 (+3.0%) | 5983 → 6034 (+0.9%) |
+| Built cells | 564 → 478 (−15%) | 501 → 548 (+9%) | 636 → 537 (−16%) |
+| In lines | 45% → 45% | 54% → 53% | 39% → 39% |
+| Open tiles walled on 3+ sides | 17 → 18 | 29 → 33 | 27 → 14 |
+| Camps lasting 10y+ | 36 → 33 | 30 → 30 | 41 → 41 |
+| Finished huts | 330 → 225 | 336 → 261 | 374 → 234 |
+| Adults outside camps | 19% → 24% | 22% → 30% | 15% → 24% |
+
+All targets met: no seed died out; population within 10%; built cells within 25%; lines at or above 39%; walled tiles above 0 on every seed; 10-year camps down at most 8%. Perf: 7.296 µs with defaults, 7.672 µs with exposure, directional building and crossing on (this machine). Crossing wears through finished huts (about 30% fewer) while wall lines stay, and more adults roam outside camps again. Fingerprint with defaults unchanged (`fa5596d7e60c04ca` at 1000 ticks, `cdd6570302cb9c9f` at 1800).
+
+**S3a re-run (step 4), same seeds, S3a off → on (crossing absent):** built cells 130 → 564, 128 → 501, 159 → 620; alone 76% → 25%, 76% → 22%, 67% → 29%; in lines 8% → 45%, 6% → 54%, 13% → 43%; open tiles walled on 3+ sides 0 → 17, 0 → 29, 3 → 23; villages 3 → 5, 0 → 3, 1 → 7; camps lasting 10y+ 14 → 36, 18 → 30, 27 → 41; population 4792 → 5485, 5102 → 4968, 5708 → 6044; adults outside camps 31% → 19%, 37% → 22%, 27% → 12%. Walls form as lines and partial rooms rather than noise. Whether to turn S3a (and crossing) on by default is the user's decision, after a rule-13 look at the maps in `scratch/s3a/` and `scratch/s3d/`.

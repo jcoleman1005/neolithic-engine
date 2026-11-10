@@ -636,6 +636,12 @@ export class Land {
     }
   }
 
+  /** S3 unit D: someone crossing a wall wears `n` durability off it, with the same hut bookkeeping as erosion. */
+  public crossWall(i: number, n: number, config: Readonly<SimulationConfig>): void {
+    const keep = config.hutKeep ?? 20;
+    for (let k = 0; k < n && this.durability[i] !== 0; k++) this.wearBuilt(i, keep, config);
+  }
+
   private wearBuilt(i: number, keep: number, config: Readonly<SimulationConfig>): void {
     const d = this.durability[i] - 1;
     this.durability[i] = d;
@@ -877,7 +883,7 @@ export class Land {
 
   /**
    * S3a: the neighbouring tile where `gain` durability would shelter tile (x, y) most, given the wind;
-   * -1 when no neighbour would help. Skips water, occupied tiles and worn routes.
+   * -1 when no neighbour would help. Skips water, caves, burning tiles (S3 unit D), occupied tiles and worn routes.
    */
   public bestShelterNeighbour(x: number, y: number, gain: number, occupied: (c: number) => boolean, config: Readonly<SimulationConfig>): number {
     const avoidWear = config.directionalAvoidWear ?? 64;
@@ -887,7 +893,7 @@ export class Land {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
         const n = (((y + dy) & COORD_MASK) << 8) | ((x + dx) & COORD_MASK);
-        if (this.isWater[n] === 1 || this.wear[n] >= avoidWear || this.cave[n] === 1 || occupied(n)) continue;
+        if (this.isWater[n] === 1 || this.wear[n] >= avoidWear || this.cave[n] === 1 || this.fire[n] === 1 || occupied(n)) continue;
         const room = 255 - this.barrierAt(n, from, config);
         const score = this.windWeightTo(dx, dy, config) * (gain < room ? gain : room);
         if (score > bestScore) { bestScore = score; best = n; }

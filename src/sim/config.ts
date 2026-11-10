@@ -124,6 +124,12 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   hearthAnchorEnabled: true,
   settlementWallMin: 30,
   directionalBuildEnabled: false,
+  // S3 unit D, Phase 5f port (S3d crossing and gaps): stepping onto a wall (durability >= wallThreshold)
+  // costs wallCrossCostMul more energy (booked as moving) and wears wallCrossWear durability off it, so
+  // nobody is ever sealed in and busy crossings open into gaps. Off by default, with S3a, until reviewed.
+  wallCrossingEnabled: false,
+  wallCrossCostMul: 0.5,
+  wallCrossWear: 1,
   directionalAvoidWear: 64, // carriers do not build on tiles worn at least this much (they are routes)
   pathsEnabled: true,
   wearStep: 4, // wear added to a tile each time someone steps onto it, 0 to 255 (S2 tuning: was 16)

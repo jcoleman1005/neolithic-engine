@@ -396,6 +396,11 @@ export class LifeSystem {
     const storeUnloadOn = config.storeUnloadEnabled !== false;
     const adjacentOn = config.adjacentStoresEnabled !== false;
     const pathCut = config.pathCostCut ?? 0.5;
+    // S3 unit D: crossing a wall costs extra and wears it.
+    const wallCrossOn = config.wallCrossingEnabled === true;
+    const wallCrossAt = config.wallThreshold ?? 30;
+    const wallCrossMul = 1 + (config.wallCrossCostMul ?? 0.5);
+    const wallCrossWear = config.wallCrossWear ?? 1;
     // Earth is part of building, which (like stone) needs stockpiles on.
     const earthOn = config.earthBuildingEnabled !== false && buildOn;
     const earthAbove = (config.earthEnergy ?? 0.6) * maxEnergy;
@@ -695,7 +700,12 @@ export class LifeSystem {
             : moveCost;
           // S2: worn ground is easier going, and every step wears it a little more.
           const stepCell = (ny << 8) | nx;
-          const pathCost = pathsOn ? stepCost * (1 - pathCut * (land.wear[stepCell] / 255)) : stepCost;
+          let wallCost = stepCost;
+          if (wallCrossOn && land.durability[stepCell] >= wallCrossAt) {
+            wallCost = stepCost * wallCrossMul;
+            land.crossWall(stepCell, wallCrossWear, config);
+          }
+          const pathCost = pathsOn ? wallCost * (1 - pathCut * (land.wear[stepCell] / 255)) : wallCost;
           if (pathsOn) land.trample(stepCell, config);
           // S3w: carried water slops out a little with every step.
           if (carryKind[slot] === CARRY_WATER) {

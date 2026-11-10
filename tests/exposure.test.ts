@@ -191,3 +191,73 @@ describe('S3a: exposure and directional building', () => {
     expect(w.stateHash()).toBe(h);
   });
 });
+
+describe('S3 unit D: wall crossing and doorways', () => {
+  const ring = (w: World, x: number, y: number, d: number): number[] => {
+    const cells: number[] = [];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const c = cell(x + dx, y + dy);
+      w.land.durability[c] = d;
+      cells.push(c);
+    }
+    return cells;
+  };
+  const sum = (w: World, cells: number[]): number => cells.reduce((a, c) => a + w.land.durability[c], 0);
+
+  it('crossWall wears durability and clears a hut that falls below hutKeep', () => {
+    const w = quietWorld();
+    const c = cell(30, 30);
+    w.land.build(30, 30, 100, w.config, false);
+    expect(w.land.structure[c]).toBe(1);
+    const huts = w.land.hutCount;
+    w.land.crossWall(c, 3, w.config);
+    expect(w.land.durability[c]).toBe(Math.min(w.config.durabilityCap ?? 255, 400) - 3);
+    w.land.durability[c] = (w.config.hutKeep ?? 20);
+    w.land.crossWall(c, 1, w.config);
+    expect(w.land.structure[c]).toBe(0);
+    expect(w.land.hutCount).toBe(huts - 1);
+    w.land.durability[c] = 1;
+    w.land.crossWall(c, 5, w.config);
+    expect(w.land.durability[c]).toBe(0);
+  });
+
+  it('a person sealed in by walls still gets out, and the walls they cross wear faster than erosion alone', () => {
+    const run = (on: boolean): { worn: number; out: boolean; move: number } => {
+      const w = quietWorld({ wallCrossingEnabled: on, coldEnabled: false, thirstEnabled: false, diseaseEnabled: false });
+      const cells = ring(w, 80, 80, 200);
+      w.people.spawn(80, 80, 80, 0, 1, 0, 0);
+      const before = sum(w, cells);
+      let out = false;
+      for (let t = 0; t < 120; t++) {
+        w.step();
+        for (let s = 0; s < w.people.capacity; s++) {
+          if (w.people.alive[s] !== 1) continue;
+          const dx = Math.abs(w.people.x[s] - 80), dy = Math.abs(w.people.y[s] - 80);
+          if (dx > 1 || dy > 1) out = true;
+        }
+      }
+      return { worn: before - sum(w, cells), out, move: w.ledger.move };
+    };
+    const on = run(true);
+    const off = run(false);
+    expect(on.out).toBe(true);
+    expect(on.worn).toBeGreaterThan(off.worn);
+  });
+
+  it('never builds on a burning neighbour', () => {
+    const w = quietWorld({ directionalBuildEnabled: true });
+    w.land.setWind(0.25); // wind from the south (+y): the best side is (60, 61)
+    expect(w.land.bestShelterNeighbour(60, 60, 8, () => false, w.config)).toBe(cell(60, 61));
+    w.land.fire[cell(60, 61)] = 1;
+    expect(w.land.bestShelterNeighbour(60, 60, 8, () => false, w.config)).not.toBe(cell(60, 61));
+  });
+
+  it('leaves the state hash alone while off', () => {
+    const a = quietWorld();
+    const b = quietWorld({ wallCrossingEnabled: false });
+    ring(a, 80, 80, 200); ring(b, 80, 80, 200);
+    for (let t = 0; t < 50; t++) { a.step(); b.step(); }
+    expect(a.stateHash()).toBe(b.stateHash());
+  });
+});
