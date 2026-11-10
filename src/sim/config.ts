@@ -521,7 +521,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   moistureRiparianHold: 160, // soil beside water never dries below this x riparian (0 to 1)
   moistureDryPoint: 40, // below this moisture plants stop growing
   moistureWetPoint: 150, // at or above this moisture plants grow at weatherGrowthMax
-  weatherGrowthMax: 1.25, // plant regrowth multiplier on well-watered ground
+  weatherGrowthMax: 1.0, // plant regrowth multiplier on well-watered ground
   moistureWitherBelow: 25, // below this moisture standing plant food withers
   moistureWither: 0.01, // fraction of standing plant food lost a day while withering (never below the grazing floor)
   landRegrowthRate: 0.05,
