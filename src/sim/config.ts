@@ -516,8 +516,8 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   weatherStormChance: 0.3, // chance a day that the wettest warm block grows a storm
   weatherStormBoost: 1.0, // extra rain under a storm, as a share of the rain that grew it
   moistureSlices: 4, // soil moisture is updated on 1 / this of the map each day
-  moistureRainGain: 220, // soil moisture (0 to 255) gained per unit of rain
-  moistureDryRate: 3, // soil moisture lost a day (x 0.5 + warmth)
+  moistureRainGain: 55, // soil moisture (0 to 255) gained per unit of rain
+  moistureDryRate: 0.75, // soil moisture lost a day (x 0.5 + warmth)
   moistureRiparianHold: 160, // soil beside water never dries below this x riparian (0 to 1)
   moistureDryPoint: 40, // below this moisture plants stop growing
   moistureWetPoint: 150, // at or above this moisture plants grow at weatherGrowthMax
