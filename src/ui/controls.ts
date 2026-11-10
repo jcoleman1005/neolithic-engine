@@ -1,4 +1,5 @@
 import type { SimulationConfig } from '../sim/types';
+import { FeaturesView } from './features-view';
 
 export interface PlaybackCallbacks {
   onPlayPause: () => void;
@@ -11,8 +12,9 @@ export interface PlaybackCallbacks {
 }
 
 export interface SettingsCallbacks {
-  onReset: (seed: string | number) => void;
-  onNewSeed: () => void;
+  /** Start a new world with this seed; `config` carries the staged new-world feature switches. */
+  onReset: (seed: string | number, config: Partial<SimulationConfig>) => void;
+  onNewSeed: (config: Partial<SimulationConfig>) => void;
   onSaveFile: () => void;
   onLoadFile: (file: File) => void;
   onConfigChange: (config: Partial<SimulationConfig>) => void;
@@ -152,6 +154,11 @@ export class PlaybackPill {
 }
 
 export class SettingsView {
+  private readonly features: FeaturesView;
+  private readonly seedInput: HTMLInputElement;
+  /** Seed of the world the host runs, to tell a new world from a reconnect. */
+  private worldSeed: number;
+
   constructor(container: HTMLElement, callbacks: SettingsCallbacks, config: SimulationConfig) {
     container.innerHTML = `
       <div class="settings-panel">
@@ -168,11 +175,17 @@ export class SettingsView {
     `;
 
     const seedInput = container.querySelector<HTMLInputElement>('#setting-seed')!;
-    container.querySelector('#btn-reset-seed')?.addEventListener('click', () => {
-      callbacks.onReset(parseInt(seedInput.value, 10) || 42);
-    });
+    this.seedInput = seedInput;
+    this.worldSeed = config.seed;
+    const readSeed = (): number => {
+      const n = parseInt(seedInput.value, 10);
+      return Number.isNaN(n) ? 42 : n;
+    };
+    // Every new world carries the staged new-world switches, whichever button starts it.
+    const reset = () => callbacks.onReset(readSeed(), this.features.stagedConfig());
+    container.querySelector('#btn-reset-seed')?.addEventListener('click', reset);
     container.querySelector('#btn-new-seed')?.addEventListener('click', () => {
-      callbacks.onNewSeed();
+      callbacks.onNewSeed(this.features.stagedConfig());
     });
     container.querySelector('#btn-save-world')?.addEventListener('click', () => {
       callbacks.onSaveFile();
@@ -181,5 +194,25 @@ export class SettingsView {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) callbacks.onLoadFile(file);
     });
+
+    this.features = new FeaturesView(container, {
+      onLiveChange: (cfg) => callbacks.onConfigChange(cfg),
+      onApplyNewWorld: reset,
+    }, config);
+  }
+
+  /** The host's config arrived (a change by any viewer, a new world, or a reconnect). */
+  public sync(config: Readonly<SimulationConfig>): void {
+    // Show a new world's seed, but leave a seed the user typed alone across reconnects.
+    if (config.seed !== this.worldSeed) {
+      this.worldSeed = config.seed;
+      this.seedInput.value = String(config.seed);
+    }
+    this.features.sync(config);
+  }
+
+  /** A command was refused or lost: drop switch changes the host never confirmed. */
+  public commandFailed(): void {
+    this.features.dropPending();
   }
 }

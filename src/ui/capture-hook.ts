@@ -99,6 +99,8 @@ export function installCaptureHook(d: CaptureDeps): void {
     cellSize: () => renderer.cellSize,
     /** The latest contest batch (x, y, kind, tick, ...), for finding a fight to frame. */
     contests: () => Array.from(sim.contests),
+    /** A copy of the config the host last sent (for checking feature switches end to end). */
+    config: () => ({ ...sim.config }),
     /** Contest marks the renderer is showing now: [x, y, kind, age ms]. */
     contestMarks: () => renderer.liveContestMarks(),
     /** Up to `limit` cells, as [x, y], whose ground-channel byte has any of `mask`'s bits (8 | 16: being built). */
