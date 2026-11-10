@@ -1,5 +1,11 @@
 # Neolithic Engine — Status
 
+## Batch of 2026-11-09 (steps 0 to 5)
+- **Merged to `main`:** the mid-tick births fix (a782483); S3 viewer art (PR #3); place cost (PR #4, **off by default**, too weak while fights are rare); Phase 5f exposure port (PR #5); wall crossing and burning-tile skip (unit D, built here because Katie's laptop went offline; off by default with S3a).
+- **S3a re-run (step 4):** with S3a on, walls form as lines and partial rooms, settlements last longer and villages appear on all 3 seeds; crossing keeps the lines while wearing through huts. Numbers in `docs/findings.md`.
+- **S4 draft (step 5):** in `docs/SETTLEMENTS.md`, waiting for your S3 watch. Farming pieces already exist, so S4 starts with a measurement.
+- **Needs you:** rule-13 watch of S3 (art + S3a on); whether to turn S3a and crossing on by default; approve the S4 draft; the laptop session (offline, nothing left unpushed that is needed).
+
 - **Visual baselines 07 and 08 regenerated (2026-11-09)** after merging PR #3 on top of the births fix (a782483): the fix moves seed 4's first lone split from tick 8100 to 9060, so both band-following frames changed (92% and 92% of pixels); 01 to 06 pass unchanged. The first visual run failed with `clock.pauseAt: Cannot fast-forward to the past` (the app took over 2 s of page time to boot on first compile); a re-run passed the scenario. Flaky under load, not fixed.
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).

@@ -305,6 +305,26 @@ On by default. Slow healing and the contest are built and measured; the contest 
 
 **Main risk.** People may build honeycombs of tiny cells or block their own routes. S3a exists to catch this, and building spacing is the first thing to adjust.
 
+### S4 Surplus: DRAFT, pending your S3 watch (written 2026-11-09)
+
+**Status: draft only. Nothing here is built or claimed until you have watched S3 (rule 13) and approved this section.**
+
+**What already exists (so S4 starts by measuring, not building):** the 5e golden crops (`goldenCropsEnabled`, ripe above `cropRipenThreshold` on worked soil), tending (`tendingEnabled`, primitive 5), mutable fertility with compost from spoiled heaps, spoilage (`pileSpoil`, `granarySpoilFactor`, primitive 9) and a stack limit (`pileCap`, primitive 41) are all on `main` and on by default. The roadmap lists 5e as "built, not watched". So the S4 question is not "add farming" but "does farming near camps make a surplus that feeds more people, and can you see it".
+
+**S4a Measure first (read-only probe, 3 seeds × 50 years, S3a on and off):** share of food eaten that was grown on worked soil; golden cells within 4 tiles of a camp; heap size and spoilage loss per camp; people per camp against the land's wild capacity around it; hunger inside camps against outside. Results in `docs/findings.md`. This shows which part is too weak: yield, spoilage, or people not eating from stores.
+
+**S4b Only what S4a shows is missing,** for example:
+- crop yield on well-tended soil (tuning, not a new mechanic), if grown food is a small share;
+- spoilage that falls further on a walled, low-exposure tile (a covered store), if heaps rot before they feed anyone. This ties S3's exposure field to food;
+- eating from a heap on the tile before grazing, if people starve beside full heaps.
+
+**S4c The end-of-plan tuning pass, folded in here:**
+- **Too peaceful?** About one death in a fight a year among 6,000 people since the contest (`docs/findings.md`). Candidates: `contestRiskWeight`, and scarcity from a larger population once surplus raises it. The target would be written before tuning, and needs your view on how violent the world should be.
+- **Place cost** (off by default since 2026-11-09): re-measure once fights are more frequent; turn on only if losers then leave measurably.
+- **S3a and crossing on by default:** your decision after the watch; S4 measures with them on and off.
+
+**S4 gates (draft values, to agree before running):** golden fields visible ringing at least 3 camps per seed at year 30; camps' population at least 1.25× the off arm's; no seed dies out; perf within budget. **On the map:** golden fields ringing camps, heaps that persist through winter, camps that grow.
+
 ### S6 What limits a city
 No population cap. Size is held back by S1's tile crowding, disease spread when crowded (extend `sickSpread`), walking distance to fields, wood clearing and spoilage. Those same costs should make people found daughter settlements.
 
