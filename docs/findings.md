@@ -1137,3 +1137,76 @@ The S3a re-run above overstated the result. Its layout line counts every cell wi
 Cause: a carrier unloads at any one-tick pause on a tile with `dropCrowd` people, and crowds stand on trails; the directional rule skips worn tiles, so material lands just off the trail. Earth is dug only from worn ground, so trails are both quarry and building site. S3's goal (a wall growing around where people rest, with a gap where they walk) is not met. Next: the rest-build rule (carriers build only after resting `restBuildTicks` on the spot), measured with the same probe.
 
 **Rest-build tried and dropped (2026-11-10).** Carriers building only after resting 10 ticks on the spot, against today's rule, seeds 1 to 3 at year 20: walls 147 / 145 / 159 against 185 / 166 / 169; beside worn ground 69% / 62% / 69% against 70% / 65% / 73%; pillars 34% / 34% / 52% against 39% / 28% / 37%. No real change, so not merged. Close-ups show why: people gather in thin bands along shores (water), so the worn strip *is* the camp, and building beside resting people gives short runs along it. Enclosures need building concentrated around a point, which this geometry does not offer, and material is scarce (about 150 wall-strength cells on the whole map at year 20). Options are a user decision (see `docs/STATUS.md`).
+
+## S4a surplus probe (2026-11-10): targets and questions, written before running
+
+Approved by the user on 2026-11-10. Read-only probe `scripts/surplus-probe.ts`: it wraps `Land.graze`, `takePile`, `dropFood`, `pickBerries`, `catchFish` and `step` (and uses `Herds.step`, `Wolves.step`, `Herds.kill` and `Rules.concede` as context) to count food flows. It makes no random draws. A 12-year seed-1 run gives the same state hash as a plain `World` run with a `Chronicle` (`15e3958195609bed`). Flows and samples count from year 10, and samples are taken every 30 days.
+
+**Arms:** default; `--pileSpoil 0.002` (half the 0.004 default); `--tendingRegrowBoost 0.8` (twice the 0.40 default). Seeds 1, 2 and 3, 50 years each, 9 runs. This replaces the "S3a on and off" pair in the SETTLEMENTS.md draft, because the user wants the two sweep levers explained first, and S3a is now on by default.
+
+**Questions:**
+1. Which part is too weak: yield (grown food is a small share, or golden fields don't ring camps), spoilage (heaps rot before they feed anyone), or people not eating from stores (hunger inside camps beside full heaps)?
+2. Why does halving spoilage lower population (−8.5% at year 40 in the overnight sweep)? Hypotheses to test, with the numbers that would show each:
+   - **H1 compost:** less rot means less compost, so fertility falls. Shows as lower `fertZone` and `compostFertPerYear` in the 0.002 arm.
+   - **H2 eating off heaps instead of tending:** bigger heaps mean people graze less, so soil is tilled and tended less and yields fall. Shows as a higher `heapMealSharePct`, a lower `peopleLandPerYear`, and fewer golden or worked cells near camps.
+   - **H3 cap or store effects:** heaps hit `pileCap`, or granaries hold the surplus where few people pass. Shows as `heapCapLossPerYear` > 0, or as `meanHeap` rising without `eatenShareOfInPct` rising.
+   - **H4 noise:** the sweep gap is under 2× the about 5% seed spread. Shows as seed-level gaps that change sign.
+
+**Targets (for reading the results, not gates):** the S4 draft gates are golden fields ringing at least 3 camps per seed at year 30 (`ringedY30`, here at least 5 golden cells within 4 tiles of the camp's cells), and no seed dying out. Further readings: a heap is "feeding people" if people eat at least 50% of what goes onto heaps (`eatenShareOfInPct`) and spoilage takes under 30% (`spoiledShareOfInPct`). Stores "aren't reached" if hunger inside the zone is at or above hunger outside it.
+
+**Known limit:** `Land.graze` is used both to eat and to gather food into the carry. The probe can't tell the two calls apart without touching the sim, so the worked-soil share counts all plants people took. In a 12-year test run, 99.7% of people's plant take came from cells at farmLevel ≥ 2, because grazing and tending till a cell past the farmLevel-2 line (tilled ≥ 0.046) almost at once. So the probe also reports the take by farmLevel pair (0–1, 2–3, 4–5, 6–7), on seeded cells, and inside the settlement zone.
+
+## S4a surplus probe: results (2026-11-10)
+
+9 runs, all ended with a `RESULT` line, and none died out. Logs: `logs/run-s4a-<arm>-s<seed>.log`. Means of seeds 1 to 3, with the per-seed values in brackets where they matter. Flows are per year, from year 10 to year 50. Food is in energy units.
+
+| | default | pileSpoil 0.002 | tendingRegrowBoost 0.8 |
+|---|---|---|---|
+| People, year 40 | 6199 | 5673 (−8.5%) | 6858 (+10.6%) |
+| People, year 50 | 6268 [6357, 6700, 5748] | 6027 (−3.8%) [5978, 5837, 6267] | 7003 (+11.7%) [6941, 7371, 6698] |
+| Mean people, years 0–50 | 4358 | 4099 (−5.9%) | 4717 (+8.2%) |
+| Births per head per year | 0.0710 | 0.0715 | 0.0721 |
+| Settlements lasting 10y+ | 58 | 62 | 59 |
+| Meals per year (ledger `plantMeal`) | 509,100 | 473,800 | 562,500 |
+| Meals per head per year (years 10–50 meals over mean people of years 0–50; for comparing arms only) | 116.8 | 115.6 | 119.3 |
+| Plants people took per year | 494,400 | 460,100 | 547,300 |
+| ... from farmLevel 0–1 / 2–3 / 4–5 / 6–7 | 0.3 / 1.8 / 12.3 / 85.6% | 0.3 / 1.9 / 12.4 / 85.4% | 0.2 / 1.6 / 10.4 / 87.7% |
+| ... from seeded cells | 48% | 47% | 54% |
+| ... inside the settlement zone | 45% | 45% | 47% |
+| Share of meals from heaps | 4.6% | 5.0% | 4.9% |
+| Share of meals from berries / fish / hunted meat | 0.8 / 1.4 / <0.1% | 0.7 / 1.4 / <0.1% | 0.8 / 1.3 / <0.1% |
+| Food put onto heaps per year (carriers, kills) | 30,400 | 29,000 | 35,600 |
+| ... eaten from the heap by people | 76.8% | 81.8% | 77.1% |
+| ... spoiled | 11.5% (3,497) | 7.1% (2,048) | 11.4% (4,045) |
+| ... carried off by fight winners (concede) | 2,868 | 2,560 | 3,041 |
+| ... lost to `pileCap` | 72 | 111 | 116 |
+| Share of spoilage in granaries | 16% | 17% | 19% |
+| Compost: fertility added per year, whole map | 0.107 (≈2.7 food capacity) | 0.057 | 0.118 |
+| Mean food in all heaps | 4,107 | 4,805 | 4,999 |
+| ... inside the zone | 2,180 | 2,549 | 2,728 |
+| Golden cells (mean) / inside the zone | 10,190 / 2,476 | 9,816 / 2,460 | 9,772 / 2,445 |
+| Worked cells / inside the zone | 15,050 / 4,781 | 14,280 / 4,605 | 14,550 / 4,782 |
+| Settlements with 5+ golden cells, year 30 | 61 [57, 54, 72] | 59 | 64 |
+| Residents per settlement | 38.3 | 37.2 | 42.1 |
+| People inside the zone | 56% | 57% | 58% |
+| People per 100 food capacity, zone / outside | 3.53 / 0.57 | 3.36 / 0.52 | 3.79 / 0.60 |
+| Hungry (energy < 35%), zone / outside | 11.0% / 13.6% | 10.4% / 12.2% | 10.7% / 13.6% |
+| Mean fertility, zone / all land | 0.438 / 0.461 | 0.445 / 0.462 | 0.451 / 0.463 |
+
+The year-40 numbers match the overnight sweep exactly (6199, −8.5%, +10.6%). Those runs are deterministic, so this is the same run read again, not a fresh confirmation.
+
+**Q1, which part is too weak.**
+- **Not spoilage.** Heaps lose 11.5% of what goes onto them, and people eat 77%. That meets both targets: eaten at least 50%, spoiled under 30%. Halving spoilage saves about 1,450 food a year, which is 0.3% of what people eat.
+- **Not reaching stores.** Hunger is a little lower inside the zone than outside it (11.0% against 13.6%), and nothing shows people starving beside full heaps.
+- **Stores are small.** Food going onto heaps is about 6% of what people eat. Heaps supply only 4.6% of meals, and the food standing in all heaps (about 4,100) is under one food unit per person, about three days' eating. There is barely a surplus to store. People live off grazing, eaten where they stand.
+- **Yield is the lever that works.** Golden fields are not the gap either: 54 to 72 settlements per seed have 5 or more golden cells at year 30, far above the gate of 3. But golden and "worked" are everywhere people graze, because any grazed cell crosses farmLevel 2 almost at once and 86% of the take comes from farmLevel 6–7. So the ring does not set camps apart. Of the three arms, only higher tending regrowth raises people: meals +10.5%, people +11.7% at year 50, residents per settlement 38 → 42.
+- **Camps wear their soil.** Fertility inside the zone is below the land mean, and compost is far too small to counter it (0.1 fertility units a year over the whole map).
+
+**Q2, why halving spoilage lowers population.** These results don't show a food mechanism, and they don't fully settle the question.
+- **Per head, the 0.002 arm is the same or better.** Meals per head are 115.6 against 116.8 (−1%), births per head 0.0715 against 0.0710, and hunger 10.4/12.2% against 11.0/13.6%. Fertility in the zone is higher (0.445 against 0.438).
+- **H1 (compost) is refuted.** Compost is tiny either way, and fertility rose, not fell.
+- **H2 (eating off heaps instead of tending) is too small.** The heap meal share rose by only 0.4 points, and golden and worked cells in the zone hardly moved (−1% and −4%).
+- **H3 (cap loss) is negligible.** It is about 110 food a year.
+- **H4 (noise) fits best.** The gap changes sign by seed (−6.0%, −12.9% and +9.0% at year 50). It shrinks from −8.5% at year 40 to −3.8% at year 50. Seed 2 is already 15% behind at year 10, before any measured flow (2591 against 2193).
+
+The best reading is that the population gap comes from runs diverging early, not from spoilage starving anyone. To settle it, run 6 or more seeds with flows measured from year 0. Any S4b change should target store volume and yield, not spoilage.
