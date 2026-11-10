@@ -1129,3 +1129,21 @@ All targets met: no seed died out; population within 10%; built cells within 25%
 | wallCrossCostMul 1.0 | −4.6% | 0.034 | −5% | −1.5 |
 
 Readings: the new defaults beat the old on people and lasting camps; `contestRiskWeight` sets violence over a 14× range with little population cost, while the old gate halves population; place cost does not make losers leave even with frequent fights (22% of adults carry a cost there); tending is the strongest food lever; halving spoilage lowers population (unexplained, for the S4a probe). Not measured: fight deaths and wounds, hunger, grown food.
+
+## S4a surplus probe (2026-11-10): targets and questions, written before running
+
+Approved by the user on 2026-11-10. Read-only probe `scripts/surplus-probe.ts`: it wraps `Land.graze`, `takePile`, `dropFood`, `pickBerries`, `catchFish` and `step` (and uses `Herds.step`, `Wolves.step`, `Herds.kill` and `Rules.concede` as context) to count food flows. It makes no random draws. A 12-year seed-1 run gives the same state hash as a plain `World` run with a `Chronicle` (`15e3958195609bed`). Flows and samples count from year 10, and samples are taken every 30 days.
+
+**Arms:** default; `--pileSpoil 0.002` (half the 0.004 default); `--tendingRegrowBoost 0.8` (twice the 0.40 default). Seeds 1, 2 and 3, 50 years each, 9 runs. This replaces the "S3a on and off" pair in the SETTLEMENTS.md draft, because the user wants the two sweep levers explained first, and S3a is now on by default.
+
+**Questions:**
+1. Which part is too weak: yield (grown food is a small share, or golden fields don't ring camps), spoilage (heaps rot before they feed anyone), or people not eating from stores (hunger inside camps beside full heaps)?
+2. Why does halving spoilage lower population (−8.5% at year 40 in the overnight sweep)? Hypotheses to test, with the numbers that would show each:
+   - **H1 compost:** less rot means less compost, so fertility falls. Shows as lower `fertZone` and `compostFertPerYear` in the 0.002 arm.
+   - **H2 eating off heaps instead of tending:** bigger heaps mean people graze less, so soil is tilled and tended less and yields fall. Shows as a higher `heapMealSharePct`, a lower `peopleLandPerYear`, and fewer golden or worked cells near camps.
+   - **H3 cap or store effects:** heaps hit `pileCap`, or granaries hold the surplus where few people pass. Shows as `heapCapLossPerYear` > 0, or as `meanHeap` rising without `eatenShareOfInPct` rising.
+   - **H4 noise:** the sweep gap is under 2× the about 5% seed spread. Shows as seed-level gaps that change sign.
+
+**Targets (for reading the results, not gates):** the S4 draft gates are golden fields ringing at least 3 camps per seed at year 30 (`ringedY30`, here at least 5 golden cells within 4 tiles of the camp's cells), and no seed dying out. Further readings: a heap is "feeding people" if people eat at least 50% of what goes onto heaps (`eatenShareOfInPct`) and spoilage takes under 30% (`spoiledShareOfInPct`). Stores "aren't reached" if hunger inside the zone is at or above hunger outside it.
+
+**Known limit:** `Land.graze` is used both to eat and to gather food into the carry. The probe can't tell the two calls apart without touching the sim, so the worked-soil share counts all plants people took. In a 12-year test run, 99.7% of people's plant take came from cells at farmLevel ≥ 2, because grazing and tending till a cell past the farmLevel-2 line (tilled ≥ 0.046) almost at once. So the probe also reports the take by farmLevel pair (0–1, 2–3, 4–5, 6–7), on seeded cells, and inside the settlement zone.
