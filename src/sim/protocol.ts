@@ -134,6 +134,16 @@ export interface WorldView {
   readonly landPathsChanged?: readonly number[];
   /** landPathsVersion as of the last full ground; landPathsChanged starts there. */
   readonly landPathsFullVersion?: number;
+  /** 6b-1 weather channel, one byte per cell (see Land.packWeather); null while weather is off. */
+  readonly landWeather?: Uint8Array | null;
+  readonly landWeatherVersion?: number;
+  /** Cells changed by weather diffs since the last full weather channel, oldest first. */
+  readonly landWeatherChanged?: readonly number[];
+  readonly landWeatherFullVersion?: number;
+  /** Thunderstorm centres in tile coordinates, two numbers each (x, y). */
+  readonly storms?: readonly number[];
+  /** 0 normal, 1 drought, 2 wet year (weather on only). */
+  readonly yearKind?: number;
   /** Recent contests (x, y, kind, tick, ...) and when they arrived, newest last (see FromWorker frame contests). */
   readonly contests?: readonly number[];
   readonly contestsVersion?: number;
@@ -157,6 +167,10 @@ export interface WorldStatic {
   readonly landOverlay?: string;
   readonly landStructures?: string;
   readonly landPaths?: string;
+  /** 6b-1: the weather channel, base64 (see Land.packWeather); only while weatherEnabled. */
+  readonly landWeather?: string;
+  readonly storms?: readonly number[];
+  readonly yearKind?: number;
   readonly settlements?: readonly SettlementView[];
   readonly events: readonly WorldEvent[];
 }
@@ -195,6 +209,14 @@ export type FromWorker =
       readonly landPaths?: string;
       /** Ground cells changed since the last send, between full ones: 3 bytes each (index low, index high, value), base64. */
       readonly landPathsDiff?: string;
+      /** 6b-1: the weather channel (dryness etc.), full, with the overlay; only while weatherEnabled. */
+      readonly landWeather?: string;
+      /** Weather cells changed since the last send, same 3-byte layout as landPathsDiff. */
+      readonly landWeatherDiff?: string;
+      /** Thunderstorm centres in tile coordinates, x, y pairs; sent with the overlay. */
+      readonly storms?: readonly number[];
+      /** 0 normal, 1 drought, 2 wet year; sent with the overlay. */
+      readonly yearKind?: number;
       /** Sent with the land overlay, not every frame. */
       readonly settlements?: readonly SettlementView[];
       /** Contests since the last overlay, four numbers each: x, y, kind (1 fight, 2 gave way, 3 conceded food), tick. */

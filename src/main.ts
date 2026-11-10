@@ -347,7 +347,9 @@ function onFrame(): void {
   const m = sim.getMetrics();
   if (m) {
     peekPop.textContent = `${m.population} alive`;
-    peekYear.textContent = `Year ${m.year} · ${seasonName(m.tick, sim.config)}`;
+    // 6b-1: a drought or wet year says so beside the season (weather on only).
+    const yk = sim.yearKind === 1 ? ' · drought' : sim.yearKind === 2 ? ' · wet year' : ''; // short: fits 360 px
+    peekYear.textContent = `Year ${m.year} · ${seasonName(m.tick, sim.config)}${yk}`;
   }
   peekEvent.innerHTML = latestEventHTML(sim.worldEvents);
   refreshPanels();

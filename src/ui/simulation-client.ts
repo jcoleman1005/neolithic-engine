@@ -94,6 +94,15 @@ export class SimulationClient implements WorldView {
   public landPathsVersion = 0;
   public landPathsChanged: number[] = [];
   public landPathsFullVersion = 0;
+  /** 6b-1 weather channel (dryness in bits 0-1); null while weather is off. */
+  public landWeather: Uint8Array | null = null;
+  public landWeatherVersion = 0;
+  public landWeatherChanged: number[] = [];
+  public landWeatherFullVersion = 0;
+  /** Thunderstorm centres in tile coordinates, x, y pairs. */
+  public storms: readonly number[] = [];
+  /** 0 normal, 1 drought, 2 wet year; undefined while weather is off. */
+  public yearKind: number | undefined = undefined;
   /** The latest batch of contests from the host (x, y, kind, tick, ...); the renderer fades them out. */
   public contests: readonly number[] = [];
   public contestsVersion = 0;
@@ -209,6 +218,12 @@ export class SimulationClient implements WorldView {
         this.landPathsVersion++;
         this.landPathsFullVersion = this.landPathsVersion;
         this.landPathsChanged = [];
+        this.landWeather = message.landWeather ? fastBase64Decode(message.landWeather) : null;
+        this.landWeatherVersion++;
+        this.landWeatherFullVersion = this.landWeatherVersion;
+        this.landWeatherChanged = [];
+        this.storms = message.storms ?? [];
+        this.yearKind = message.yearKind;
         this.contests = [];
         this.settlements = message.settlements ?? [];
         this.worldEvents = [...message.events];
@@ -235,6 +250,26 @@ export class SimulationClient implements WorldView {
           applyGroundDiff(this.landPaths, fastBase64Decode(message.landPathsDiff), this.landPathsChanged);
           this.landPathsVersion++;
         }
+        if (message.landWeather) {
+          this.landWeather = fastBase64Decode(message.landWeather);
+          this.landWeatherVersion++;
+          this.landWeatherFullVersion = this.landWeatherVersion;
+          this.landWeatherChanged = [];
+        } else if (message.landOverlay && this.landWeather) {
+          // The weather channel rides every overlay while weather is on; an overlay without it means it was switched off.
+          this.landWeather = null;
+          this.landWeatherVersion++;
+          this.landWeatherFullVersion = this.landWeatherVersion;
+          this.landWeatherChanged = [];
+          this.storms = [];
+          this.yearKind = undefined;
+        }
+        if (message.landWeatherDiff && this.landWeather) {
+          applyGroundDiff(this.landWeather, fastBase64Decode(message.landWeatherDiff), this.landWeatherChanged);
+          this.landWeatherVersion++;
+        }
+        if (message.storms) this.storms = message.storms;
+        if (message.yearKind !== undefined) this.yearKind = message.yearKind;
         this.peopleCount = message.peopleCount;
         if (message.packedCarcasses !== undefined) this.carcassPositions = fastBase64Decode(message.packedCarcasses);
         if (message.packedFeatures !== undefined) this.featurePositions = fastBase64Decode(message.packedFeatures);

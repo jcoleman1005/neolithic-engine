@@ -11,6 +11,8 @@ export const LEGEND_HTML = `
       <li>Grey block: a stone wall. Clay block: a packed-earth wall (it washes away faster)</li>
       <li>Open ring of stones or clay: a wall being built (more sides as it rises), or the last of a fallen one</li>
       <li>Red burst: a fight. Pale chevrons parting: someone gave way. Amber chevrons: food handed over to end a contest</li>
+      <li>Straw-yellow grass: dry ground, growing slowly. Dusty brown with cracks: so dry the grass is dying (weather on)</li>
+      <li>Faint dashed ring (zoomed out): a thunderstorm passing over, raining on the ground beneath</li>
       <li>Tan block: A camp. Pale block with marks: a hamlet or larger; more marks means bigger. Tap for its story</li>
     </ul>
   </details>
