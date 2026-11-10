@@ -147,6 +147,9 @@ export interface SimulationConfig {
   wildPatchesEnabled?: boolean;
   wildPatchShare?: number;
   wildPatchSize?: number;
+  winterDieOffEnabled?: boolean;
+  winterWitherBelow?: number;
+  winterWither?: number;
   wallCrossCostMul?: number;
   wallCrossWear?: number;
   directionalBuildEnabled: boolean;

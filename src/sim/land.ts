@@ -303,6 +303,12 @@ export class Land {
   public step(config: Readonly<SimulationConfig>, growthFactor = 1): void {
     const baseRate = (config.landRegrowthRate ?? 0.05) * growthFactor;
     const floor = config.landGrazingFloor ?? 1.0;
+    // Experiment (2026-11-10): a real dead season. The minimum regrowth shrinks with the season,
+    // and while growth is below winterWitherBelow, standing plant food withers by winterWither a
+    // day, down to the grazing floor (the roots survive). No random draws.
+    const winterOn = config.winterDieOffEnabled === true;
+    const minGrowth = winterOn ? 0.01 * growthFactor : 0.01;
+    const wither = winterOn && growthFactor < (config.winterWitherBelow ?? 0.5) ? 1 - (config.winterWither ?? 0.02) : 1;
     const farm = config.farmingPhysicsEnabled !== false;
     const tillKeep = 1 - (config.tillDecay ?? 0.001);
     const tillBoost = config.tillRegrowBoost ?? 1.0;
@@ -409,6 +415,10 @@ export class Land {
         if (bm > 0 && this.berries[i] < bm) this.berries[i] = Math.min(bm, this.berries[i] + berryRegrow * bm);
       }
       let cur = this.food[i];
+      if (wither < 1 && cur > floor) {
+        cur = Math.max(floor, cur * wither);
+        this.food[i] = cur;
+      }
       const max = this.maxFood[i];
       let cap = max;
       let rate = baseRate;
@@ -458,7 +468,7 @@ export class Land {
         // Growth is healthiest above floor, but still recovers slowly from below floor
         const effectiveCur = Math.max(floor * 0.1, cur);
         const delta = rate * effectiveCur * (1 - cur / cap);
-        this.food[i] = Math.min(cap, cur + Math.max(0.01, delta));
+        this.food[i] = Math.min(cap, cur + Math.max(minGrowth, delta));
       }
     }
   }

@@ -500,6 +500,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   wildPatchesEnabled: false,
   wildPatchShare: 0.2,
   wildPatchSize: 4,
+  // Experiment (2026-11-10, branch exp-winter): a dead season that withers standing plants; off by default.
+  winterDieOffEnabled: false,
+  winterWitherBelow: 0.5, // withering runs while the season's growth factor is below this
+  winterWither: 0.02, // fraction of standing plant food lost per day (never below the floor)
   landRegrowthRate: 0.05,
   landGrazingFloor: 1.0,
   adultAge: 5760, // 16 years * 360 ticks
