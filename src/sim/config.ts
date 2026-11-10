@@ -98,7 +98,7 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   earthErodeSlices: 32, // earth-built tiles also lose 1 durability per this many ticks
   // S3a layout test (prototype, off until reviewed): an exposure field and carriers who set
   // material down on the neighbouring tile that best shelters them from the seasonal wind.
-  exposureEnabled: false,
+  exposureEnabled: true, // on by default since 2026-11-09 (user decision after the S3a re-run)
   exposureSlices: 8, // exposure is refreshed on 1 / this of the map each tick
   windWeight: 2.0, // how much more the upwind side counts than the others
   brushBarrier: 4.0, // barrier per unit of brush on a tile
@@ -123,11 +123,11 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   // durability settlementWallMin or more as built, beside fires, nests, granaries and huts.
   hearthAnchorEnabled: true,
   settlementWallMin: 30,
-  directionalBuildEnabled: false,
+  directionalBuildEnabled: true, // on by default since 2026-11-09
   // S3 unit D, Phase 5f port (S3d crossing and gaps): stepping onto a wall (durability >= wallThreshold)
   // costs wallCrossCostMul more energy (booked as moving) and wears wallCrossWear durability off it, so
   // nobody is ever sealed in and busy crossings open into gaps. Off by default, with S3a, until reviewed.
-  wallCrossingEnabled: false,
+  wallCrossingEnabled: true, // on by default since 2026-11-09, with S3a
   wallCrossCostMul: 0.5,
   wallCrossWear: 1,
   directionalAvoidWear: 64, // carriers do not build on tiles worn at least this much (they are routes)

@@ -164,6 +164,7 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         contestEnabled: false,
         fearEnabled: false,
         placeCostEnabled: false,
+        exposureEnabled: false, directionalBuildEnabled: false, wallCrossingEnabled: false,
         fearWoundsEnabled: false,
         resourceClashEnabled: false,
         clashLootEnabled: false,

@@ -253,9 +253,9 @@ describe('S3 unit D: wall crossing and doorways', () => {
     expect(w.land.bestShelterNeighbour(60, 60, 8, () => false, w.config)).not.toBe(cell(60, 61));
   });
 
-  it('leaves the state hash alone while off', () => {
-    const a = quietWorld();
-    const b = quietWorld({ wallCrossingEnabled: false });
+  it('while off, ignores its settings: walls cost nothing extra and are not worn', () => {
+    const a = quietWorld({ wallCrossingEnabled: false });
+    const b = quietWorld({ wallCrossingEnabled: false, wallCrossCostMul: 9, wallCrossWear: 50 });
     ring(a, 80, 80, 200); ring(b, 80, 80, 200);
     for (let t = 0; t < 50; t++) { a.step(); b.step(); }
     expect(a.stateHash()).toBe(b.stateHash());

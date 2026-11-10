@@ -11,6 +11,7 @@ const S3_OFF = {
   earthBuildingEnabled: false, waterCarryEnabled: false, adjacentStoresEnabled: false, hungerSearchEnabled: false,
   farSightEnabled: false, slowHealEnabled: false, fearEnabled: false, fearWoundsEnabled: false, contestEnabled: false,
   placeCostEnabled: false,
+  exposureEnabled: false, directionalBuildEnabled: false, wallCrossingEnabled: false,
 };
 
 function run(ticks: number, chronicle?: Chronicle, seed = 11, config = {}): { world: World; texts: string[] } {
