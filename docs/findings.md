@@ -1109,3 +1109,23 @@ Built on this machine (Katie's laptop went offline). `wallCrossingEnabled` (off 
 All targets met: no seed died out; population within 10%; built cells within 25%; lines at or above 39%; walled tiles above 0 on every seed; 10-year camps down at most 8%. Perf: 7.296 µs with defaults, 7.672 µs with exposure, directional building and crossing on (this machine). Crossing wears through finished huts (about 30% fewer) while wall lines stay, and more adults roam outside camps again. Fingerprint with defaults unchanged (`fa5596d7e60c04ca` at 1000 ticks, `cdd6570302cb9c9f` at 1800).
 
 **S3a re-run (step 4), same seeds, S3a off → on (crossing absent):** built cells 130 → 564, 128 → 501, 159 → 620; alone 76% → 25%, 76% → 22%, 67% → 29%; in lines 8% → 45%, 6% → 54%, 13% → 43%; open tiles walled on 3+ sides 0 → 17, 0 → 29, 3 → 23; villages 3 → 5, 0 → 3, 1 → 7; camps lasting 10y+ 14 → 36, 18 → 30, 27 → 41; population 4792 → 5485, 5102 → 4968, 5708 → 6044; adults outside camps 31% → 19%, 37% → 22%, 27% → 12%. Walls form as lines and partial rooms rather than noise. Whether to turn S3a (and crossing) on by default is the user's decision, after a rule-13 look at the maps in `scratch/s3a/` and `scratch/s3d/`.
+
+## Overnight tuning sweep (2026-11-09 to 10), input for the tuning pass
+
+33 runs: 11 variants × seeds 1 to 3 × 40 years, on the new defaults (S3a and crossing on, 4e286f0), with `scripts/place-cost-probe.ts`. Logs: `/home/jcoleman/Projects/ne-overnight/logs/overnight/`. Review page: https://claude.ai/artifact/FjDJ8QySj567RqSVc744hS. All finished; no seed died out. Seed-to-seed spread is about 5%, so smaller gaps are noise. Means against base:
+
+| Variant | People y40 | Fights/person/yr | 10y+ camps | Losers − winners away |
+|---|---|---|---|---|
+| base | 6199 | 0.037 | 50.0 | −0.5 pts |
+| s3a-off (old defaults) | −11.8% | 0.038 | −47% | −0.9 |
+| contestRiskWeight 0 | −6.3% | 0.015 | −7% | −0.1 |
+| contestRiskWeight 1.5 | −3.3% | 0.215 | −4% | −2.2 |
+| contest off (old gate) | −54.5% | 0.309 | −38% | +0.6 |
+| place cost on | −1.7% | 0.035 | −4% | +0.3 |
+| place cost on, contest off | −49.3% | 0.339 | −36% | +1.5 |
+| moveCost 0.1 | −7.9% | 0.036 | −4% | −1.3 |
+| pileSpoil 0.002 | −8.5% | 0.037 | +4% | −2.4 |
+| tendingRegrowBoost 0.8 | +10.6% | 0.037 | −1% | −1.4 |
+| wallCrossCostMul 1.0 | −4.6% | 0.034 | −5% | −1.5 |
+
+Readings: the new defaults beat the old on people and lasting camps; `contestRiskWeight` sets violence over a 14× range with little population cost, while the old gate halves population; place cost does not make losers leave even with frequent fights (22% of adults carry a cost there); tending is the strongest food lever; halving spoilage lowers population (unexplained, for the S4a probe). Not measured: fight deaths and wounds, hunger, grown food.
