@@ -1,3 +1,4 @@
+import { panToAnchor, pinchZoomIndex, worldAt } from './zoom';
 import type { WorldView } from '../sim/protocol';
 import {
   CONTEST_CONCEDE,
@@ -116,7 +117,15 @@ const GROUND_BUILD_SHIFT = 3;
 const GROUND_EARTH = 32;
 // Contest markers (S3x): how long one shows, and how many can be on screen at once.
 const CONTEST_LIFE_MS = 4000;
+/** Build ring length in art pixels for stages 0 to 3 (5 of one side, then 1.5 sides, then three). */
+const BUILD_RING_PX = [0, 5, 12, 24] as const;
+/** Time constant of a build ring gliding to its next stage. */
+const BUILD_EASE_MS = 350;
 const CONTEST_CAP = 128;
+/** How long a contest mark takes to burst out to its size, ms of wall-clock time. */
+const CONTEST_SPREAD_MS = 700;
+/** And how long it takes to fade in to full strength. */
+const CONTEST_FADE_IN_MS = 200;
 const CONTEST_HALO = 'rgba(20, 12, 6, 0.75)';
 const CONTEST_FIGHT_HOT = '#ff3b1f';
 const CONTEST_FIGHT_CORE = '#ffd23a';
@@ -449,8 +458,20 @@ export class CanvasRenderer {
   private dragStartY = 0;
   private dragStartPanX = 0;
   private dragStartPanY = 0;
-  private pinchStartDist = 0;
-  private pinchStartZoomIndex = 2;
+  /** Pointers on the canvas now (fingers, pen or mouse), by pointerId, in client pixels. */
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  /** The pinch under way: spread and zoom step at its start, and the world point pinned under its midpoint. */
+  private pinch: { dist: number; zoomIndex: number; wx: number; wy: number } | null = null;
+  /** This press became a pinch at some point, so lifting it is not a tap. */
+  private dragWasGesture = false;
+  // Build rings ease between stages (see easedBuild): shown length, and the render frame each was last drawn in.
+  private readonly buildShown = new Float32Array(65536);
+  private readonly buildSeen = new Uint32Array(65536);
+  private renderFrameId = 1;
+  /** How many of the client's ground changes (landPathsChanged) the overlay has painted. */
+  private groundChangesSeen = 0;
+  private lastRenderMs = 0;
+  private buildEase = 1;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -612,7 +633,11 @@ export class CanvasRenderer {
   private stepCamera(time: number): void {
     const dt = Math.min(250, Math.max(0, time - this.lastCameraStep));
     this.lastCameraStep = time;
-    if (this.isDragging) this.gotoTarget = null;
+    // While a finger or button is down the view is the user's: no glide moves it under them.
+    if (this.pointers.size > 0) {
+      this.gotoTarget = null;
+      return;
+    }
     const t = this.gotoTarget ?? this.cameraTarget;
     if (!t) return;
     const rect = this.canvas.parentElement?.getBoundingClientRect();
@@ -666,48 +691,56 @@ export class CanvasRenderer {
   public setSpeciesLookup(_fn: ((id: string) => number) | null): void {}
 
   private setupEvents(): void {
-    // Crisp whole-number wheel zoom
+    // Crisp whole-number wheel zoom, anchored on the cursor.
     this.canvas.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
+        if (e.deltaY === 0) return; // a sideways swipe is not a zoom
         this.onUserInput?.();
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const oldCellSize = this.cellSize;
-        const worldX = (mouseX - this.panX) / oldCellSize;
-        const worldY = (mouseY - this.panY) / oldCellSize;
-
-        if (e.deltaY < 0) {
-          // Zoom in
-          this.zoomIndex = Math.min(ZOOM_STEPS.length - 1, this.zoomIndex + 1);
-        } else {
-          // Zoom out
-          this.zoomIndex = Math.max(0, this.zoomIndex - 1);
-        }
-
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const at = worldAt(sx, sy, this.panX, this.panY, this.cellSize);
+        this.zoomIndex = e.deltaY < 0 ? Math.min(ZOOM_STEPS.length - 1, this.zoomIndex + 1) : Math.max(0, this.zoomIndex - 1);
         this.cellSize = ZOOM_STEPS[this.zoomIndex];
-        this.panX = Math.round(mouseX - worldX * this.cellSize);
-        this.panY = Math.round(mouseY - worldY * this.cellSize);
+        const pan = panToAnchor(sx, sy, at.x, at.y, this.cellSize);
+        this.panX = pan.panX;
+        this.panY = pan.panY;
       },
       { passive: false }
     );
 
+    // One pointer drags (and taps); two pinch. Touch, pen and mouse all come through pointer events,
+    // so a pinch's fingers are tracked here too and a drag can never fight the pinch over the pan.
     this.canvas.addEventListener('pointerdown', (e) => {
+      // A press hands the view to the user: the auto-camera backs off (onUserInput) and its target is let go
+      // now, so it cannot glide in the gap before it next updates, after a quick pinch or drag ends.
       this.onUserInput?.();
-      this.isDragging = true;
-      this.dragStartX = e.clientX;
-      this.dragStartY = e.clientY;
-      this.dragStartPanX = this.panX;
-      this.dragStartPanY = this.panY;
+      this.cameraTarget = null;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try {
         this.canvas.setPointerCapture(e.pointerId);
       } catch {}
+      if (this.pointers.size === 1) {
+        this.startDrag(e.clientX, e.clientY);
+        this.dragWasGesture = false;
+      } else if (this.pointers.size === 2) {
+        this.isDragging = false;
+        this.dragWasGesture = true; // no tap at the end of a pinch
+        this.startPinch();
+      }
     });
 
     this.canvas.addEventListener('pointermove', (e) => {
+      const p = this.pointers.get(e.pointerId);
+      if (!p) return;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      if (this.pinch && this.pointers.size >= 2) {
+        this.movePinch();
+        return;
+      }
       if (!this.isDragging) return;
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
@@ -715,75 +748,77 @@ export class CanvasRenderer {
       this.panY = Math.round(this.dragStartPanY + dy);
       if (Math.hypot(dx, dy) > 5) {
         this.followSelected = false; // Manual pan stops auto-follow
+        this.onUserInput?.(); // and keeps the auto-camera backed off while the drag lasts
       }
     });
 
     const pointerUp = (e: PointerEvent) => {
-      if (this.isDragging) {
+      if (!this.pointers.delete(e.pointerId)) return;
+      try {
+        this.canvas.releasePointerCapture(e.pointerId);
+      } catch {}
+      if (this.pinch && this.pointers.size >= 2) {
+        // One of three or more fingers lifted: carry on pinching with the two left, from where the view is.
+        this.startPinch();
+        return;
+      }
+      if (this.pinch && this.pointers.size < 2) {
+        this.pinch = null;
+        // The finger left on the glass carries on as a drag from where the view is now.
+        const rest = this.pointers.values().next().value;
+        if (rest) this.startDrag(rest.x, rest.y);
+        return;
+      }
+      if (this.isDragging && this.pointers.size === 0) {
         const moved = Math.hypot(e.clientX - this.dragStartX, e.clientY - this.dragStartY);
         this.isDragging = false;
-        try {
-          this.canvas.releasePointerCapture(e.pointerId);
-        } catch {}
-
-        if (moved < 5) {
-          this.handleTap(e.clientX, e.clientY);
-        }
+        if (moved < 5 && !this.dragWasGesture && e.type === 'pointerup') this.handleTap(e.clientX, e.clientY);
       }
     };
     this.canvas.addEventListener('pointerup', pointerUp);
     this.canvas.addEventListener('pointercancel', pointerUp);
+    // Capture lost without an up or cancel (window blur, element moved): forget the pointer all the same,
+    // or a ghost finger would hold the camera and turn the next press into a pinch.
+    this.canvas.addEventListener('lostpointercapture', pointerUp);
+  }
 
-    // Mobile Pinch-to-zoom snapped to whole numbers
-    this.canvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        this.pinchStartDist = Math.hypot(dx, dy);
-        this.pinchStartZoomIndex = this.zoomIndex;
-      }
-    });
+  private startDrag(clientX: number, clientY: number): void {
+    this.isDragging = true;
+    this.dragStartX = clientX;
+    this.dragStartY = clientY;
+    this.dragStartPanX = this.panX;
+    this.dragStartPanY = this.panY;
+  }
 
-    this.canvas.addEventListener(
-      'touchmove',
-      (e) => {
-        if (e.touches.length === 2 && this.pinchStartDist > 0) {
-          e.preventDefault();
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
-          const dist = Math.hypot(dx, dy);
-          const ratio = dist / this.pinchStartDist;
+  /** The first two pointers down: their midpoint in canvas pixels and their spread. */
+  private pinchPoints(): { mx: number; my: number; dist: number } {
+    const it = this.pointers.values();
+    const a = it.next().value!;
+    const b = it.next().value!;
+    const rect = this.canvas.getBoundingClientRect();
+    return { mx: (a.x + b.x) / 2 - rect.left, my: (a.y + b.y) / 2 - rect.top, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+  }
 
-          // Midpoint of pinch
-          const rect = this.canvas.getBoundingClientRect();
-          const midX = (e.touches[0].clientX + e.touches[1].clientX) * 0.5 - rect.left;
-          const midY = (e.touches[0].clientY + e.touches[1].clientY) * 0.5 - rect.top;
+  /** A pinch takes the view from the auto-camera and pins the world point under the fingers' midpoint. */
+  private startPinch(): void {
+    const { mx, my, dist } = this.pinchPoints();
+    const at = worldAt(mx, my, this.panX, this.panY, this.cellSize);
+    this.pinch = { dist, zoomIndex: this.zoomIndex, wx: at.x, wy: at.y };
+    this.followSelected = false;
+    this.gotoTarget = null;
+    this.onUserInput?.();
+  }
 
-          const oldCellSize = this.cellSize;
-          const worldX = (midX - this.panX) / oldCellSize;
-          const worldY = (midY - this.panY) / oldCellSize;
-
-          const targetSize = ZOOM_STEPS[this.pinchStartZoomIndex] * ratio;
-          let bestIndex = 0;
-          let minDiff = Math.abs(ZOOM_STEPS[0] - targetSize);
-          for (let i = 1; i < ZOOM_STEPS.length; i++) {
-            const diff = Math.abs(ZOOM_STEPS[i] - targetSize);
-            if (diff < minDiff) {
-              minDiff = diff;
-              bestIndex = i;
-            }
-          }
-
-          if (bestIndex !== this.zoomIndex) {
-            this.zoomIndex = bestIndex;
-            this.cellSize = ZOOM_STEPS[this.zoomIndex];
-            this.panX = Math.round(midX - worldX * this.cellSize);
-            this.panY = Math.round(midY - worldY * this.cellSize);
-          }
-        }
-      },
-      { passive: false }
-    );
+  /** Zoom to the step the spread asks for, with the pinned world point back under the midpoint (so moving it pans). */
+  private movePinch(): void {
+    const pinch = this.pinch!;
+    const { mx, my, dist } = this.pinchPoints();
+    this.zoomIndex = pinchZoomIndex(ZOOM_STEPS, pinch.zoomIndex, pinch.dist, dist);
+    this.cellSize = ZOOM_STEPS[this.zoomIndex];
+    const pan = panToAnchor(mx, my, pinch.wx, pinch.wy, this.cellSize);
+    this.panX = pan.panX;
+    this.panY = pan.panY;
+    this.onUserInput?.();
   }
 
   /** The settlement whose icon or name is under this point, or null. */
@@ -1075,6 +1110,10 @@ export class CanvasRenderer {
 
   public render(): void {
     const dpr = window.devicePixelRatio || 1;
+    const nowMs = performance.now();
+    this.renderFrameId = ((this.renderFrameId + 1) >>> 0) || 1; // 0 means never drawn (see easedBuild)
+    this.buildEase = 1 - Math.exp(-Math.min(250, Math.max(0, nowMs - this.lastRenderMs)) / BUILD_EASE_MS);
+    this.lastRenderMs = nowMs;
     const width = this.canvas.width / dpr;
     const height = this.canvas.height / dpr;
 
@@ -1164,6 +1203,8 @@ export class CanvasRenderer {
     const structVersion = this.world.landStructuresVersion ?? 0;
     const pathsVersion = this.world.landPathsVersion ?? 0;
     if (version !== this.lastOverlayVersion || structVersion !== this.lastStructuresVersion || pathsVersion !== this.lastPathsVersion) {
+      const groundOnly = version === this.lastOverlayVersion && structVersion === this.lastStructuresVersion;
+      const prevPaths = this.lastPathsVersion;
       this.lastOverlayVersion = version;
       this.lastStructuresVersion = structVersion;
       this.lastPathsVersion = pathsVersion;
@@ -1171,57 +1212,84 @@ export class CanvasRenderer {
       const structures = this.world.landStructures;
       const out = this.overlayData32;
       const waterArr = this.world.elevation?.water;
-      for (let i = 0; i < 65536; i++) {
-        const b = data[i];
-        const desert = b & 7;
-        const farm = (b >> 3) & 7;
-        const seeds = b >> 6;
-        let c = 0;
-        // A faint checker on worked soil reads as tilled ground, distinct from smooth desert.
-        const checker = ((i + (i >> 8)) & 1) * 10;
-        if (seeds === 3) c = (((130 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // ripe golden crops: warm golden harvest sheen
-        else if (seeds > 0) c = (((55 + seeds * 25 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // growing grain / seedbed
-        else if (farm >= 2 && farm >= desert) c = (((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // worked soil: dark brown
-        else if (desert >= 2) c = (((85 + desert * 20) << 24) | COLOR_DESERT_RGB) >>> 0; // stripped land: pale sand
-        else if (farm === 1) c = (((70 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // barely worked
-        // S2: worn paths show as trodden earth, stronger the more they are used.
-        const ground = paths ? paths[i] : 0;
-        const path = ground & 7;
-        if (path >= 2) c = ((50 + path * 22) << 24) | COLOR_PATH_RGB;
-        // S3w: a water store on the tile, stronger as it fills.
-        const stored = ground >> 6;
-        if (stored > 0) c = ((120 + stored * 40) << 24) | COLOR_WATERSTORE_RGB;
-        // S3: a tile being built up (not yet a hut), earth or stone, stronger as it rises.
-        const build = (ground >> GROUND_BUILD_SHIFT) & 3;
-        if (build > 0) c = ((70 + build * 35) << 24) | ((ground & GROUND_EARTH) !== 0 ? COLOR_BUILD_EARTH_RGB : COLOR_BUILD_STONE_RGB);
-        // Heaps and granary floors sit on top of everything else.
-        const st = structures ? structures[i] : 0;
-        if (waterArr && waterArr[i] > 0) {
-          // Shore water holding fish shimmers faintly; the byte there is a fish level, not a heap.
-          if (st > 0) c = (((30 + st * 12) << 24) | COLOR_FISH_RGB) >>> 0;
-          out[i] = c >>> 0;
-          continue;
+      const changed = this.world.landPathsChanged;
+      const fullVersion = this.world.landPathsFullVersion ?? -1;
+      if (groundOnly && changed && paths && prevPaths >= fullVersion && this.groundChangesSeen <= changed.length) {
+        // Only ground diffs since the last paint: repaint just those cells (a few hundred, not 65536).
+        let x0 = 256, y0 = 256, x1 = -1, y1 = -1;
+        for (let k = this.groundChangesSeen; k < changed.length; k++) {
+          const i = changed[k];
+          out[i] = this.overlayColor(i, data, paths, structures, waterArr);
+          const x = i & 255, y = i >> 8;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
         }
-        if (st !== 0 && this.isForest[i] === 1 && (st >> 5) > 0 && c === 0) {
-          // Thinned woodland: the more is felled, the paler and barer the stand.
-          const th = st >> 5;
-          c = th === 7 ? COLOR_FIELD : th === 6 ? ((200 << 24) | COLOR_CUT_RGB) : ((50 + th * 26) << 24) | COLOR_CUT_RGB;
-        }
-        if (st !== 0) {
-          const form = (st >> 3) & 3;
-          if (form === 2) c = COLOR_GRANARY;
-          else if (form === 3) c = COLOR_NEST;
-          else if ((st & 7) > 0) c = ((170 + (st & 7) * 12) << 24) | COLOR_HEAP_RGB;
-          else if (form === 1 && this.isForest[i] === 0 && (st >> 5) > 0) {
-            const bLevel = st >> 5;
-            c = ((130 + bLevel * 16) << 24) | COLOR_BRUSH_RGB;
-          }
-        }
-        out[i] = c >>> 0;
+        this.groundChangesSeen = changed.length;
+        if (x1 >= 0) this.overlayCtx.putImageData(this.overlayImg, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        return true;
       }
+      for (let i = 0; i < 65536; i++) out[i] = this.overlayColor(i, data, paths, structures, waterArr);
+      this.groundChangesSeen = changed ? changed.length : 0;
       this.overlayCtx.putImageData(this.overlayImg, 0, 0);
     }
     return true;
+  }
+
+  /** One cell of the land overlay as 0xAABBGGRR: worked soil, desert, paths, builds, heaps and the rest. */
+  private overlayColor(
+    i: number,
+    data: Uint8Array,
+    paths: Uint8Array | null | undefined,
+    structures: Uint8Array | null | undefined,
+    waterArr: ArrayLike<number> | undefined
+  ): number {
+    const b = data[i];
+    const desert = b & 7;
+    const farm = (b >> 3) & 7;
+    const seeds = b >> 6;
+    let c = 0;
+    // A faint checker on worked soil reads as tilled ground, distinct from smooth desert.
+    const checker = ((i + (i >> 8)) & 1) * 10;
+    if (seeds === 3) c = (((130 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // ripe golden crops: warm golden harvest sheen
+    else if (seeds > 0) c = (((55 + seeds * 25 + checker) << 24) | COLOR_SEEDS_RGB) >>> 0; // growing grain / seedbed
+    else if (farm >= 2 && farm >= desert) c = (((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // worked soil: dark brown
+    else if (desert >= 2) c = (((85 + desert * 20) << 24) | COLOR_DESERT_RGB) >>> 0; // stripped land: pale sand
+    else if (farm === 1) c = (((70 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // barely worked
+    // S2: worn paths show as trodden earth, stronger the more they are used.
+    const ground = paths ? paths[i] : 0;
+    const path = ground & 7;
+    if (path >= 2) c = ((50 + path * 22) << 24) | COLOR_PATH_RGB;
+    // S3w: a water store on the tile, stronger as it fills.
+    const stored = ground >> 6;
+    if (stored > 0) c = ((120 + stored * 40) << 24) | COLOR_WATERSTORE_RGB;
+    // S3: a tile being built up (not yet a hut), earth or stone, stronger as it rises.
+    const build = (ground >> GROUND_BUILD_SHIFT) & 3;
+    if (build > 0) c = ((70 + build * 35) << 24) | ((ground & GROUND_EARTH) !== 0 ? COLOR_BUILD_EARTH_RGB : COLOR_BUILD_STONE_RGB);
+    // Heaps and granary floors sit on top of everything else.
+    const st = structures ? structures[i] : 0;
+    if (waterArr && waterArr[i] > 0) {
+      // Shore water holding fish shimmers faintly; the byte there is a fish level, not a heap.
+      if (st > 0) c = (((30 + st * 12) << 24) | COLOR_FISH_RGB) >>> 0;
+      return c >>> 0;
+    }
+    if (st !== 0 && this.isForest[i] === 1 && (st >> 5) > 0 && c === 0) {
+      // Thinned woodland: the more is felled, the paler and barer the stand.
+      const th = st >> 5;
+      c = th === 7 ? COLOR_FIELD : th === 6 ? ((200 << 24) | COLOR_CUT_RGB) : ((50 + th * 26) << 24) | COLOR_CUT_RGB;
+    }
+    if (st !== 0) {
+      const form = (st >> 3) & 3;
+      if (form === 2) c = COLOR_GRANARY;
+      else if (form === 3) c = COLOR_NEST;
+      else if ((st & 7) > 0) c = ((170 + (st & 7) * 12) << 24) | COLOR_HEAP_RGB;
+      else if (form === 1 && this.isForest[i] === 0 && (st >> 5) > 0) {
+        const bLevel = st >> 5;
+        c = ((130 + bLevel * 16) << 24) | COLOR_BRUSH_RGB;
+      }
+    }
+    return c >>> 0;
   }
 
   /**
@@ -2063,17 +2131,36 @@ export class CanvasRenderer {
 
   /** A tile being built: a partial ring of earth or stone, rising side by side as the build goes on. */
   private drawBuild(x0: number, y0: number, a: number, wx: number, wy: number): void {
-    const level = a & 3;
     const ramp = (a & GROUND_EARTH) !== 0 ? PALETTE.earthWall : PALETTE.stoneWall;
     const start = (wx * 73 + wy * 151) & 3;
     // Loose material on the floor, so even the first course reads as work going on.
     this.R(x0, y0, 3, 3, 2, 2, ramp.rimHex);
     this.R(x0, y0, 3, 3, 1, 1, ramp.highlightHex);
+    const shown = Math.round(this.easedBuild((wy << 8) | wx, BUILD_RING_PX[a & 3]));
     for (let k = 0; k < 3; k++) {
-      if (k >= level) break;
-      const half = k === level - 1 && level < 3 ? (level === 1 ? 5 : 4) : 8;
-      this.buildSide(x0, y0, (start + k) & 3, half, ramp);
+      const len = Math.min(8, shown - 8 * k);
+      if (len <= 0) break;
+      this.buildSide(x0, y0, (start + k) & 3, len, ramp);
     }
+  }
+
+  /**
+   * How much of a build ring to show, in art pixels: it glides to the stage the ground channel says
+   * on wall-clock time, so a wall rises course by course instead of jumping a stage per send.
+   * A tile not drawn last frame (off screen, just started) snaps straight to its stage.
+   */
+  private easedBuild(idx: number, target: number): number {
+    const last = this.buildSeen[idx];
+    if (last === this.renderFrameId) return this.buildShown[idx]; // drawn twice this frame (wrap)
+    this.buildSeen[idx] = this.renderFrameId;
+    let v = this.buildShown[idx];
+    if (last !== ((this.renderFrameId - 1) >>> 0)) v = target;
+    else {
+      v += (target - v) * this.buildEase;
+      if (Math.abs(target - v) < 0.05) v = target;
+    }
+    this.buildShown[idx] = v;
+    return v;
   }
 
   /** One side of a build ring, `len` art pixels long from its corner, two thick, lit on the north-west. */
@@ -2124,9 +2211,11 @@ export class CanvasRenderer {
     const tick = this.world.tick;
     for (let i = 0; i + 3 < list.length; i += 4) {
       // A tick ahead of the world's is from a world since reset or loaded over: skip it.
+      // A contest is stamped with the tick it happened in and the frame carries the tick after it, so one
+      // tick old is "just now": counting it as late started every mark a third of its burst in at 1x.
       const ago = tick - list[i + 3];
       if (ago < 0) continue;
-      const lagMs = tps > 0 ? (ago / tps) * 1000 : 0;
+      const lagMs = tps > 0 ? (Math.max(0, ago - 1) / tps) * 1000 : 0;
       if (lagMs >= CONTEST_LIFE_MS / 2) continue;
       const k = this.contestHead;
       this.contestX[k] = list[i];
@@ -2139,7 +2228,8 @@ export class CanvasRenderer {
 
   /**
    * Fights as a red burst, give-ways as pale chevrons parting, conceded food as amber chevrons;
-   * each grows a little and fades over CONTEST_LIFE_MS. Ground marks: drawn before anyone standing.
+   * each bursts out, holds, and fades over CONTEST_LIFE_MS of wall-clock time (paused or not, so a mark
+   * finishes while the sim is paused). Ground marks: drawn before anyone standing.
    */
   private drawContests(screenW: number, screenH: number): void {
     const now = performance.now();
@@ -2158,9 +2248,13 @@ export class CanvasRenderer {
       const cy = Math.round(this.contestY[k] * cs + this.panY + cs / 2);
       if (cx < -40 || cy < -40 || cx > screenW + 40 || cy > screenH + 40) continue;
       const t = age / CONTEST_LIFE_MS;
-      ctx.globalAlpha = t < 0.5 ? 1 : 2 - 2 * t; // full for the first half, then fades
+      // A quick fade in as it bursts, full until half its life, then fades out.
+      ctx.globalAlpha = t < 0.5 ? Math.min(1, 0.4 + (0.6 * age) / CONTEST_FADE_IN_MS) : 2 - 2 * t;
       drew = true;
-      const r = base * (0.7 + 0.5 * t);
+      // Bursts outward fast (ease-out over CONTEST_SPREAD_MS) then drifts: a slow steady growth moved a
+      // whole pixel only a few times a second, which read as a choppy step at 1x (2026-11-09 watch).
+      const e = 1 - Math.min(1, age / CONTEST_SPREAD_MS);
+      const r = base * (0.5 + 0.6 * (1 - e * e * e) + 0.1 * t);
       if (kind === CONTEST_FIGHT) {
         // Eight short spark streaks radiating out: yellow at the root, red at the tip.
         const q = Math.max(2, u >> 1);

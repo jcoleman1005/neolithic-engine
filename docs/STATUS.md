@@ -10,6 +10,13 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## Viewer: smooth marks and builds, pinch anchored (branch `viewer-smooth-pinch`, from the 2026-11-09 watch)
+- **Contest marks:** they already ran on wall-clock time in the rAF loop; what read as slow and choppy was a 1 px growth step every ~0.5 s and each mark starting a third of its life in (dated one tick late at 1x). Now they fade in over 200 ms, burst out over 700 ms with an ease-out, hold, and fade from 2 s to 4 s, all in real seconds. Pausing does not freeze them: a mark finishes while the sim is paused.
+- **Build progress:** the host now sends the ground cells that changed (3 bytes each) every panel frame at most every 250 ms, with the full 64 KB ground channel still every 2 s. At 1x on seed 42 the diffs average 200 to 230 B (max 520 B) against 87 KB for a full send, so the ground costs the stream about +0.5 KB/s. The server merges diffs (and now contests) for slow viewers instead of dropping them. In the viewer a build ring glides between stages (350 ms), and the overlay repaints only the changed cells.
+- **Pinch:** pointer events now track every finger, so a drag no longer fights the pinch for the pan. A pinch zooms about the fingers' midpoint and moving the midpoint pans; a pinch or drag lets go of the auto-camera at once. Wheel zoom anchors on the cursor (unchanged) and ignores sideways swipes. Pure maths in `src/render/zoom.ts` (tests in `tests/zoom.test.ts`).
+- **Checks:** fingerprint unchanged (`fa5596d7e60c04ca`). E2E on a Pixel 7 page: the world cell under the pinch midpoint moved 0.02 cells after the change, against 73 cells before.
+- **Needs you (rule 13):** on the phone at 1x, check that a pinch zooms where you pinch, that give-way chevrons and fight bursts pop and fade smoothly, and that a wall ring rises in steps you can follow.
+
 ## S3x place cost (branch `s3x-place-cost`, unit A)
 
 - **Built:** `placeCostEnabled` (on): per-person `placeCost`, `costX`, `costY`. A clash loss adds the energy lost and a wolf bite adds the bite; a win takes the loot off (floor 0). One region per person within `costRadius`; it fades over `costMemoryTicks`. Inside the region the stay check counts `placeCost / costMemoryTicks` as upkeep, and a shelter holds only while the cold it saves beats that. Children learn from a parent within `careRadius` (`costChildLearn`), or, with none in range, more weakly from the nearest adult (`costAdultLearn`, user decision 2026-11-09). `SAVE_SCHEMA` is now 3.

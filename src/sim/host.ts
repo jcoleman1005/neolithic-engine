@@ -2,12 +2,17 @@ import { World } from './world';
 import type { FromWorker, PanelData, SavedWorld, ToWorker } from './protocol';
 import { EVENT_LOG_SIZE, WorldEventDetector, type WorldEvent } from './events';
 import { Chronicle } from './chronicle';
+import { fastBase64Encode } from './base64';
 import type { SimulationConfig, WorldMetrics } from './types';
 
 /** How often panel data (metrics, history) is sent while running. */
 export const PANEL_INTERVAL_MS = 200;
 /** The land overlay (desert, farmland, seeds) changes slowly, so it goes out this often. */
 export const OVERLAY_INTERVAL_MS = 2000;
+/** Between full ground sends, the cells that changed go out this often, so builds and wear read smoothly. */
+export const PATHS_DIFF_INTERVAL_MS = 250;
+/** Past this many changed cells a diff costs about as much as the full channel, so the full one goes. */
+const PATHS_DIFF_MAX = 8192;
 
 /** The ground channel (wear, water stores, build progress) is sent when any of its parts is on. */
 function sendsGround(c: Readonly<SimulationConfig>): boolean {
@@ -239,6 +244,13 @@ export class SimulationHost {
   private contestsSent = 0;
   private overlayDirty = true;
   private overlaySentAt = -Infinity;
+  /** The ground channel as the viewers last got it (full or diff), for the next diff; null until a full send. */
+  private pathsSent: Uint8Array | null = null;
+  private pathsSentAt = -Infinity;
+  private pathsDiffBuf = new Uint8Array(PATHS_DIFF_MAX * 3);
+  private pathsCur = new Uint8Array(256 * 256);
+  /** pathsCur already holds this frame's ground (packed by diffLandPaths). */
+  private pathsCurFresh = false;
 
   private terrainSentFor: ReturnType<World['getTerrain']> = null;
   private terrainSentVersion = -1;
@@ -265,6 +277,46 @@ export class SimulationHost {
       events: this.eventLog.slice(),
     };
     for (const v of only ? [only] : this.viewers.values()) v.post(message);
+    // Diffs are against what the others last got, so the next frame resyncs everyone in full.
+    this.overlayDirty = true;
+  }
+
+  /**
+   * The ground cells changed since the last send, three bytes each (index low, index high, value), base64;
+   * '' when nothing changed, null when a full send is cheaper or there is no baseline yet (read only).
+   */
+  private diffLandPaths(): string | null {
+    const prev = this.pathsSent;
+    if (!prev) return null;
+    const cur = this.pathsCur;
+    this.world.land.packPaths(cur, this.world.config);
+    const out = this.pathsDiffBuf;
+    let o = 0;
+    for (let i = 0; i < cur.length; i++) {
+      const v = cur[i];
+      if (v === prev[i]) continue;
+      if (o >= out.length) {
+        this.pathsCurFresh = true; // too many: the full send that follows reuses this pack
+        return null;
+      }
+      out[o] = i & 255;
+      out[o + 1] = i >> 8;
+      out[o + 2] = v;
+      o += 3;
+    }
+    if (o === 0) return '';
+    prev.set(cur);
+    return fastBase64Encode(out.subarray(0, o));
+  }
+
+  /** The whole ground channel, base64 (as World.packLandPaths), kept as the baseline for the next diffs. */
+  private packFullGround(): string {
+    // A diff that overflowed just packed this very state into pathsCur: no need to pack it again.
+    if (!this.pathsCurFresh) this.world.land.packPaths(this.pathsCur, this.world.config);
+    this.pathsCurFresh = false;
+    this.pathsSent ??= new Uint8Array(this.pathsCur.length);
+    this.pathsSent.set(this.pathsCur);
+    return fastBase64Encode(this.pathsCur);
   }
 
   private baseFrame(fromStep: boolean): Omit<Extract<FromWorker, { kind: 'frame' }>, 'panels'> {
@@ -336,10 +388,21 @@ export class SimulationHost {
       (this.terrainSentFor !== terrain || this.terrainSentVersion !== terrain.version) &&
       this.env.now() - this.terrainSentAt >= 1000;
     const overlayDue = withPanels && (this.overlayDirty || this.env.now() - this.overlaySentAt >= OVERLAY_INTERVAL_MS);
+    const ground = sendsGround(this.world.config);
+    let groundDiff: string | null = null;
+    let fullGround = overlayDue && ground;
+    if (!overlayDue && ground && withPanels && this.env.now() - this.pathsSentAt >= PATHS_DIFF_INTERVAL_MS) {
+      groundDiff = this.diffLandPaths();
+      if (groundDiff === null) fullGround = true;
+      this.pathsSentAt = this.env.now();
+    }
     const base = {
       ...this.baseFrame(fromStep),
       ...(terrainDue && terrain ? { terrain: terrain.exportState() } : {}),
-      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews(), ...(sendsGround(this.world.config) ? { landPaths: this.world.packLandPaths() } : {}) } : {}),
+      ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews() } : {}),
+      ...(fullGround ? { landPaths: this.packFullGround() } : {}),
+      // Between full sends, the ground cells that changed (a build rising, a path wearing), a few hundred bytes.
+      ...(groundDiff ? { landPathsDiff: groundDiff } : {}),
       // Contests ride every panel frame (a few numbers), so a fight shows while the two are still there.
       ...(withPanels ? { contests: this.drainContests() } : {}),
     };
@@ -347,6 +410,7 @@ export class SimulationHost {
       this.overlayDirty = false;
       this.overlaySentAt = this.env.now();
     }
+    if (fullGround) this.pathsSentAt = this.env.now();
     if (terrainDue) {
       this.terrainSentFor = terrain;
       this.terrainSentVersion = terrain.version;
