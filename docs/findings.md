@@ -1253,3 +1253,19 @@ Commands: `scripts/surplus-probe.ts -- --seed N --years 30 <flags>` (RESULT line
 - **Hunger stays a little lower inside settlements than outside** (about 5% against 7%) in every variant. Patches did not widen the gap.
 - **Walls.** Open tiles walled on 3+ sides average 30 in `fishlow` against 21.7 in base, but per-seed values range from 14 to 34 and the combined fishlow variants don't repeat it (24.3 and 21.7). Treat it as noise for now. The other layout shares (alone, in lines) and the village counts are flat.
 - **Conclusion.** Within 30 years and these settings, patchy wild plant food and scarce fish do not push people to carry food home or cluster walls around camps. People live off grazing, the same finding as S4a. To test the idea properly, wild food (or grazing) has to carry a much larger share of the diet first.
+## Experiment: winter die-off (2026-11-10)
+
+Branch `exp-winter` (22b1ed8): `winterDieOffEnabled` withers standing plant food 2% a day while the season's growth factor is below 0.5 (down to the grazing floor) and lets regrowth stop in deep winter. 60 years, seeds 4 to 6 run on Katie's laptop (`surplus-probe.ts`; map runs on seed 4); seeds 1 to 3 here were stopped after `base` because the laptop's result was already clear (base s1 to s3: heap meal share 4.3 / 4.4 / 4.0%, in line with s4 to s6). No run died out.
+
+| Variant (mean of seeds 4 to 6) | People y60 | Meals from heaps | Food into heaps per head per year | Hungry in / out of camps | Camps lasting 10y+ | Settlements ringed by golden fields, y30 |
+|---|---|---|---|---|---|---|
+| base | 7155 | 4.2% | 6.3 | 13.3% / 16.9% | 70.3 | 73.7 |
+| `seasonAmplitude` 1.0 | 6759 (−5.5%) | 4.6% | 6.6 | 11.3% / 14.6% | 77.7 | 75.0 |
+| winter (1.0 + die-off) | 3699 (−48%) | 4.5% | 6.2 | 10.7% / 15.9% | 76.0 | 1.0 |
+| winter-mild (0.8 + die-off) | 4803 (−33%) | 4.4% | 6.2 | 12.1% / 17.4% | 75.0 | 0 |
+| winter + wild patches 20% | 3919 (−45%) | 4.5% | 6.4 | 10.1% / 14.8% | 76.7 | 0.7 |
+
+Readings:
+- **A hard winter cuts population by a third to a half, and nobody stores more.** Meals from heaps stay at 4 to 5% in every variant and seed, and food put into heaps per head is unchanged (about 6.3 a year). Storing does not respond to the season, because nothing in a person's decision links autumn plenty to winter need: food is gathered by anyone fed with free hands and dropped where a crowd stands, and a heap is eaten from only by someone below half energy standing on or beside it.
+- **Golden fields disappear under die-off**: ripeness needs a tile at 70% of capacity, which withering prevents. Ripeness would need to be seasonal (ripen in late summer, harvested before winter) for golden crops and a dead season to coexist.
+- **The land does fill.** Base population peaks around year 40 (about 8,500 on seed 4) and then falls, with 43% hungry at year 60 on seed 4. The earlier estimate that the land carries three times what people take was wrong past year 40: 30-year runs end before the land fills, and 60-year runs do not.
