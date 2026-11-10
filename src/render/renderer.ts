@@ -80,6 +80,22 @@ const CARRY_KIND_SEED = 1, CARRY_KIND_BRUSH = 3, CARRY_KIND_STONE = 4, CARRY_KIN
 const CARRY_MARK_COLOURS = ['', '#e9c86a', '#e8863a', '#9a6a35', '#a4a7ad', '#6b4a2e', '#3f8ff0', ''];
 const COLOR_WATERSTORE_RGB = 0xd68f4f; // rgb(79, 143, 214), stored water
 const COLOR_PATH_RGB = 0x3f5f80; // rgb(128, 95, 63), trodden earth on worn paths
+// 6b-1 storms: drawn at far zoom only (cell size up to this), a ring of one weather block (16 tiles) radius,
+// the area Weather.rainAt rains on.
+const STORM_MAX_CELL = 5;
+const STORM_RADIUS_TILES = 16;
+const STORM_DASH = [4, 3];
+const STORM_STROKE = 'rgba(214, 226, 240, 0.7)';
+const STORM_FILL = 'rgba(70, 90, 120, 0.10)';
+// 6b-1 weather channel: dryness in bits 0 and 1 (see Land.packWeather).
+const WEATHER_DRY_MASK = 3;
+// Dry ground tints, 0xAABBGGRR, indexed by dryness: 1 sun-faded, 2 straw (not growing), 3 dusty brown (withering).
+const DRY_GROUND_ABGR = new Uint32Array([
+  0,
+  ((70 << 24) | 0x4cb4b8) >>> 0, // rgb(184, 180, 76) at low alpha: grass going pale
+  ((140 << 24) | 0x70b2c4) >>> 0, // rgb(196, 178, 112): pale khaki straw, duller than golden crops
+  ((205 << 24) | 0x42719a) >>> 0, // rgb(154, 113, 66): dusty dead grass
+]);
 const COLOR_BRUSH_RGB = 0x305a7d; // rgb(125, 90, 48), wood stick flecks for brush heaps
 const STICK_COLORS = ['#5e4224', '#7d5a30', '#a07c42'];
 const FOOD_DOT_COLORS = ['#d9453a', '#ee9a2f', '#e8cf3a', '#6fae3c', '#c2552d'];
@@ -243,6 +259,8 @@ export class CanvasRenderer {
   private readonly terrainImgData: ImageData;
   private readonly terrainData32: Uint32Array;
   private readonly isForest = new Uint8Array(65536);
+  /** 6b-1: grass or shrub ground (not sand, rock, snow or water), the ground that shows dryness. */
+  private readonly isGreenGround = new Uint8Array(65536);
   private terrainGenerated = false;
   private lastTerrainVersion = -1;
   /** The terrain and elevation the cache was drawn from: a new seed brings new objects, even at the same version number. */
@@ -264,6 +282,7 @@ export class CanvasRenderer {
   private lastOverlayVersion = -1;
   private lastStructuresVersion = -1;
   private lastPathsVersion = -1;
+  private lastWeatherVersion = -1;
   // Contest markers: a ring of recent fights and give-ways, faded by wall-clock age.
   private readonly contestX = new Uint8Array(CONTEST_CAP);
   private readonly contestY = new Uint8Array(CONTEST_CAP);
@@ -470,6 +489,8 @@ export class CanvasRenderer {
   private renderFrameId = 1;
   /** How many of the client's ground changes (landPathsChanged) the overlay has painted. */
   private groundChangesSeen = 0;
+  /** How many of the client's weather changes (landWeatherChanged) the overlay has painted. */
+  private weatherChangesSeen = 0;
   private lastRenderMs = 0;
   private buildEase = 1;
 
@@ -1174,6 +1195,11 @@ export class CanvasRenderer {
       this.ctx.drawImage(this.overlayCanvas, 0, 0, 256, 256, this.panX, this.panY, worldPxW, worldPxH);
     }
 
+    // 3a. 6b-1: thunderstorms as faint dashed rings at far zoom only, on the ground under everyone.
+    if (this.cellSize <= STORM_MAX_CELL && this.world.storms && this.world.storms.length > 0) {
+      this.drawStorms(worldPxW, worldPxH);
+    }
+
     // 3b. Recent fights and give-ways: brief marks on the ground, under everyone standing.
     this.drawContests(width, height);
 
@@ -1202,36 +1228,61 @@ export class CanvasRenderer {
     const version = this.world.landOverlayVersion ?? 0;
     const structVersion = this.world.landStructuresVersion ?? 0;
     const pathsVersion = this.world.landPathsVersion ?? 0;
-    if (version !== this.lastOverlayVersion || structVersion !== this.lastStructuresVersion || pathsVersion !== this.lastPathsVersion) {
-      const groundOnly = version === this.lastOverlayVersion && structVersion === this.lastStructuresVersion;
+    const weatherVersion = this.world.landWeatherVersion ?? 0;
+    if (
+      version !== this.lastOverlayVersion ||
+      structVersion !== this.lastStructuresVersion ||
+      pathsVersion !== this.lastPathsVersion ||
+      weatherVersion !== this.lastWeatherVersion
+    ) {
+      const diffsOnly = version === this.lastOverlayVersion && structVersion === this.lastStructuresVersion;
       const prevPaths = this.lastPathsVersion;
+      const prevWeather = this.lastWeatherVersion;
       this.lastOverlayVersion = version;
       this.lastStructuresVersion = structVersion;
       this.lastPathsVersion = pathsVersion;
+      this.lastWeatherVersion = weatherVersion;
       const paths = this.world.landPaths;
+      const weather = this.world.landWeather;
       const structures = this.world.landStructures;
       const out = this.overlayData32;
       const waterArr = this.world.elevation?.water;
       const changed = this.world.landPathsChanged;
       const fullVersion = this.world.landPathsFullVersion ?? -1;
-      if (groundOnly && changed && paths && prevPaths >= fullVersion && this.groundChangesSeen <= changed.length) {
-        // Only ground diffs since the last paint: repaint just those cells (a few hundred, not 65536).
+      const wChanged = this.world.landWeatherChanged;
+      const wFullVersion = this.world.landWeatherFullVersion ?? -1;
+      // Each channel either did not move or moved by diffs alone since the last paint.
+      const pathsOk =
+        pathsVersion === prevPaths ||
+        (changed !== undefined && !!paths && prevPaths >= fullVersion && this.groundChangesSeen <= changed.length);
+      const weatherOk =
+        weatherVersion === prevWeather ||
+        (wChanged !== undefined && !!weather && prevWeather >= wFullVersion && this.weatherChangesSeen <= wChanged.length);
+      if (diffsOnly && pathsOk && weatherOk) {
+        // Only ground or weather diffs since the last paint: repaint just those cells (a few hundred, not 65536).
         let x0 = 256, y0 = 256, x1 = -1, y1 = -1;
-        for (let k = this.groundChangesSeen; k < changed.length; k++) {
-          const i = changed[k];
-          out[i] = this.overlayColor(i, data, paths, structures, waterArr);
-          const x = i & 255, y = i >> 8;
-          if (x < x0) x0 = x;
-          if (x > x1) x1 = x;
-          if (y < y0) y0 = y;
-          if (y > y1) y1 = y;
+        for (let pass = 0; pass < 2; pass++) {
+          const list = pass === 0 ? changed : wChanged;
+          if (!list) continue;
+          const from = pass === 0 ? this.groundChangesSeen : this.weatherChangesSeen;
+          for (let k = from; k < list.length; k++) {
+            const i = list[k];
+            out[i] = this.overlayColor(i, data, paths, structures, waterArr, weather);
+            const x = i & 255, y = i >> 8;
+            if (x < x0) x0 = x;
+            if (x > x1) x1 = x;
+            if (y < y0) y0 = y;
+            if (y > y1) y1 = y;
+          }
         }
-        this.groundChangesSeen = changed.length;
+        this.groundChangesSeen = changed ? changed.length : 0;
+        this.weatherChangesSeen = wChanged ? wChanged.length : 0;
         if (x1 >= 0) this.overlayCtx.putImageData(this.overlayImg, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
         return true;
       }
-      for (let i = 0; i < 65536; i++) out[i] = this.overlayColor(i, data, paths, structures, waterArr);
+      for (let i = 0; i < 65536; i++) out[i] = this.overlayColor(i, data, paths, structures, waterArr, weather);
       this.groundChangesSeen = changed ? changed.length : 0;
+      this.weatherChangesSeen = wChanged ? wChanged.length : 0;
       this.overlayCtx.putImageData(this.overlayImg, 0, 0);
     }
     return true;
@@ -1243,7 +1294,8 @@ export class CanvasRenderer {
     data: Uint8Array,
     paths: Uint8Array | null | undefined,
     structures: Uint8Array | null | undefined,
-    waterArr: ArrayLike<number> | undefined
+    waterArr: ArrayLike<number> | undefined,
+    weather?: Uint8Array | null
   ): number {
     const b = data[i];
     const desert = b & 7;
@@ -1257,6 +1309,8 @@ export class CanvasRenderer {
     else if (farm >= 2 && farm >= desert) c = (((115 + farm * 16 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // worked soil: dark brown
     else if (desert >= 2) c = (((85 + desert * 20) << 24) | COLOR_DESERT_RGB) >>> 0; // stripped land: pale sand
     else if (farm === 1) c = (((70 + checker) << 24) | COLOR_FARM_RGB) >>> 0; // barely worked
+    // 6b-1: dry grass and shrub ground goes straw, then dusty brown where it withers (sand, rock, snow, water stay).
+    else if (weather && this.isGreenGround[i] === 1 && (weather[i] & WEATHER_DRY_MASK) !== 0) c = DRY_GROUND_ABGR[weather[i] & WEATHER_DRY_MASK];
     // S2: worn paths show as trodden earth, stronger the more they are used.
     const ground = paths ? paths[i] : 0;
     const path = ground & 7;
@@ -1386,6 +1440,8 @@ export class CanvasRenderer {
         }
 
         this.isForest[idx] = forestCell ? 1 : 0;
+        // Open grass and shrub only: forest floor sits under trees, and woods do not read as dead grass.
+        this.isGreenGround[idx] = !forestCell && (ramp === pal.grass || ramp === pal.shrub) ? 1 : 0;
 
         // Clean low-noise plane: dominant material base tone
         let pixelColor = ramp.base;
@@ -1422,6 +1478,8 @@ export class CanvasRenderer {
 
     this.terrainCtx.putImageData(this.terrainImgData, 0, 0);
     this.terrainGenerated = true;
+    // The overlay's dry tint reads isGreenGround, so repaint it in full against the new mask.
+    this.lastOverlayVersion = -1;
     this.lastTerrainVersion = curTerrainVer;
     this.lastTerrainRef = terrain;
     this.lastElevationRef = elevation;
@@ -1476,6 +1534,8 @@ export class CanvasRenderer {
     const tiers = this.terraceData.tiers;
     const atlas = this.terrainAtlas;
     const canvas = atlas.canvas;
+    const weather = this.world.landWeather;
+    const dryY = atlas.getDryY();
     const activeSlice = this.activeElevationSlice;
 
     for (let cy = minCellY; cy <= maxCellY; cy++) {
@@ -1543,6 +1603,12 @@ export class CanvasRenderer {
         const sy = atlas.getTileY(kind);
 
         this.ctx.drawImage(canvas, sx, sy, 8, 8, x0, y0, cs, cs);
+        // 6b-1: straw stubble or cracked dead grass on dry green ground (the overlay adds the colour wash).
+        // Marks on about half the cells (hashed) so the ground stays calm and the extra draws stay few.
+        if (weather && (h & 256) === 0 && (kind === T_GRASS || kind === T_DIRT) && this.isGreenGround[idx] === 1) {
+          const dry = weather[idx] & WEATHER_DRY_MASK;
+          if (dry >= 2) this.ctx.drawImage(canvas, atlas.getDryX(dry, h >>> 7), dryY, 8, 8, x0, y0, cs, cs);
+        }
 
         // Stepped Z-Level Cliff Strata (South / East / West drops)
         if (!isWater && tier > 1) {
@@ -2231,6 +2297,43 @@ export class CanvasRenderer {
    * each bursts out, holds, and fades over CONTEST_LIFE_MS of wall-clock time (paused or not, so a mark
    * finishes while the sim is paused). Ground marks: drawn before anyone standing.
    */
+  /**
+   * 6b-1: each storm as a soft dashed ring about one weather block across, with a faint wash inside. The map
+   * wraps, so a storm near an edge also shows its copy on the other side; drawn clipped to the world rect.
+   */
+  private drawStorms(worldPxW: number, worldPxH: number): void {
+    const storms = this.world.storms!;
+    const ctx = this.ctx;
+    const cs = this.cellSize;
+    const r = STORM_RADIUS_TILES * cs;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(this.panX, this.panY, worldPxW, worldPxH);
+    ctx.clip();
+    ctx.beginPath();
+    for (let k = 0; k + 1 < storms.length; k += 2) {
+      const tx = storms[k], ty = storms[k + 1];
+      for (let dy = -1; dy <= 1; dy++) {
+        const y = ty + dy * 256;
+        if (y < -STORM_RADIUS_TILES || y > 256 + STORM_RADIUS_TILES) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const x = tx + dx * 256;
+          if (x < -STORM_RADIUS_TILES || x > 256 + STORM_RADIUS_TILES) continue;
+          const cx = this.panX + x * cs, cy = this.panY + y * cs;
+          ctx.moveTo(cx + r, cy);
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        }
+      }
+    }
+    ctx.fillStyle = STORM_FILL;
+    ctx.fill();
+    ctx.setLineDash(STORM_DASH);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = STORM_STROKE;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawContests(screenW: number, screenH: number): void {
     const now = performance.now();
     this.ingestContests(now);

@@ -648,6 +648,22 @@ export class Land {
     }
   }
 
+  /**
+   * 6b-1 (viewer): the weather channel, one byte per tile. Bits 0 and 1 are dryness: 3 below moistureWitherBelow
+   * (withering), 2 below moistureDryPoint (not growing), 1 below the middle of the dry and wet points, else 0;
+   * water tiles are 0. Bits 2 to 7 are kept for floods, scorch and burning (later stages) and are 0. Read only.
+   */
+  public packWeather(out: Uint8Array, config?: Readonly<SimulationConfig>): void {
+    const wither = config?.moistureWitherBelow ?? 25;
+    const dry = config?.moistureDryPoint ?? 40;
+    const mid = (dry + (config?.moistureWetPoint ?? 150)) / 2;
+    const m = this.moisture, water = this.isWater;
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      const v = m[i];
+      out[i] = water[i] === 1 ? 0 : v < wither ? 3 : v < dry ? 2 : v < mid ? 1 : 0;
+    }
+  }
+
   /** Wears every built tile down by 1, one slice of the map a tick, so each loses 1 per erosionSlices ticks. */
   public erode(tick: number, config: Readonly<SimulationConfig>): void {
     const slices = Math.max(1, config.erosionSlices ?? 64);

@@ -40,6 +40,9 @@ export interface TerrainAtlas {
   getCliffY(cliffKind?: number): number;
   getFoamX(edge: number): number;
   getFoamY(edge?: number): number;
+  /** 6b-1: transparent dry-ground marks drawn over grass: dryness 2 (straw stubble) or 3 (withered, cracked). */
+  getDryX(dryness: number, variant: number): number;
+  getDryY(): number;
 }
 
 const TILE_SIZE = 8;
@@ -88,6 +91,9 @@ export function createTerrainAtlas(theme: TerrainTheme = 'classic'): TerrainAtla
 
   // 9. SHORE FOAM (Row 5: N, S, W, E)
   drawShoreFoams(buf, at(0, 5).ox, at(0, 5).oy);
+
+  // 10. DRY GROUND MARKS (Row 6: stubble x2, cracked dead grass x2), transparent elsewhere
+  drawDryMarks(buf, at(0, 6).ox, at(0, 6).oy);
 
   let canvas: HTMLCanvasElement;
   if (typeof document !== 'undefined') {
@@ -142,6 +148,12 @@ export function createTerrainAtlas(theme: TerrainTheme = 'classic'): TerrainAtla
     },
     getFoamY(): number {
       return TILE_SIZE * 5;
+    },
+    getDryX(dryness: number, variant: number): number {
+      return ((dryness >= 3 ? 2 : 0) + (variant & 1)) * TILE_SIZE;
+    },
+    getDryY(): number {
+      return TILE_SIZE * 6;
     },
   };
 }
@@ -409,4 +421,36 @@ function drawShoreFoams(buf: PixelBuffer, startX: number, startY: number): void 
   buf.fillRect(ox + 6, startY, 2, 8, COL_FOAM);
   buf.setPixel(ox + 7, startY + 3, COL_FOAM_SPARKLE);
   buf.setPixel(ox + 6, startY + 6, COL_FOAM_SPARKLE);
+}
+
+const COL_STRAW_LIGHT = hexToABGR('#e2cf86');
+const COL_STRAW_DARK = hexToABGR('#8a7238');
+const COL_CRACK = hexToABGR('#4e3720');
+const COL_DUST = hexToABGR('#c9a66c');
+
+/** 6b-1: marks for dry ground, lit from the north-west like the rest. Transparent where unmarked. */
+function drawDryMarks(buf: PixelBuffer, startX: number, startY: number): void {
+  // Stubble A and B: short pale straw strokes with a dark foot, sparse so the tint still reads.
+  const stubble = [
+    [[1, 1], [5, 2], [2, 5], [6, 6]],
+    [[3, 1], [0, 4], [5, 4], [3, 6]],
+  ];
+  for (let v = 0; v < 2; v++) {
+    const ox = startX + v * TILE_SIZE;
+    for (const [x, y] of stubble[v]) {
+      buf.setPixel(ox + x, startY + y, COL_STRAW_LIGHT);
+      buf.setPixel(ox + x, startY + y + 1, COL_STRAW_DARK);
+    }
+  }
+  // Cracked dead ground A and B: a broken dark line across the tile and a fleck of pale dust.
+  const cracks = [
+    [[0, 2], [1, 2], [2, 3], [3, 3], [4, 3], [4, 4], [5, 5], [6, 5], [4, 6]],
+    [[1, 6], [2, 5], [3, 5], [3, 4], [4, 3], [5, 3], [6, 2], [3, 6], [7, 3]],
+  ];
+  const dust = [[[6, 1]], [[1, 1]]];
+  for (let v = 0; v < 2; v++) {
+    const ox = startX + (2 + v) * TILE_SIZE;
+    for (const [x, y] of cracks[v]) buf.setPixel(ox + x, startY + y, COL_CRACK);
+    for (const [x, y] of dust[v]) buf.setPixel(ox + x, startY + y, COL_DUST);
+  }
 }

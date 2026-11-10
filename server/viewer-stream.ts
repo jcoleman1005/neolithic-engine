@@ -87,22 +87,31 @@ function merge(older: Frame, newer: Frame): Frame {
     ...(newer.landStructures ? {} : older.landStructures ? { landStructures: older.landStructures } : {}),
     ...(newer.settlements ? {} : older.settlements ? { settlements: older.settlements } : {}),
     ...(newer.landPaths ? {} : older.landPaths ? { landPaths: older.landPaths } : {}),
-    ...mergeGroundDiff(older, newer),
+    ...mergeByteDiff(older, newer, 'landPaths', 'landPathsDiff'),
+    ...(newer.landWeather ? {} : older.landWeather ? { landWeather: older.landWeather } : {}),
+    ...mergeByteDiff(older, newer, 'landWeather', 'landWeatherDiff'),
+    ...(newer.storms ? {} : older.storms ? { storms: older.storms } : {}),
+    ...(newer.yearKind !== undefined ? {} : older.yearKind !== undefined ? { yearKind: older.yearKind } : {}),
     // Contests are a stream too: a merged frame carries both batches, or the older fights never show.
     ...(older.contests?.length ? { contests: [...older.contests, ...(newer.contests ?? [])].slice(-MERGED_CONTESTS_MAX) } : {}),
   };
 }
 
 /**
- * Ground diffs pile up like events: a full ground in the newer frame makes the older diffs moot. Each entry is
- * three bytes, so a diff's base64 never has padding and two of them join as one by plain concatenation
- * (the older first, so the newer value of a cell wins).
+ * Byte-channel diffs (ground, weather) pile up like events: a full channel in the newer frame makes the older
+ * diffs moot. Each entry is three bytes, so a diff's base64 never has padding and two of them join as one by
+ * plain concatenation (the older first, so the newer value of a cell wins).
  */
-function mergeGroundDiff(older: Frame, newer: Frame): { landPathsDiff?: string } {
-  // Bounded: the host sends the full ground every 2 s, and a full one drops the diffs before it.
-  if (newer.landPaths) return {};
-  const parts = (older.landPathsDiff ?? '') + (newer.landPathsDiff ?? '');
-  return parts ? { landPathsDiff: parts } : {};
+function mergeByteDiff(
+  older: Frame,
+  newer: Frame,
+  fullKey: 'landPaths' | 'landWeather',
+  diffKey: 'landPathsDiff' | 'landWeatherDiff'
+): Partial<Pick<Frame, 'landPathsDiff' | 'landWeatherDiff'>> {
+  // Bounded: the host sends the full channel every 2 s, and a full one drops the diffs before it.
+  if (newer[fullKey]) return {};
+  const parts = (older[diffKey] ?? '') + (newer[diffKey] ?? '');
+  return parts ? { [diffKey]: parts } : {};
 }
 
 /** JSON for the wire: typed arrays (heatmaps, genomes) become plain arrays; heatmaps are rounded to keep them small. */

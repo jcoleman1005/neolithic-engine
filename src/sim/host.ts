@@ -4,6 +4,7 @@ import { EVENT_LOG_SIZE, WorldEventDetector, type WorldEvent } from './events';
 import { Chronicle } from './chronicle';
 import { fastBase64Encode } from './base64';
 import type { SimulationConfig, WorldMetrics } from './types';
+import { BLOCK } from './weather';
 
 /** How often panel data (metrics, history) is sent while running. */
 export const PANEL_INTERVAL_MS = 200;
@@ -18,6 +19,67 @@ const PATHS_DIFF_MAX = 8192;
 function sendsGround(c: Readonly<SimulationConfig>): boolean {
   return c.pathsEnabled !== false || c.waterCarryEnabled !== false || c.buildingEnabled !== false;
 }
+/** 6b-1: the weather channel (dryness) and storms are sent only while weather is on. */
+function sendsWeather(c: Readonly<SimulationConfig>): boolean {
+  return c.weatherEnabled === true;
+}
+
+/** Thunderstorm centres in tile coordinates, x, y pairs (read only). */
+function stormTiles(world: World): number[] {
+  const out: number[] = [];
+  for (const s of world.land.weather.storms) out.push(s.x * BLOCK, s.y * BLOCK);
+  return out;
+}
+
+/**
+ * A one-byte-per-cell viewer channel (ground, weather) sent in full with the overlay and as diffs between:
+ * three bytes per changed cell (index low, index high, value), base64. Holds what viewers last got, as the
+ * baseline for the next diff. Read only on the world.
+ */
+class ByteChannelSender {
+  private sent: Uint8Array | null = null;
+  private readonly cur = new Uint8Array(256 * 256);
+  private readonly diffBuf = new Uint8Array(PATHS_DIFF_MAX * 3);
+  private curFresh = false;
+  public sentAt = -Infinity;
+
+  constructor(private readonly pack: (out: Uint8Array) => void) {}
+
+  /** Changed cells since the last send, base64; '' when none, null when a full send is due (no baseline or too many). */
+  public diff(): string | null {
+    const prev = this.sent;
+    if (!prev) return null;
+    const cur = this.cur;
+    this.pack(cur);
+    const out = this.diffBuf;
+    let o = 0;
+    for (let i = 0; i < cur.length; i++) {
+      const v = cur[i];
+      if (v === prev[i]) continue;
+      if (o >= out.length) {
+        this.curFresh = true;
+        return null;
+      }
+      out[o] = i & 255;
+      out[o + 1] = i >> 8;
+      out[o + 2] = v;
+      o += 3;
+    }
+    if (o === 0) return '';
+    prev.set(cur);
+    return fastBase64Encode(out.subarray(0, o));
+  }
+
+  /** The whole channel, base64, kept as the baseline for the next diffs. */
+  public full(): string {
+    if (!this.curFresh) this.pack(this.cur);
+    this.curFresh = false;
+    this.sent ??= new Uint8Array(this.cur.length);
+    this.sent.set(this.cur);
+    return fastBase64Encode(this.cur);
+  }
+}
+
 /** Ticks never pile up beyond this much lag (e.g. after the tab was hidden). */
 const MAX_LAG_MS = 250;
 
@@ -244,13 +306,10 @@ export class SimulationHost {
   private contestsSent = 0;
   private overlayDirty = true;
   private overlaySentAt = -Infinity;
-  /** The ground channel as the viewers last got it (full or diff), for the next diff; null until a full send. */
-  private pathsSent: Uint8Array | null = null;
-  private pathsSentAt = -Infinity;
-  private pathsDiffBuf = new Uint8Array(PATHS_DIFF_MAX * 3);
-  private pathsCur = new Uint8Array(256 * 256);
-  /** pathsCur already holds this frame's ground (packed by diffLandPaths). */
-  private pathsCurFresh = false;
+  /** The ground channel (wear, builds, water stores) as the viewers last got it, full or diff. */
+  private readonly groundSender = new ByteChannelSender((out) => this.world.land.packPaths(out, this.world.config));
+  /** 6b-1: the weather channel (dryness), as viewers last got it. */
+  private readonly weatherSender = new ByteChannelSender((out) => this.world.land.packWeather(out, this.world.config));
 
   private terrainSentFor: ReturnType<World['getTerrain']> = null;
   private terrainSentVersion = -1;
@@ -273,50 +332,15 @@ export class SimulationHost {
       landOverlay: world.packLandOverlay(),
       landStructures: world.packLandStructures(),
       ...(sendsGround(world.config) ? { landPaths: world.packLandPaths() } : {}),
+      ...(sendsWeather(world.config)
+        ? { landWeather: this.weatherSender.full(), storms: stormTiles(world), yearKind: world.land.weather.yearKind }
+        : {}),
       settlements: this.chronicle.settlementViews(),
       events: this.eventLog.slice(),
     };
     for (const v of only ? [only] : this.viewers.values()) v.post(message);
     // Diffs are against what the others last got, so the next frame resyncs everyone in full.
     this.overlayDirty = true;
-  }
-
-  /**
-   * The ground cells changed since the last send, three bytes each (index low, index high, value), base64;
-   * '' when nothing changed, null when a full send is cheaper or there is no baseline yet (read only).
-   */
-  private diffLandPaths(): string | null {
-    const prev = this.pathsSent;
-    if (!prev) return null;
-    const cur = this.pathsCur;
-    this.world.land.packPaths(cur, this.world.config);
-    const out = this.pathsDiffBuf;
-    let o = 0;
-    for (let i = 0; i < cur.length; i++) {
-      const v = cur[i];
-      if (v === prev[i]) continue;
-      if (o >= out.length) {
-        this.pathsCurFresh = true; // too many: the full send that follows reuses this pack
-        return null;
-      }
-      out[o] = i & 255;
-      out[o + 1] = i >> 8;
-      out[o + 2] = v;
-      o += 3;
-    }
-    if (o === 0) return '';
-    prev.set(cur);
-    return fastBase64Encode(out.subarray(0, o));
-  }
-
-  /** The whole ground channel, base64 (as World.packLandPaths), kept as the baseline for the next diffs. */
-  private packFullGround(): string {
-    // A diff that overflowed just packed this very state into pathsCur: no need to pack it again.
-    if (!this.pathsCurFresh) this.world.land.packPaths(this.pathsCur, this.world.config);
-    this.pathsCurFresh = false;
-    this.pathsSent ??= new Uint8Array(this.pathsCur.length);
-    this.pathsSent.set(this.pathsCur);
-    return fastBase64Encode(this.pathsCur);
   }
 
   private baseFrame(fromStep: boolean): Omit<Extract<FromWorker, { kind: 'frame' }>, 'panels'> {
@@ -391,18 +415,29 @@ export class SimulationHost {
     const ground = sendsGround(this.world.config);
     let groundDiff: string | null = null;
     let fullGround = overlayDue && ground;
-    if (!overlayDue && ground && withPanels && this.env.now() - this.pathsSentAt >= PATHS_DIFF_INTERVAL_MS) {
-      groundDiff = this.diffLandPaths();
+    if (!overlayDue && ground && withPanels && this.env.now() - this.groundSender.sentAt >= PATHS_DIFF_INTERVAL_MS) {
+      groundDiff = this.groundSender.diff();
       if (groundDiff === null) fullGround = true;
-      this.pathsSentAt = this.env.now();
+      this.groundSender.sentAt = this.env.now();
+    }
+    const weather = sendsWeather(this.world.config);
+    let weatherDiff: string | null = null;
+    let fullWeather = overlayDue && weather;
+    if (!overlayDue && weather && withPanels && this.env.now() - this.weatherSender.sentAt >= PATHS_DIFF_INTERVAL_MS) {
+      weatherDiff = this.weatherSender.diff();
+      if (weatherDiff === null) fullWeather = true;
+      this.weatherSender.sentAt = this.env.now();
     }
     const base = {
       ...this.baseFrame(fromStep),
       ...(terrainDue && terrain ? { terrain: terrain.exportState() } : {}),
       ...(overlayDue ? { landOverlay: this.world.packLandOverlay(), landStructures: this.world.packLandStructures(), settlements: this.chronicle.settlementViews() } : {}),
-      ...(fullGround ? { landPaths: this.packFullGround() } : {}),
+      ...(fullGround ? { landPaths: this.groundSender.full() } : {}),
       // Between full sends, the ground cells that changed (a build rising, a path wearing), a few hundred bytes.
       ...(groundDiff ? { landPathsDiff: groundDiff } : {}),
+      ...(fullWeather ? { landWeather: this.weatherSender.full() } : {}),
+      ...(weatherDiff ? { landWeatherDiff: weatherDiff } : {}),
+      ...(overlayDue && weather ? { storms: stormTiles(this.world), yearKind: this.world.land.weather.yearKind } : {}),
       // Contests ride every panel frame (a few numbers), so a fight shows while the two are still there.
       ...(withPanels ? { contests: this.drainContests() } : {}),
     };
@@ -410,7 +445,8 @@ export class SimulationHost {
       this.overlayDirty = false;
       this.overlaySentAt = this.env.now();
     }
-    if (fullGround) this.pathsSentAt = this.env.now();
+    if (fullGround) this.groundSender.sentAt = this.env.now();
+    if (fullWeather) this.weatherSender.sentAt = this.env.now();
     if (terrainDue) {
       this.terrainSentFor = terrain;
       this.terrainSentVersion = terrain.version;
