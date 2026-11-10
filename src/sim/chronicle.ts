@@ -76,6 +76,8 @@ export interface ChronicleState {
   readonly lastBoom: number;
   /** Absent in older saves. */
   readonly settlements?: SettlementState;
+  /** The band tracker's last-pass membership as [slot, id, root] triples. Absent in older saves. */
+  readonly bandPrev?: readonly number[];
 }
 
 const NOTABLE_CAP = 512;
@@ -514,11 +516,13 @@ export class Chronicle {
       lastFamine: Number.isFinite(this.lastFamine) ? this.lastFamine : -1e12,
       lastBoom: Number.isFinite(this.lastBoom) ? this.lastBoom : -1e12,
       settlements: this.settlements.exportState(),
+      bandPrev: this.tracker.exportPrev(),
     };
   }
 
   public importState(state: ChronicleState): void {
     this.tracker.importState(state.bands);
+    if (state.bandPrev) this.tracker.importPrev(state.bandPrev);
     this.notables.clear();
     for (const n of state.notables) {
       // Older saves counted departures as "exiles".

@@ -186,5 +186,30 @@ export class BandTracker {
   public importState(records: readonly BandRecord[]): void {
     this.bands.clear();
     for (const b of records) this.bands.set(b.id, { ...b, tongue: b.tongue.slice() });
+    this.prevRoot.fill(0);
+    this.prevId.fill(0);
+  }
+
+  /**
+   * Who belonged to which root at the last pass, as flat [slot, id, root] triples for live slots.
+   * A split is recognised by comparing a root with this, so without it the first pass after a load
+   * reports a band that just split off as a new band.
+   */
+  public exportPrev(): number[] {
+    const out: number[] = [];
+    for (let s = 0; s < this.prevId.length; s++) if (this.prevId[s] !== 0) out.push(s, this.prevId[s], this.prevRoot[s]);
+    return out;
+  }
+
+  public importPrev(triples: readonly number[]): void {
+    let need = 0;
+    for (let i = 0; i + 2 < triples.length; i += 3) need = Math.max(need, triples[i] + 1);
+    this.ensure(need);
+    this.prevRoot.fill(0);
+    this.prevId.fill(0);
+    for (let i = 0; i + 2 < triples.length; i += 3) {
+      this.prevId[triples[i]] = triples[i + 1];
+      this.prevRoot[triples[i]] = triples[i + 2];
+    }
   }
 }

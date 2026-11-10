@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { BandTracker } from '../src/sim/bands';
+import { slotFromId } from '../src/sim/people';
 
 async function run(ticks: number, tracker?: BandTracker, seed = 7): Promise<World> {
   const world = new World({ initialPopulation: 300 }, seed);
@@ -33,5 +34,30 @@ describe('Phase 4 band tracker', () => {
       expect(b.cy).toBeLessThan(world.land.height);
       expect(b.tongue.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('band tracker save', () => {
+  it('still sees a split on the first pass after a load (the last-pass membership is saved)', () => {
+    const world = new World({ initialPopulation: 0, wolfInitialCount: 0 }, 3);
+    const ids: number[] = [];
+    for (let i = 0; i < 24; i++) ids.push(world.people.spawn(100 + (i % 4), 100 + (i >> 2), 80, 0, i % 2, 0, 0));
+    const leader = ids[0];
+    for (const id of ids) world.people.rootLeaderId[slotFromId(id)] = leader === id ? 0 : leader;
+    const live = new BandTracker();
+    world.tick = 0;
+    live.update(world);
+    expect(live.bands.has(leader)).toBe(true);
+    // Save and load the tracker, then half the band follows a new root.
+    const loaded = new BandTracker();
+    loaded.importState(JSON.parse(JSON.stringify(live.exportState())));
+    loaded.importPrev(JSON.parse(JSON.stringify(live.exportPrev())));
+    const newRoot = ids[12];
+    for (let i = 12; i < 24; i++) world.people.rootLeaderId[slotFromId(ids[i])] = ids[i] === newRoot ? 0 : newRoot;
+    world.tick = world.config.bandTrackInterval ?? 60;
+    const a = live.update(world);
+    const b = loaded.update(world);
+    expect(a.some((c) => c.kind === 'split' && c.band === newRoot)).toBe(true);
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
   });
 });
