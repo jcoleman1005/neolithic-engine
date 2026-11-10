@@ -10,6 +10,12 @@
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
+## S4a surplus probe (branch `s4a-surplus-probe`, 2026-11-10)
+- **Built:** `scripts/surplus-probe.ts`, a read-only probe. It wraps Land food methods and leaves the sim untouched: fingerprint `72742a7c2443591a` before and after, and a 12-year run has the same state hash as a plain run. 9 runs: default, `pileSpoil 0.002` and `tendingRegrowBoost 0.8`, each for seeds 1 to 3 over 50 years. Table in `docs/findings.md`.
+- **Result:** spoilage is not the weak part (11.5% of heap food rots and 77% is eaten). Hunger inside camps is a little below hunger outside. Stores are small: heaps supply about 5% of meals and hold about three days' food per person. Golden fields ring 54 to 72 camps per seed at year 30, but they appear wherever people graze. Of the three arms, only tending regrowth raises population (+11.7% at year 50).
+- **Spoilage puzzle:** halving spoilage gives the same or better food, births and hunger per head. The gap changes sign by seed and shrinks from −8.5% at year 40 to −3.8% at year 50, so it reads as early run divergence, not a mechanism. More seeds would settle it.
+- **Needs you:** S4b direction. The numbers point at store volume and yield, not spoilage.
+
 ## Viewer: smooth marks and builds, pinch anchored (branch `viewer-smooth-pinch`, from the 2026-11-09 watch)
 - **Contest marks:** they already ran on wall-clock time in the rAF loop; what read as slow and choppy was a 1 px growth step every ~0.5 s and each mark starting a third of its life in (dated one tick late at 1x). Now they fade in over 200 ms, burst out over 700 ms with an ease-out, hold, and fade from 2 s to 4 s, all in real seconds. Pausing does not freeze them: a mark finishes while the sim is paused.
 - **Build progress:** the host now sends the ground cells that changed (3 bytes each) every panel frame at most every 250 ms, with the full 64 KB ground channel still every 2 s. At 1x on seed 42 the diffs average 200 to 230 B (max 520 B) against 87 KB for a full send, so the ground costs the stream about +0.5 KB/s. The server merges diffs (and now contests) for slow viewers instead of dropping them. In the viewer a build ring glides between stages (350 ms), and the overlay repaints only the changed cells.
