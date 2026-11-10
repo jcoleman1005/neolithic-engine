@@ -309,6 +309,8 @@ On by default. Slow healing and the contest are built and measured; the contest 
 
 **Status: draft only. Nothing here is built or claimed until you have watched S3 (rule 13) and approved this section.**
 
+**Paused 2026-11-10 (user decision):** S4 and other social-emergence work wait until more environmental work is done. S4a found people live by grazing (stores are under 5% of meals), and the patchy-food and winter experiments (`docs/findings.md`) showed that scarcity alone does not make people store: storing needs both a richer environment (seasons, weather, uneven land) and a behavioural link that is S4's job later.
+
 **What already exists (so S4 starts by measuring, not building):** the 5e golden crops (`goldenCropsEnabled`, ripe above `cropRipenThreshold` on worked soil), tending (`tendingEnabled`, primitive 5), mutable fertility with compost from spoiled heaps, spoilage (`pileSpoil`, `granarySpoilFactor`, primitive 9) and a stack limit (`pileCap`, primitive 41) are all on `main` and on by default. The roadmap lists 5e as "built, not watched". So the S4 question is not "add farming" but "does farming near camps make a surplus that feeds more people, and can you see it".
 
 **S4a Measure first (read-only probe, 3 seeds × 50 years, S3a on and off):** share of food eaten that was grown on worked soil; golden cells within 4 tiles of a camp; heap size and spoilage loss per camp; people per camp against the land's wild capacity around it; hunger inside camps against outside. Results in `docs/findings.md`. This shows which part is too weak: yield, spoilage, or people not eating from stores.
