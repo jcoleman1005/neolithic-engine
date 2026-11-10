@@ -550,6 +550,16 @@ async function main(): Promise<void> {
     log(`dev server at ${url}`);
 
     browser = await launch();
+    // Warm-up: the first load makes the dev server compile every module, which can take longer than
+    // the 2 s of page time the scenario allows before it pauses the clock ("Cannot fast-forward to
+    // the past"). One throwaway load without a fake clock fills that cache; the timed page below then
+    // boots fast and its frames are unchanged.
+    {
+      const warm = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+      await warm.goto(`${url}?capture`);
+      await warm.waitForFunction('window.__capture && window.__capture.state() && window.__capture.state().terrainReady', undefined, { timeout: 120_000 }).catch(() => {});
+      await warm.close();
+    }
     const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
     check = new Check(page, { update, tolerance, threshold, keepUi, seed }, { out, baseline });
     page.on('pageerror', (e) => check!.pageErrors.push(`page error: ${e.message}`));

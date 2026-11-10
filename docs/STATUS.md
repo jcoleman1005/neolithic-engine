@@ -6,7 +6,7 @@
 - **S4 draft (step 5):** in `docs/SETTLEMENTS.md`, waiting for your S3 watch. Farming pieces already exist, so S4 starts with a measurement.
 - **Needs you:** rule-13 watch of S3 (art + S3a on); whether to turn S3a and crossing on by default; approve the S4 draft; the laptop session (offline, nothing left unpushed that is needed).
 
-- **Visual baselines 07 and 08 regenerated (2026-11-09)** after merging PR #3 on top of the births fix (a782483): the fix moves seed 4's first lone split from tick 8100 to 9060, so both band-following frames changed (92% and 92% of pixels); 01 to 06 pass unchanged. The first visual run failed with `clock.pauseAt: Cannot fast-forward to the past` (the app took over 2 s of page time to boot on first compile); a re-run passed the scenario. Flaky under load, not fixed.
+- **Visual baselines 07 and 08 regenerated (2026-11-09)** after merging PR #3 on top of the births fix (a782483): the fix moves seed 4's first lone split from tick 8100 to 9060, so both band-following frames changed (92% and 92% of pixels); 01 to 06 pass unchanged. The first visual run failed with `clock.pauseAt: Cannot fast-forward to the past` (the app took over 2 s of page time to boot on first compile); a re-run passed the scenario. Flaky under load; on 2026-11-10 the check gained a warm-up load before the timed page (all 8 shots still pass), which should stop it, though the slow-start case was not reproduced to prove it.
 
 > Historical phase logs are archived in [`docs/archive/status-history.md`](file:///home/jcoleman/Projects/neolithic-engine/docs/archive/status-history.md).
 
