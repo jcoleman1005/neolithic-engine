@@ -31,7 +31,8 @@
     "visual:update": "vite-node scripts/visual-check.ts -- --update true",
     "build:server": "vite build --ssr server/main.ts --outDir dist-server --emptyOutDir",
     "server": "npm run build && npm run build:server && node dist-server/main.js",
-    "server:start": "node dist-server/main.js"
+    "server:start": "node dist-server/main.js",
+    "server:new": "npm run build && npm run build:server && node -e \"require('fs').rmSync('scratch/live',{recursive:true,force:true})\" && node dist-server/main.js --data scratch/live"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
