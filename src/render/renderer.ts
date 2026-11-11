@@ -45,6 +45,7 @@ import {
   FOAM_W,
   FOAM_E,
 } from './terrain-tiles';
+import { StormLayer } from './storm-layer';
 import {
   createTerraceData,
   buildTerraces,
@@ -80,13 +81,6 @@ const CARRY_KIND_SEED = 1, CARRY_KIND_BRUSH = 3, CARRY_KIND_STONE = 4, CARRY_KIN
 const CARRY_MARK_COLOURS = ['', '#e9c86a', '#e8863a', '#9a6a35', '#a4a7ad', '#6b4a2e', '#3f8ff0', ''];
 const COLOR_WATERSTORE_RGB = 0xd68f4f; // rgb(79, 143, 214), stored water
 const COLOR_PATH_RGB = 0x3f5f80; // rgb(128, 95, 63), trodden earth on worn paths
-// 6b-1 storms: drawn at far zoom only (cell size up to this), a ring of one weather block (16 tiles) radius,
-// the area Weather.rainAt rains on.
-const STORM_MAX_CELL = 5;
-const STORM_RADIUS_TILES = 16;
-const STORM_DASH = [4, 3];
-const STORM_STROKE = 'rgba(214, 226, 240, 0.7)';
-const STORM_FILL = 'rgba(70, 90, 120, 0.10)';
 // 6b-1 weather channel: dryness in bits 0 and 1 (see Land.packWeather).
 const WEATHER_DRY_MASK = 3;
 // Dry ground tints, 0xAABBGGRR, indexed by dryness: 1 sun-faded, 2 straw (not growing), 3 dusty brown (withering).
@@ -289,6 +283,7 @@ export class CanvasRenderer {
   private readonly contestKind = new Uint8Array(CONTEST_CAP);
   private readonly contestBorn = new Float64Array(CONTEST_CAP);
   private contestHead = 0;
+  private readonly stormLayer = new StormLayer();
   private lastContestsVersion = 0;
   private readonly peopleCanvas: HTMLCanvasElement;
   private readonly peopleCtx: CanvasRenderingContext2D;
@@ -603,6 +598,7 @@ export class CanvasRenderer {
     // A new world starts with no contest marks, and its batch counter starts over.
     this.contestKind.fill(0);
     this.lastContestsVersion = world.contestsVersion ?? 0;
+    this.stormLayer.reset();
   }
 
   public startLoop(): void {
@@ -1195,9 +1191,10 @@ export class CanvasRenderer {
       this.ctx.drawImage(this.overlayCanvas, 0, 0, 256, 256, this.panX, this.panY, worldPxW, worldPxH);
     }
 
-    // 3a. 6b-1: thunderstorms as faint dashed rings at far zoom only, on the ground under everyone.
-    if (this.cellSize <= STORM_MAX_CELL && this.world.storms && this.world.storms.length > 0) {
-      this.drawStorms(worldPxW, worldPxH);
+    // 3a. 6b-1: thunderstorms as rain-cloud shadows with rain inside, on the ground under everyone.
+    this.stormLayer.update(this.world.storms, nowMs, this.world.tick);
+    if (this.stormLayer.active) {
+      this.stormLayer.draw(this.ctx, this.panX, this.panY, this.cellSize, worldPxW, worldPxH, width, height, nowMs);
     }
 
     // 3b. Recent fights and give-ways: brief marks on the ground, under everyone standing.
@@ -2297,43 +2294,6 @@ export class CanvasRenderer {
    * each bursts out, holds, and fades over CONTEST_LIFE_MS of wall-clock time (paused or not, so a mark
    * finishes while the sim is paused). Ground marks: drawn before anyone standing.
    */
-  /**
-   * 6b-1: each storm as a soft dashed ring about one weather block across, with a faint wash inside. The map
-   * wraps, so a storm near an edge also shows its copy on the other side; drawn clipped to the world rect.
-   */
-  private drawStorms(worldPxW: number, worldPxH: number): void {
-    const storms = this.world.storms!;
-    const ctx = this.ctx;
-    const cs = this.cellSize;
-    const r = STORM_RADIUS_TILES * cs;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(this.panX, this.panY, worldPxW, worldPxH);
-    ctx.clip();
-    ctx.beginPath();
-    for (let k = 0; k + 1 < storms.length; k += 2) {
-      const tx = storms[k], ty = storms[k + 1];
-      for (let dy = -1; dy <= 1; dy++) {
-        const y = ty + dy * 256;
-        if (y < -STORM_RADIUS_TILES || y > 256 + STORM_RADIUS_TILES) continue;
-        for (let dx = -1; dx <= 1; dx++) {
-          const x = tx + dx * 256;
-          if (x < -STORM_RADIUS_TILES || x > 256 + STORM_RADIUS_TILES) continue;
-          const cx = this.panX + x * cs, cy = this.panY + y * cs;
-          ctx.moveTo(cx + r, cy);
-          ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        }
-      }
-    }
-    ctx.fillStyle = STORM_FILL;
-    ctx.fill();
-    ctx.setLineDash(STORM_DASH);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = STORM_STROKE;
-    ctx.stroke();
-    ctx.restore();
-  }
-
   private drawContests(screenW: number, screenH: number): void {
     const now = performance.now();
     this.ingestContests(now);

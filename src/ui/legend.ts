@@ -12,7 +12,7 @@ export const LEGEND_HTML = `
       <li>Open ring of stones or clay: a wall being built (more sides as it rises), or the last of a fallen one</li>
       <li>Red burst: a fight. Pale chevrons parting: someone gave way. Amber chevrons: food handed over to end a contest</li>
       <li>Straw-yellow grass: dry ground, growing slowly. Dusty brown with cracks: so dry the grass is dying (weather on)</li>
-      <li>Faint dashed ring (zoomed out): a thunderstorm passing over, raining on the ground beneath</li>
+      <li>Dark drifting cloud shadow with slanted rain streaks: a rain storm passing over with the wind, wetting the ground beneath (weather on)</li>
       <li>Tan block: A camp. Pale block with marks: a hamlet or larger; more marks means bigger. Tap for its story</li>
     </ul>
   </details>
