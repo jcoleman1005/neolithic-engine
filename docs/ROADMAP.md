@@ -293,7 +293,7 @@ Visible consequence: dry brown grass in drought, flooded riverbanks, black scorc
 
 Stages (planned 2026-11-10; one branch and switch each, off until measured, your watch after each):
 - **6b-1 Climate and moisture** (`weatherEnabled`, closed 2026-11-12, off by default): humid air carried downwind over 16 x 16-tile blocks, gained over water, rained out where air rises (rain shadows), recycled by forest, with latitude bands; a yearly drought / normal / wet draw from a separate weather PRNG; thunderstorm cells; a per-tile `moisture` that sets plant growth (dry grass browns). A new `landWeather` viewer channel.
-- **6b-2 Wildfire** (`wildfireEnabled`): lightning only from storms, lighting dry fuel (dry lightning, storm edges); spread through fuel, downwind; burning costs people energy and injury and deposits danger scent; `scorch` timer and an ash fertility gain, so burned ground regrows lush; rain puts fires out.
+- **6b-2 Wildfire** (`wildfireEnabled`, **parked 2026-11-12** as low impact; work in progress on branch `phase-6b-wildfire`, not merged): lightning only from storms, lighting dry fuel (dry lightning, storm edges); spread through fuel, downwind; burning costs people energy and injury and deposits danger scent; `scorch` timer and an ash fertility gain, so burned ground regrows lush; rain puts fires out.
 - **6b-3 Floods** (`floodsEnabled`): saturated catchments and wet-year pulses flood high-`riparian` land beside fresh water (`flood` timer; `isWater` unchanged); flooded tiles cost movement, drown food, wash heaps and wear built cells; silt raises fertility after.
 - **6b-4 Chronicle and legend**: drought, flood and wildfire detectors (observer only).
 
