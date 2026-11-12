@@ -1,5 +1,17 @@
 # Neolithic Engine — Status
 
+## Handoff (2026-11-12): read this first
+- **Where the code is:** `main` (5b12054) holds S0 to S3 settlements, S3a building and wall crossing on by default, place cost (off), the S3 viewer art, smooth marks and pinch zoom, the Features panel (every `*Enabled` switch in Settings; `src/ui/feature-switches.ts`, and a test fails if a switch has no entry), and Phase 6b-1 climate and moisture (`weatherEnabled`, off by default, closed after the user's watch).
+- **Paused or parked:** S4 and social emergence (environment first, `docs/decisions.md` 2026-11-10); the fight action-potential idea (Parking lot, Phase 7); 6b-2 wildfire (branch `phase-6b-wildfire`, unfinished, not merged). Experiments not merged: `exp-patchy-food`, `exp-winter` (results in `docs/findings.md`).
+- **Decision waiting on the user:** what comes next. Options given: biomes from the 6b-1 climate (recommended), 6b-3 floods, 6b-4 chronicle and legend, seasonal crop ripening.
+- **How to work here:**
+  - Run the watch server from the main checkout (`/home/jcoleman/Projects/neolithic-engine`) with `npm run server:new`, which starts a fresh world each build in `scratch/live`. The user isn't attached to `data/`, but it is never read.
+  - Long sweeps go to Katie's laptop, a Remote Control session (find its current name with ListAgents) that works in `C:\Users\Josh\Projects\`. When it's offline, run them here: 4 cores, a frozen worktree, about 1 hour for 12 sixty-year runs.
+  - Probes: `scripts/weather-probe.ts`, `surplus-probe.ts`, `place-cost-probe.ts`.
+  - Viewer work goes to the `graphics` agent in its own worktree.
+  - Write targets in `docs/findings.md` before running anything.
+  - Rules: AGENTS.md 14 and 15, CLAUDE.md, and up to 8 tuning rounds.
+
 ## Batch of 2026-11-09 (steps 0 to 5)
 - **Merged to `main`:** the mid-tick births fix (a782483); S3 viewer art (PR #3); place cost (PR #4, **off by default**, too weak while fights are rare); Phase 5f exposure port (PR #5); wall crossing and burning-tile skip (unit D, built here because Katie's laptop went offline; off by default with S3a).
 - **S3a re-run (step 4):** with S3a on, walls form as lines and partial rooms, settlements last longer and villages appear on all 3 seeds; crossing keeps the lines while wearing through huts. Numbers in `docs/findings.md`.
