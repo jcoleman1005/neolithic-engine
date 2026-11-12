@@ -12,6 +12,18 @@
   - Write targets in `docs/findings.md` before running anything.
   - Rules: AGENTS.md 14 and 15, CLAUDE.md, and up to 8 tuning rounds.
 
+## Watchability #3: what people are doing, on screen (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-12)
+- **Why:** the user found the world dull to watch (`docs/decisions.md` 2026-11-12). Of the five ideas recorded, #3 went first because it changes no outcome.
+- **3a (sim, observer only), commit 58e156a:** `People.activity`, one byte per person, not saved or hashed, with no random draws. The low 4 bits hold this tick's action, where a higher code wins: idle, resting, tending a heap, grazing, gathering, eating, fishing, nursing, drinking, building, walking, fleeing, hunting, giving way, fighting. The high bits hold kill, birth, fire lit and hut finished, kept until the next frame. The person frame is 12 bytes (was 11). The server's merge for slow viewers carries unsent events over. Switch `activityViewEnabled` (on).
+  - Fingerprints unchanged at 1800 ticks: `dbeaac54ed27afd8` default (also with the switch off) and `453f741794e836ee` weather on.
+  - Perf on this machine at about 13,850 people: 4.165 µs per person per tick against 4.223 on `main`.
+  - Seed 42, year 8, share of person-ticks: grazing 39%, walking 19%, tending 12%, gathering 10%, resting 8%, idle 7%, nursing 2.5%. Building, drinking, fishing and giving way are each under 1%. In that year: 100 kills, 374 births, 76 fires lit, 180 huts finished.
+- **3b (viewer):** five new figure poses per person type (bend, kneel, strike with a spear, sit, hold a baby). A standing person shows their action, held at least 1 s of real time. A fleeing person gets a white alarm mark. Event pops rise and fade over 1.8 s: meat (kill), pink heart (birth), flame (fire), roof (hut). At far zoom, kills and births are red and pink rings. Two legend lines. The capture hook gained a read-only `people()`.
+  - Visual baseline 08 was regenerated on purpose: its tiny figures are now posed and the terrain is identical. 01 to 07 pass unchanged.
+- **Not built:** 3c camera moments. The camera stays off (user decision, `docs/decisions.md`).
+- **Not measured:** browser frame time with the poses and pops.
+- **Needs you (rule 13):** at cell size 16 or more, check that bent grazers, kneeling drinkers, sitters in shelter, mothers holding babies and spear-raised hunters are each readable, and that a kill or birth pop catches the eye without cluttering a crowd. At far zoom, check the kill and birth rings. Then decide on merging to `main`.
+
 ## Batch of 2026-11-09 (steps 0 to 5)
 - **Merged to `main`:** the mid-tick births fix (a782483); S3 viewer art (PR #3); place cost (PR #4, **off by default**, too weak while fights are rare); Phase 5f exposure port (PR #5); wall crossing and burning-tile skip (unit D, built here because Katie's laptop went offline; off by default with S3a).
 - **S3a re-run (step 4):** with S3a on, walls form as lines and partial rooms, settlements last longer and villages appear on all 3 seeds; crossing keeps the lines while wearing through huts. Numbers in `docs/findings.md`.
