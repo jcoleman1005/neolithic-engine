@@ -127,6 +127,7 @@ const TABLE = [
   { key: 'coldEnabled', group: 'Weather and seasons', label: 'Cold', help: 'Winter and height make it cold, and a person without shelter pays extra upkeep.', when: L },
   { key: 'firesEnabled', group: 'Weather and seasons', label: 'Campfires', help: 'A cold person resting on a brush heap lights it; the fire warms the tiles around it while it burns.', when: L, requires: ['coldEnabled', 'nestsEnabled'] },
   { key: 'weatherEnabled', group: 'Weather and seasons', label: 'Weather and soil moisture', help: 'Climate from the map, rain and drying winds set how wet each tile\'s soil is, which changes how well plants grow.', when: L },
+  { key: 'wildfireEnabled', group: 'Weather and seasons', label: 'Wildfire', help: 'Lightning from storms can light dry grass, brush and woods; fire spreads downwind, burns people who stay in it, and leaves scorched ground that regrows rich.', when: L, requires: ['weatherEnabled'] },
 
   // Observers and camera
   { key: 'chronicleEnabled', group: 'Observers and camera', label: 'Chronicle', help: 'Writes notable events into the chronicle; it only watches and does not change the world.', when: L },

@@ -60,6 +60,10 @@ export interface LandState {
   /** 6b-1: soil moisture and the weather's own state; absent in older saves. */
   readonly moisture?: readonly number[];
   readonly weather?: WeatherState;
+  /** 6b-2: wildfire; absent in older saves. */
+  readonly burning?: readonly number[];
+  readonly scorch?: readonly number[];
+  readonly firePrngState?: number;
   /** Carried-water stores (S3w); absent in older saves. */
   readonly waterStore?: readonly number[];
   readonly waterFindable?: readonly number[];
@@ -137,6 +141,15 @@ export class Land {
   public readonly riparian: Uint8Array;
   /** 6b-1: the air over the map. Saved through this Land's state. */
   public readonly weather: Weather;
+  /** 6b-2: days a tile has left to burn (0 not burning). Saved; hashed while wildfire is on. */
+  public readonly burning: Uint8Array;
+  /** 6b-2: days burned ground stays scorched. Saved; hashed while wildfire is on. */
+  public readonly scorch: Uint16Array;
+  /** 6b-2: fire's own random stream, so lightning and spread never shift the weather's draws. */
+  public readonly firePrng: PRNG;
+  /** 6b-2: burning cells, kept in ascending order each day (rebuilt from `burning` on load). */
+  private readonly burnList = new Int32Array(TOTAL_CELLS);
+  public burnCount = 0;
   /** 6b-1: what each 16 x 16 block offers the air (derived; wood share refreshed now and then). */
   public readonly blockGround: BlockGround = { waterShare: new Float32Array(BLOCK_COUNT), meanUp: new Float32Array(BLOCK_COUNT), woodShare: new Float32Array(BLOCK_COUNT) };
   /** Shore test 2: mean standing plant food per 16 x 16 block, refreshed on a fixed interval. Saved; hashed when on. */
@@ -209,6 +222,9 @@ export class Land {
     this.moisture = new Uint8Array(TOTAL_CELLS).fill(120);
     this.riparian = new Uint8Array(TOTAL_CELLS);
     this.weather = new Weather(config.seed ?? 1);
+    this.burning = new Uint8Array(TOTAL_CELLS);
+    this.scorch = new Uint16Array(TOTAL_CELLS);
+    this.firePrng = new PRNG((((config.seed ?? 1) >>> 0) ^ 0x85ebca6b) >>> 0 || 1);
     this.weather.humidity.fill(1);
     this.structure = new Uint8Array(TOTAL_CELLS);
     this.fire = new Uint8Array(TOTAL_CELLS);
@@ -897,6 +913,122 @@ export class Land {
     }
   }
 
+  /** 6b-2: what a tile has to burn: standing plant food, brush and a fifth of its trees. */
+  public fuelAt(i: number): number {
+    return this.food[i] + this.brush[i] + 0.2 * this.trees[i];
+  }
+
+  private igniteWild(i: number, config: Readonly<SimulationConfig>): void {
+    this.burning[i] = Math.max(1, config.fireBurnDays ?? 3);
+    this.burnList[this.burnCount++] = i;
+  }
+
+  /**
+   * 6b-2: storms throw lightning at their leading edge, where the rain has not yet arrived. A strike
+   * lights a tile only when its ground is dry and it has fuel (dry lightning); otherwise nothing.
+   */
+  public lightning(warm: number, config: Readonly<SimulationConfig>): void {
+    const storms = this.weather.storms;
+    const chance = config.lightningChance ?? 0.4;
+    const dryBelow = config.lightningIgniteBelow ?? 90;
+    const fuelMin = config.fireFuelMin ?? 2;
+    // Convection: warm, humid air over any block throws the odd strike, rain or not ("dry lightning").
+    const rate = (config.lightningBlockRate ?? 0.01) * warm * warm;
+    const hRef = config.lightningHumidityRef ?? 1;
+    if (rate > 0) {
+      for (let b = 0; b < BLOCK_COUNT; b++) {
+        const hum = this.weather.humidity[b] / hRef;
+        if (this.firePrng.next() >= rate * (hum < 1 ? hum : 1)) continue;
+        const x = ((b % BLOCKS) * BLOCK + Math.floor(this.firePrng.next() * BLOCK)) & COORD_MASK;
+        const y = (((b / BLOCKS) | 0) * BLOCK + Math.floor(this.firePrng.next() * BLOCK)) & COORD_MASK;
+        const i = (y << 8) | x;
+        if (this.isWater[i] === 1 || this.burning[i] > 0 || this.moisture[i] >= dryBelow || this.fuelAt(i) < fuelMin) continue;
+        this.igniteWild(i, config);
+      }
+    }
+    if (storms.length === 0) return;
+    // Air moves away from where the wind comes from, so the leading edge is that way.
+    const ax = -this.windX, ay = -this.windY;
+    for (let k = 0; k < storms.length; k++) {
+      if (this.firePrng.next() >= chance) continue;
+      const s = storms[k];
+      const x = Math.floor(s.x * BLOCK + ax * BLOCK + (this.firePrng.next() - 0.5) * BLOCK) & COORD_MASK;
+      const y = Math.floor(s.y * BLOCK + ay * BLOCK + (this.firePrng.next() - 0.5) * BLOCK) & COORD_MASK;
+      const i = (y << 8) | x;
+      if (this.isWater[i] === 1 || this.burning[i] > 0 || this.moisture[i] >= dryBelow || this.fuelAt(i) < fuelMin) continue;
+      this.igniteWild(i, config);
+    }
+  }
+
+  /**
+   * 6b-2: one day of wildfire. Each burning tile consumes its fuel, gives off danger scent, and may
+   * light its neighbours (more with fuel and dryness, more downwind). Rain puts fires out. A tile
+   * that burns out is scorched, and its ash raises fertility.
+   */
+  public stepFires(config: Readonly<SimulationConfig>, scent: { depositDanger(x: number, y: number, amount: number): void }): void {
+    if (this.burnCount === 0) return;
+    // Ascending and without repeats (a tile put out and relit the same day was listed twice), so a
+    // loaded world, which rebuilds the list by scanning, burns in exactly the same order.
+    this.burnList.subarray(0, this.burnCount).sort();
+    let u = 0;
+    for (let k = 0; k < this.burnCount; k++) if (k === 0 || this.burnList[k] !== this.burnList[k - 1]) this.burnList[u++] = this.burnList[k];
+    this.burnCount = u;
+    const n0 = this.burnCount;
+    const fuelMin = config.fireFuelMin ?? 2, fuelFull = config.fireFuelFull ?? 20;
+    const spread = config.fireSpreadChance ?? 0.35, windBoost = config.fireWindBoost ?? 1.5;
+    const putOut = config.fireExtinguishAbove ?? 170, danger = config.fireDangerScent ?? 6;
+    const scorchDays = config.scorchDays ?? 360, ash = config.ashFertility ?? 0.05, fMax = config.fertilityMax ?? 1.5;
+    const ax = -this.windX, ay = -this.windY;
+    for (let k = 0; k < n0; k++) {
+      const i = this.burnList[k];
+      if (this.burning[i] === 0) continue;
+      const x = i & 255, y = i >> 8;
+      if (this.moisture[i] >= putOut) { this.burning[i] = 0; continue; }
+      // Burn what is here.
+      this.food[i] = 0;
+      this.brush[i] = 0;
+      this.berries[i] = 0;
+      if (this.pile[i] > 0) this.pile[i] = 0;
+      if (this.trees[i] > 0) { this.trees[i] = 0; if (this.treeMax[i] > 0 && this.stumpAge[i] === 0) this.stumpAge[i] = 1; }
+      scent.depositDanger(x, y, danger);
+      // Spread to the 8 neighbours.
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const j = (((y + dy) & COORD_MASK) << 8) | ((x + dx) & COORD_MASK);
+          if (this.isWater[j] === 1 || this.burning[j] > 0) continue;
+          const fuel = this.fuelAt(j);
+          if (fuel < fuelMin) continue;
+          const dry = 1 - this.moisture[j] / putOut;
+          if (dry <= 0) continue;
+          const len = dx !== 0 && dy !== 0 ? Math.SQRT2 : 1;
+          const along = (dx * ax + dy * ay) / len;
+          const p = spread * Math.min(1, fuel / fuelFull) * dry * (1 + windBoost * (along > 0 ? along : 0)) * (len > 1 ? 0.7 : 1);
+          if (this.firePrng.next() < p) this.igniteWild(j, config);
+        }
+      }
+      this.burning[i]--;
+      if (this.burning[i] === 0) {
+        this.scorch[i] = scorchDays;
+        const f = Math.min(fMax, this.fertility[i] + ash);
+        if (f !== this.fertility[i]) {
+          this.fertility[i] = f;
+          this.maxFood[i] = this.baseFoodCap * f;
+          if (this.berryMax[i] > 0) this.berryMax[i] = this.berryCapSaved * f;
+        }
+      }
+    }
+    // Keep only tiles still burning.
+    let w = 0;
+    for (let k = 0; k < this.burnCount; k++) { const i = this.burnList[k]; if (this.burning[i] > 0) this.burnList[w++] = i; }
+    this.burnCount = w;
+  }
+
+  /** 6b-2: scorch fades a day at a time. */
+  public fadeScorch(): void {
+    for (let i = 0; i < TOTAL_CELLS; i++) if (this.scorch[i] > 0) this.scorch[i]--;
+  }
+
   public setWind(phase: number): void {
     this.windX = Math.cos(2 * Math.PI * phase);
     this.windY = Math.sin(2 * Math.PI * phase);
@@ -1384,6 +1516,9 @@ export class Land {
       exposure: Array.from(this.exposure),
       moisture: Array.from(this.moisture),
       weather: { ...this.weather.exportState(), woodShare: Array.from(this.blockGround.woodShare) },
+      burning: Array.from(this.burning),
+      scorch: Array.from(this.scorch),
+      firePrngState: this.firePrng.getState(),
       structure: Array.from(this.structure),
     };
   }
@@ -1443,6 +1578,13 @@ export class Land {
     if (state.exposure) for (let i = 0; i < len; i++) this.exposure[i] = state.exposure[i] ?? 255;
     this.moisture.fill(120);
     if (state.moisture) for (let i = 0; i < len; i++) this.moisture[i] = state.moisture[i] ?? 120;
+    this.burning.fill(0);
+    this.scorch.fill(0);
+    if (state.burning) for (let i = 0; i < len; i++) this.burning[i] = state.burning[i] ?? 0;
+    if (state.scorch) for (let i = 0; i < len; i++) this.scorch[i] = state.scorch[i] ?? 0;
+    if (state.firePrngState !== undefined) this.firePrng.setState(state.firePrngState);
+    this.burnCount = 0;
+    for (let i = 0; i < TOTAL_CELLS; i++) if (this.burning[i] > 0) this.burnList[this.burnCount++] = i;
     if (state.weather) {
       this.weather.importState(state.weather);
       if (state.weather.woodShare) {

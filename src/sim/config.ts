@@ -496,6 +496,23 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   moveCost: 0.05,
   forageBite: 1.0,
   landFoodMax: 25.0,
+  // Phase 6b-2: lightning from storms lights dry fuel; fire spreads, burns, scorches and enriches. Needs weather on. Off until measured.
+  wildfireEnabled: false,
+  lightningChance: 0.4, // chance a storm throws a strike on a given day
+  lightningBlockRate: 0.01, // chance a day of a strike in a 16 x 16 block at full summer warmth and humid air (convection)
+  lightningHumidityRef: 1.0, // block air humidity at which convection strikes reach the full rate
+  lightningIgniteBelow: 90, // a strike only lights ground drier than this moisture
+  fireFuelMin: 2, // fuel a tile needs to burn (plant food + brush + a fifth of its trees)
+  fireFuelFull: 20, // fuel at which a tile spreads fire at full strength
+  fireSpreadChance: 0.35, // chance a day that fire jumps to a full-fuel, bone-dry neighbour
+  fireWindBoost: 1.5, // extra spread toward downwind neighbours
+  fireBurnDays: 3, // days a tile burns
+  fireExtinguishAbove: 170, // moisture at which rain puts a fire out
+  fireDangerScent: 6, // danger scent a burning tile gives off each day
+  fireBurnEnergy: 6, // energy lost each day standing in a fire
+  fireBurnInjury: 25, // injury taken each day standing in a fire
+  scorchDays: 360, // days burned ground stays scorched
+  ashFertility: 0.05, // fertility a burned tile gains from the ash
   // Phase 6b-1 (src/sim/weather.ts): climate from the map and per-tile soil moisture. Off until measured.
   weatherEnabled: false,
   weatherAirSpeed: 0.4, // blocks (16 tiles) the air moves a day

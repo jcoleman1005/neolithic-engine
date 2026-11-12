@@ -535,6 +535,11 @@ export class World {
       h.updateInt(land.weather.yearKind);
       h.updateInt(land.weather.storms.length);
       h.updateInt(land.weather.prng.getState());
+      if (this.config.wildfireEnabled === true) {
+        h.updateIntArray(land.burning);
+        h.updateIntArray(land.scorch);
+        h.updateInt(land.firePrng.getState());
+      }
     }
     h.updateFloatArray(land.brush);
     h.updateFloatArray(land.trees);

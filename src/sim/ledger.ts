@@ -31,6 +31,7 @@ export interface LedgerFlows {
   readonly upkeep: number; // base metabolism and body upkeep
   readonly wake: number; // cost of acting right after a rest
   readonly malaise: number; // toxin damage from plant defences
+  readonly burn: number; // 6b-2: energy lost standing in a wildfire
   readonly move: number; // moves, swaps and leaps
   readonly attack: number; // cost of attacking
   readonly signal: number; // cost of signalling
@@ -54,6 +55,7 @@ export const LEDGER_OUT: readonly LedgerFlowName[] = [
   'upkeep',
   'wake',
   'malaise',
+  'burn',
   'move',
   'attack',
   'signal',
@@ -97,6 +99,7 @@ export class EnergyLedger {
   public upkeep = 0;
   public wake = 0;
   public malaise = 0;
+  public burn = 0;
   public move = 0;
   public attack = 0;
   public signal = 0;
@@ -188,6 +191,7 @@ export class EnergyLedger {
       upkeep: this.upkeep,
       wake: this.wake,
       malaise: this.malaise,
+      burn: this.burn,
       move: this.move,
       attack: this.attack,
       signal: this.signal,
@@ -213,6 +217,7 @@ export class EnergyLedger {
     this.upkeep = 0;
     this.wake = 0;
     this.malaise = 0;
+    this.burn = 0;
     this.move = 0;
     this.attack = 0;
     this.signal = 0;

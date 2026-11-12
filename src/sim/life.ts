@@ -56,6 +56,12 @@ export class LifeSystem {
       const phase = yearPhase(tick, config);
       land.setWind(phase);
       land.stepWeather(tick, 0.5 + 0.5 * Math.sin(2 * Math.PI * (phase - 0.125)), tick % (config.ticksPerYear || 360) === 0, config);
+      // 6b-2: lightning from the storms, then a day of wildfire; burned ground fades back.
+      if (config.wildfireEnabled === true) {
+        land.fadeScorch();
+        land.lightning(0.5 + 0.5 * Math.sin(2 * Math.PI * (phase - 0.125)), config);
+        land.stepFires(config, fields);
+      }
     }
     land.step(config, seasonGrowthFactor(tick, config));
     if (firesOn) land.burnFires(config);
@@ -159,6 +165,8 @@ export class LifeSystem {
     const childCare = config.childCare ?? 0.05;
     const careRadius = config.careRadius ?? 4;
     const fatigueOn = config.fatigueEnabled !== false;
+    const wildfireOn = config.weatherEnabled === true && config.wildfireEnabled === true;
+    const fireBurnEnergy = config.fireBurnEnergy ?? 6, fireBurnInjury = config.fireBurnInjury ?? 25;
     const fatigueMove = config.fatigueMove ?? 2;
     const fatigueRest = config.fatigueRest ?? 6;
     const fatigueUpkeep = config.fatigueUpkeep ?? 0.3;
@@ -249,6 +257,13 @@ export class LifeSystem {
           const rate = injuryHeal * fed * (land.sheltered(upCell) ? healShelterMul : 1);
           injury[slot] = injury[slot] > rate ? injury[slot] - rate : 0;
         } else if (energy[slot] >= healAbove) injury[slot] = Math.max(0, injury[slot] - injuryHeal);
+      }
+      // 6b-2: standing in a wildfire burns energy and wounds.
+      if (wildfireOn && land.burning[upCell] > 0) {
+        const lost = Math.min(energy[slot] > 0 ? energy[slot] : 0, fireBurnEnergy);
+        energy[slot] -= lost;
+        ledger.burn += lost;
+        if (injuryOn) injury[slot] = Math.min(255, injury[slot] + fireBurnInjury);
       }
       if (fatigueOn && fatigue[slot] > 0) {
         const extra = metabolism * fatigueUpkeep * (fatigue[slot] / 255);

@@ -24,6 +24,10 @@ let landTiles = 0;
 for (let i = 0; i < 65536; i++) if (L.isWater[i] === 0) landTiles++;
 
 let droughtYears = 0, wetYears = 0, stormDays = 0, maxStorms = 0, msSum = 0, msN = 0;
+// 6b-2 wildfire counts (zero while wildfire is off).
+let tilesCaught = 0, tilesBurned = 0, maxBurning = 0, personDaysInFire = 0, fireDays = 0, yearCaught = 0, yearBurned = 0;
+const wasBurning = new Uint8Array(65536);
+const scorchFull = w.config.scorchDays ?? 360;
 const perYear: Array<Record<string, number | string>> = [];
 let dryShareSum = 0, dryShareMax = 0, witherShareMax = 0, popMin = Infinity;
 const t0 = Date.now();
@@ -33,6 +37,18 @@ for (let y = 1; y <= years; y++) {
   while (w.tick < y * tpy) {
     w.step();
     stormDays += L.weather.storms.length > 0 ? 1 : 0;
+    if (w.config.wildfireEnabled === true) {
+      let burningNow = 0;
+      for (let i = 0; i < 65536; i++) {
+        const b = L.burning[i] > 0 ? 1 : 0;
+        if (b && !wasBurning[i]) { tilesCaught++; yearCaught++; }
+        if (L.scorch[i] === scorchFull) { tilesBurned++; yearBurned++; }
+        wasBurning[i] = b; burningNow += b;
+      }
+      if (burningNow > 0) fireDays++;
+      if (burningNow > maxBurning) maxBurning = burningNow;
+      for (let s = 0; s < w.people.capacity; s++) if (w.people.alive[s] === 1 && L.burning[(w.people.y[s] << 8) | w.people.x[s]] > 0) personDaysInFire++;
+    }
     if (L.weather.storms.length > maxStorms) maxStorms = L.weather.storms.length;
     if (w.tick % 30 === 0) {
       let m = 0, dry = 0, wither = 0;
@@ -52,8 +68,10 @@ for (let y = 1; y <= years; y++) {
   if (kind === YEAR_WET) wetYears++;
   const meanM = sumMoist / Math.max(1, samples), dryS = sumDry / Math.max(1, samples), witherS = sumWither / Math.max(1, samples);
   dryShareSum += dryS; msSum += meanM; msN++;
-  perYear.push({ year: y, kind: kinds[kind], moisture: +meanM.toFixed(1), dryPct: +(100 * dryS).toFixed(1), witherPct: +(100 * witherS).toFixed(1), pop: w.population });
-  console.log(`year ${y}: ${kinds[kind].padEnd(7)} moisture ${meanM.toFixed(1)}, dry ${(100 * dryS).toFixed(1)}%, withering ${(100 * witherS).toFixed(1)}%, storms now ${L.weather.storms.length}, pop ${w.population}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  perYear.push({ year: y, kind: kinds[kind], moisture: +meanM.toFixed(1), dryPct: +(100 * dryS).toFixed(1), witherPct: +(100 * witherS).toFixed(1), pop: w.population, caught: yearCaught, burned: yearBurned });
+  const fireNote = w.config.wildfireEnabled === true ? `, fire: ${yearCaught} tiles caught, ${yearBurned} burned out` : '';
+  yearCaught = 0; yearBurned = 0;
+  console.log(`year ${y}: ${kinds[kind].padEnd(7)} moisture ${meanM.toFixed(1)}, dry ${(100 * dryS).toFixed(1)}%, withering ${(100 * witherS).toFixed(1)}%, storms now ${L.weather.storms.length}, pop ${w.population}${fireNote}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   if (w.population === 0) break;
 }
 
@@ -65,6 +83,7 @@ const result = {
   droughtYears, wetYears, meanMoisture: +(msSum / Math.max(1, msN)).toFixed(1),
   meanDryPct: +(100 * dryShareSum / Math.max(1, msN)).toFixed(1), maxDryPct: +(100 * dryShareMax).toFixed(1), maxWitherPct: +(100 * witherShareMax).toFixed(1),
   stormDaysPct: +(100 * stormDays / Math.max(1, w.tick)).toFixed(1), maxStorms,
+  tilesCaught, tilesBurned, maxBurning, fireDaysPct: +(100 * fireDays / Math.max(1, w.tick)).toFixed(1), personDaysInFire,
   rainNormalP10: +pct(0.1).toFixed(4), rainNormalP50: +pct(0.5).toFixed(4), rainNormalP90: +pct(0.9).toFixed(4),
   perYear, hash: w.stateHash(),
 };
