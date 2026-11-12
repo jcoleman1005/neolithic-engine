@@ -5,7 +5,7 @@
  */
 import type { CanvasRenderer } from '../render/renderer';
 import { buildTerraces, createTerraceData } from '../render/terrace';
-import type { SavedWorld } from '../sim/protocol';
+import { PERSON_FRAME_BYTES, type SavedWorld } from '../sim/protocol';
 import type { AutoCamera } from './auto-camera';
 import type { SimulationClient } from './simulation-client';
 
@@ -112,6 +112,15 @@ export function installCaptureHook(d: CaptureDeps): void {
       return out;
     },
     settlementHitBoxes: () => renderer.settlementHitBoxes(),
+    /** #3b: up to `limit` people as [x, y, activity byte] from the latest frame (see sim/activity.ts). */
+    people: (limit = 5000) => {
+      const b = sim.packedPeopleBuffer;
+      const out: [number, number, number][] = [];
+      for (let o = 0; o + PERSON_FRAME_BYTES <= b.length && out.length < limit; o += PERSON_FRAME_BYTES) {
+        out.push([b[o + 2], b[o + 3], b[o + PERSON_FRAME_BYTES - 1]]);
+      }
+      return out;
+    },
 
     /** The view in cells: where the middle of the usable canvas is, and the raw pan. */
     view: () => {
