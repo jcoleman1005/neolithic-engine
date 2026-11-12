@@ -3,6 +3,7 @@ import { World } from '../src/sim/world';
 import { Rules } from '../src/sim/rules';
 import { PRNG } from '../src/sim/prng';
 import { CARRY_NONE, CARRY_WATER, slotFromId } from '../src/sim/people';
+import { PERSON_FRAME_BYTES } from '../src/sim/protocol';
 import { mannWhitney, signFlip } from '../scripts/stats';
 
 function quietWorld(config: Record<string, number | boolean> = {}): World {
@@ -185,7 +186,7 @@ describe('S3w: drinking and carrying', () => {
     w.people.carry[s] = 12.2;
     const { base64 } = w.packPeopleFrame();
     const buf = Buffer.from(base64, 'base64');
-    for (let o = 0; o < buf.length; o += 11) {
+    for (let o = 0; o < buf.length; o += PERSON_FRAME_BYTES) {
       if ((buf[o] | (buf[o + 1] << 8)) !== s) continue;
       expect(buf[o + 10] & 7).toBe(CARRY_WATER);
       expect(buf[o + 10] >> 3).toBe(13);

@@ -7,14 +7,15 @@ import type { SettlementView } from './settlements';
 import type { FoodRegion, SimulationConfig, WorldMetrics } from './types';
 import type { WorldState } from './world';
 
-export const PERSON_FRAME_BYTES = 11;
+export const PERSON_FRAME_BYTES = 12;
 
 /** Contest kinds in the frame's `contests` list (see ContestLog). */
 export const CONTEST_FIGHT = 1;
 export const CONTEST_YIELD = 2;
 export const CONTEST_CONCEDE = 3;
 
-// Person frame: slot (2), x, y, look, generation, root leader id (4), carry (kind in bits 0 to 2, amount 0 to 31 above).
+// Person frame: slot (2), x, y, look, generation, root leader id (4), carry (kind in bits 0 to 2, amount 0 to 31 above),
+// activity (action in bits 0 to 3, events since the last frame above; see activity.ts).
 // Look byte bit layout:
 // Bit 0: sex (0 = female, 1 = male)
 // Bit 1: pregnant (0 = no, 1 = yes)

@@ -16,6 +16,7 @@ import type { ScentFields } from './fields';
 import type { EnergyLedger } from './ledger';
 import type { PRNG } from './prng';
 import { Rules } from './rules';
+import { act, ACT_BUILD, ACT_DRINK, ACT_EAT, ACT_FISH, ACT_FLEE, ACT_GATHER, ACT_GRAZE, ACT_HUNT, ACT_NURSE, ACT_REST, ACT_TEND, ACT_WALK, EV_BIRTH, EV_BUILT, EV_FIRE, EV_KILL, EV_MASK, NURSE_AGE } from './activity';
 
 // Preallocated scratch arrays for zero allocations in hot loops
 const scratchChildGenes = new Uint8Array(GENE_COUNT);
@@ -133,6 +134,9 @@ export class LifeSystem {
     const motherId = people.motherId;
     const fatherId = people.fatherId;
     const gen = people.generation;
+    // Watchability #3a: observer only; nothing below reads it back.
+    const activity = people.activity;
+    const actOn = config.activityViewEnabled !== false;
 
     const metabolism = config.metabolismCost ?? 0.25;
     const nestsOn = config.nestsEnabled !== false;
@@ -209,6 +213,8 @@ export class LifeSystem {
       if (alive[slot] === 0) continue;
 
       people.clearStaleLeader(slot);
+      // A new tick: the action starts idle; events wait for the next frame.
+      activity[slot] = actOn ? activity[slot] & EV_MASK : 0;
 
       age[slot]++;
       // Standing in a nest is warmer and drier: upkeep is lower. Children have lower body mass.
@@ -276,6 +282,7 @@ export class LifeSystem {
           const ddx = Math.abs(px[mom] - px[slot]);
           const ddy = Math.abs(py[mom] - py[slot]);
           if ((ddx < 128 ? ddx : 256 - ddx) <= careRadius && (ddy < 128 ? ddy : 256 - ddy) <= careRadius) {
+            if (actOn && age[slot] < NURSE_AGE && (ddx <= 1 || ddx >= 255) && (ddy <= 1 || ddy >= 255)) act(activity, mom, ACT_NURSE);
             let share = childCare;
             const dad = mateId[mom] !== 0 ? slotFromId(mateId[mom]) : -1;
             if (dad >= 0 && dad < cap && alive[dad] === 1 && people.idOf(dad) === mateId[mom]) {
@@ -295,13 +302,18 @@ export class LifeSystem {
       if (thirstOn) {
         let h = hydration[slot] - thirstRate;
         const wc = (py[slot] << 8) | px[slot];
-        if (land.waterDist[wc] <= 1) h = Math.min(thirstMax, h + drinkRate + thirstRate);
-        else if (waterOn && land.waterInReach(px[slot], py[slot])) {
+        if (land.waterDist[wc] <= 1) {
+          if (actOn && hydration[slot] <= thirstMax - 1) act(activity, slot, ACT_DRINK);
+          h = Math.min(thirstMax, h + drinkRate + thirstRate);
+        } else if (waterOn && land.waterInReach(px[slot], py[slot])) {
           // S3w: drink from a store underfoot or beside them, as from a river.
-          h += land.drinkInReach(px[slot], py[slot], Math.min(drinkRate + thirstRate, thirstMax - h), config);
+          const got = land.drinkInReach(px[slot], py[slot], Math.min(drinkRate + thirstRate, thirstMax - h), config);
+          if (actOn && got > 1) act(activity, slot, ACT_DRINK);
+          h += got;
         } else if (waterOn && h < thirstSeekLevel && people.carryKind[slot] === CARRY_WATER && people.carry[slot] > 0) {
           // S3w: drink from what they carry.
           const sip = Math.min(people.carry[slot], thirstMax - h);
+          if (actOn && sip > 1) act(activity, slot, ACT_DRINK);
           h += sip;
           people.carry[slot] -= sip;
           if (people.carry[slot] <= 1e-3) { people.carry[slot] = 0; people.carryKind[slot] = CARRY_NONE; }
@@ -454,9 +466,12 @@ export class LifeSystem {
             // With adjacentStoresEnabled, heaps on the 8 tiles around count too (own tile first).
             eaten += adjacentOn ? land.takePileInReach(px[slot], py[slot], bite) : land.takePile(px[slot], py[slot], bite);
           }
+          if (actOn && eaten > 0) act(activity, slot, ACT_EAT);
         }
         if (eaten < Math.min(fb, maxEnergy - curE)) {
+          const before = eaten;
           eaten += land.graze(px[slot], py[slot], Math.min(fb, maxEnergy - curE) - eaten, config, people.prevDir[slot] === 4);
+          if (actOn && eaten > before) act(activity, slot, ACT_GRAZE);
           if (eaten > 0 && farmOn && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
             const c = people.carry[slot] + seedPickup;
             people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
@@ -465,11 +480,15 @@ export class LifeSystem {
         }
         if (finiteOn && eaten < Math.min(fb, maxEnergy - curE) && curE < berryBelow) {
           // Grazing fell short: top the meal up with wild berries.
+          const before = eaten;
           eaten += land.pickBerries(px[slot], py[slot], Math.min(stageHarvestOn ? berryBite * cm : berryBite, maxEnergy - curE - eaten));
+          if (actOn && eaten > before) act(activity, slot, ACT_GRAZE);
         }
         if (finiteOn && eaten < Math.min(fb, maxEnergy - curE) && curE < fishBelow) {
           // Still hungry beside water: take a little fish from the shore.
+          const before = eaten;
           eaten += land.catchFish(px[slot], py[slot], Math.min(stageHarvestOn ? fishBite * cm : fishBite, maxEnergy - curE - eaten));
+          if (actOn && eaten > before) act(activity, slot, ACT_FISH);
         }
         if (huntOn && herds!.count > 0 && curE < huntBelow) {
           // Hungry with an animal on or beside the tile: a chance to strike. A kill leaves the meat
@@ -482,6 +501,7 @@ export class LifeSystem {
           if (prey < 0) prey = herds!.cellSlot[(((hy + 1) & 255) << 8) | hx];
           if (prey < 0) prey = herds!.cellSlot[(((hy - 1) & 255) << 8) | hx];
           if (prey >= 0) {
+            if (actOn) act(activity, slot, ACT_HUNT);
             energy[slot] -= huntCost;
             ledger.move += huntCost;
             let effChance = huntChance;
@@ -494,6 +514,7 @@ export class LifeSystem {
               land.dropFood(hx, hy, meatAmt, config);
               herds!.kill(prey);
               herds!.killed++;
+              if (actOn) activity[slot] |= EV_KILL;
               herds!.addCarcass(hx, hy, config.carcassTicks ?? 120);
               eaten += land.takePile(hx, hy, Math.min(pileEatBite, maxEnergy - curE - eaten));
               // Carry fresh meat home if hands are free or already holding food
@@ -528,6 +549,7 @@ export class LifeSystem {
           if (got > 0) {
             people.carry[slot] += got;
             carryKind[slot] = CARRY_FOOD;
+            if (actOn) act(activity, slot, ACT_GATHER);
           }
         }
       }
@@ -546,6 +568,7 @@ export class LifeSystem {
           const have = carryKind[slot] === CARRY_BRUSH ? people.carry[slot] : 0;
           people.carry[slot] = Math.min(brushCap, have + cut);
           carryKind[slot] = CARRY_BRUSH;
+          if (actOn) act(activity, slot, ACT_GATHER);
         }
       }
       if (
@@ -557,6 +580,7 @@ export class LifeSystem {
         if (got > 0) {
           people.carry[slot] = (carryKind[slot] === CARRY_STONE ? people.carry[slot] : 0) + got;
           carryKind[slot] = CARRY_STONE;
+          if (actOn) act(activity, slot, ACT_GATHER);
         }
       }
       if (
@@ -572,6 +596,7 @@ export class LifeSystem {
           ledger.move += work;
           people.carry[slot] += got;
           carryKind[slot] = CARRY_EARTH;
+          if (actOn) act(activity, slot, ACT_GATHER);
         }
       }
       if (
@@ -585,6 +610,7 @@ export class LifeSystem {
         if (hf / 4294967296 < fetchChance) {
           people.carry[slot] = waterCap * cm;
           carryKind[slot] = CARRY_WATER;
+          if (actOn) act(activity, slot, ACT_GATHER);
         }
       }
     }
@@ -635,7 +661,12 @@ export class LifeSystem {
             const n = land.bestShelterNeighbour(px[slot], py[slot], gain, occupiedCell, config);
             if (n >= 0) { bx = n & 0xff; by = n >> 8; }
           }
+          const hutsBefore = land.hutCount;
           land.build(bx, by, people.carry[slot], config, carryingEarth);
+          if (actOn) {
+            act(activity, slot, ACT_BUILD);
+            if (land.hutCount > hutsBefore) activity[slot] |= EV_BUILT;
+          }
           people.carry[slot] = 0;
           carryKind[slot] = CARRY_NONE;
         }
@@ -645,7 +676,7 @@ export class LifeSystem {
         const c = (py[slot] << 8) | px[slot];
         if (land.brush[c] >= igniteBrush && land.fire[c] === 0 && land.coldAt(c) > 0.2 && land.wooded[c] === 0) {
           const hsh = (Math.imul(tick + 1, 2654435761) ^ Math.imul(c + 1, 40503)) >>> 0;
-          if (hsh / 4294967296 < igniteChance) land.ignite(c, config);
+          if (hsh / 4294967296 < igniteChance && land.ignite(c, config) && actOn) activity[slot] |= EV_FIRE;
         }
       }
       // S3w: a water carrier resting with others (or at a store), far enough from the river, pours it in.
@@ -682,6 +713,7 @@ export class LifeSystem {
         const hs = (Math.imul(tick + 7, 2246822519) ^ Math.imul(slot + 1, 3266489917)) >>> 0;
         if (hs / 4294967296 < injurySlow * (injury[slot] / 255)) dir = 4;
       }
+      if (actOn && dir === 4 && land.sheltered((py[slot] << 8) | px[slot])) act(activity, slot, ACT_REST);
       if (dir < 4) {
         let dx = 0;
         let dy = 0;
@@ -694,6 +726,7 @@ export class LifeSystem {
         const ny = (py[slot] + dy) & 0xff;
 
         if (!land.isWaterAt(nx, ny)) {
+          if (actOn) act(activity, slot, Rules.inFearRegion(slot, people, config) ? ACT_FLEE : ACT_WALK);
           px[slot] = nx;
           py[slot] = ny;
           if (residenceOn) people.restTicks[slot] = 0;
@@ -960,6 +993,7 @@ export class LifeSystem {
         if (land.pile[wc] < workMin && land.brush[wc] < brushWorkMin) continue;
         const wMul = workStrengthOn ? bodyMul(slot) : 1.0;
         land.tamp(px[slot], py[slot], config, wMul);
+        if (actOn) act(activity, slot, ACT_TEND);
         energy[slot] -= workCost;
         ledger.move += workCost; // labour is booked with the other actions
       }
@@ -1041,6 +1075,7 @@ export class LifeSystem {
               scratchChildHabits,
               people.leaderId[slot] !== 0 ? people.leaderId[slot] : mId
             );
+            if (actOn) people.activity[slot] |= EV_BIRTH;
 
             if (birthHazardsOn) {
               const cell = (py[slot] << 8) | px[slot];

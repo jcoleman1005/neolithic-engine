@@ -162,6 +162,8 @@ export class People {
   /** S3x self-assessment: how much stronger (in fight-score units) a person believes they are; fades from confTick. */
   public confidence: Float32Array;
   public confTick: Uint32Array;
+  /** Watchability #3a, observer only (not saved or hashed): action this tick (low bits) and events since the last frame (high bits). See activity.ts. */
+  public activity: Uint8Array;
   public genes: Uint8Array; // capacity * GENE_COUNT
   public habits: Uint8Array; // capacity * HABIT_COUNT
 
@@ -198,6 +200,7 @@ export class People {
     this.costX = new Uint8Array(this.capacity);
     this.costY = new Uint8Array(this.capacity);
     this.restTicks = new Uint8Array(this.capacity);
+    this.activity = new Uint8Array(this.capacity);
     this.confidence = new Float32Array(this.capacity);
     this.confTick = new Uint32Array(this.capacity);
     this.genes = new Uint8Array(this.capacity * GENE_COUNT);
@@ -301,6 +304,7 @@ export class People {
     this.costX = copyU8(this.costX);
     this.costY = copyU8(this.costY);
     this.restTicks = copyU8(this.restTicks);
+    this.activity = copyU8(this.activity);
     this.confidence = copyF32(this.confidence);
     this.confTick = copyU32(this.confTick);
     this.genes = copyGenes(this.genes);
@@ -370,6 +374,7 @@ export class People {
     this.costX[slot] = 0;
     this.costY[slot] = 0;
     this.restTicks[slot] = 0;
+    this.activity[slot] = 0;
     this.confidence[slot] = 0;
     this.confTick[slot] = 0;
     const personId = makePersonId(slot, slotGen);
@@ -418,6 +423,7 @@ export class People {
     this.costX[slot] = 0;
     this.costY[slot] = 0;
     this.restTicks[slot] = 0;
+    this.activity[slot] = 0;
     this.confidence[slot] = 0;
     this.confTick[slot] = 0;
     this.leaderId[slot] = 0;

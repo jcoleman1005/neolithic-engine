@@ -1,4 +1,5 @@
-import type { FromWorker } from '../src/sim/protocol';
+import { PERSON_FRAME_BYTES, type FromWorker } from '../src/sim/protocol';
+import { mergePersonEvents } from '../src/sim/activity';
 
 type Frame = Extract<FromWorker, { kind: 'frame' }>;
 
@@ -80,6 +81,10 @@ const MERGED_CONTESTS_MAX = 4 * 128;
 function merge(older: Frame, newer: Frame): Frame {
   return {
     ...newer,
+    // Watchability #3a: unsent person events (kills, births) from the older frame carry over.
+    ...(older.packedPeople && newer.packedPeople
+      ? { packedPeople: mergePersonEvents(older.packedPeople, newer.packedPeople, PERSON_FRAME_BYTES) }
+      : {}),
     fromStep: older.fromStep || newer.fromStep,
     events: older.events.length > 0 ? [...older.events, ...newer.events] : newer.events,
     ...(newer.panels ? {} : older.panels ? { panels: older.panels } : {}),

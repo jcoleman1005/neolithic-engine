@@ -496,6 +496,9 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   moveCost: 0.05,
   forageBite: 1.0,
   landFoodMax: 25.0,
+  // Watchability #3a (src/sim/activity.ts): each person's action and events, sent to the viewer.
+  // Observer only: off changes no outcome, the viewer just shows plain walking and standing.
+  activityViewEnabled: true,
   // Phase 6b-1 (src/sim/weather.ts): climate from the map and per-tile soil moisture. Off until measured.
   weatherEnabled: false,
   weatherAirSpeed: 0.4, // blocks (16 tiles) the air moves a day

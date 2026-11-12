@@ -144,6 +144,8 @@ export interface SimulationConfig {
   hearthAnchorEnabled: boolean;
   settlementWallMin: number;
   wallCrossingEnabled?: boolean;
+  /** Watchability #3a: record each person's action and events for the viewer (observer only). */
+  activityViewEnabled?: boolean;
   weatherEnabled?: boolean;
   weatherAirSpeed?: number;
   weatherEvaporation?: number;
