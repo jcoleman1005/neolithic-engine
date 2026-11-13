@@ -1,6 +1,7 @@
 # Neolithic Engine — Status
 
 ## Handoff (2026-11-12): read this first
+- **Next (2026-11-13):** run the watchability plan in `docs/WATCHABILITY.md`, stage by stage from W0 (the watch probe). Section 9 there is the handoff prompt. W4 is held for the end.
 - **2026-11-13:** merged to `main` (c725b1d): watchability #3 (an observer-only activity byte per person, with poses and event pops) and the GBA-inspired palette (on by default; Original in the pill menu). The user watched both on the phone. Verify green with the visual check, and fingerprints are unchanged (`dbeaac54ed27afd8`, and `453f741794e836ee` with weather on, at 1800 ticks). Next options from the user's list: watchability ideas 1, 2, 4 and 5 (Parking lot), and the interface panels in the palette.
 - **Where the code is:** `main` (5b12054) holds S0 to S3 settlements, S3a building and wall crossing on by default, place cost (off), the S3 viewer art, smooth marks and pinch zoom, the Features panel (every `*Enabled` switch in Settings; `src/ui/feature-switches.ts`, and a test fails if a switch has no entry), and Phase 6b-1 climate and moisture (`weatherEnabled`, off by default, closed after the user's watch).
 - **Paused or parked:** S4 and social emergence (environment first, `docs/decisions.md` 2026-11-10); the fight action-potential idea (Parking lot, Phase 7); 6b-2 wildfire (branch `phase-6b-wildfire`, unfinished, not merged). Experiments not merged: `exp-patchy-food`, `exp-winter` (results in `docs/findings.md`).
