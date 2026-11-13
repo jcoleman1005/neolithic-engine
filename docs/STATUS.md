@@ -12,6 +12,28 @@
   - Write targets in `docs/findings.md` before running anything.
   - Rules: AGENTS.md 14 and 15, CLAUDE.md, and up to 8 tuning rounds.
 
+## Viewer: GBA-inspired palette replaces the 30-colour one (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-13)
+- **Choice:** the user previewed six palettes and chose a GBA-inspired one, designed here, with the sand toned down. Preview patches for the others are in the session scratchpad and are not committed.
+  - The six: the 30-colour build below, a 46-colour palette, a 256-colour palette, a muted 32-colour palette, a bright 32-colour palette (first as given, then toned down), and the GBA-inspired one.
+- **The palette (34 colours):**
+  - Built on Game Boy Advance rules without copying any game: every channel a multiple of 8 (15-bit colour), saturated colours, hue-shifted ramps (shadows lean blue or purple, highlights yellow), and a navy outline `#101828` instead of black.
+  - The ramps: greens `#104830` to `#b8e870`, blues `#182868` to `#a8e0f8`, yellows `#a85828` to `#f8f8d0`, earth, reds, skin, purples and cool greys.
+  - Two muted sand tones (`#d8c088`, `#b89860`) were added for the toned-down sand.
+- **Hand picks:**
+  - Grass `#40a048`, sand `#d8c088`, deep water `#182868`, rock `#8890a8`, soil `#703020`.
+  - People: men blue, women red, pregnant women pink, children yellow, elders grey, the starving purple.
+- **Overlay:** crop and field tints never land on the two brightest greens (they read as lime) or on the two muted sand tones (faint tilled-soil tints turned into a tan checkerboard on grass). The overlay memo key now scales with the palette size.
+- **Pill menu:** Palette: GBA or Original.
+- **Measured:** seed 42, tick 400: 98.3% of world pixels are exact palette colours at cell size 4, 97.4% at 16 and 97.4% at 32.
+- **Checks:**
+  - With `&palette=original`, all 8 visual shots match the pre-palette baselines (commit 89229ec) at 0.000%.
+  - The 8 baselines were regenerated in GBA and reproduce at 0.000%.
+  - `VERIFY_VISUAL=1 npm run verify` exit 0. No simulation file changed.
+- **Needs you:**
+  - A look on the phone.
+  - Whether the interface panels should follow the palette.
+  - Merging to `main`.
+
 ## Viewer: the limited 30-colour palette (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-13)
 - **What:** the world view draws in a 30-colour palette the user chose (`src/render/limited-palette.ts`). It is on by default. The pill menu has a "Palette" choice, Limited (30) or Original, saved in localStorage; the page reloads to apply it. `?palette=original` in the URL also works. The interface panels are unchanged.
 - **How colours get there:**
