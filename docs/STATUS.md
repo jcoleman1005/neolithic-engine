@@ -1,6 +1,12 @@
 # Neolithic Engine — Status
 
 ## Handoff (2026-11-12): read this first
+- **2026-11-13, what holds people at the bank (branch `watch-w1a-abundance`, not merged): diagnosed; one glitch fixed behind switches that are off; waiting for the user.** Tables in `docs/findings.md` ("What keeps people at the bank").
+  - **Main cause, a design flaw:** the thirst walk is a ratchet. A thirsty person walks straight to water; a step taken when not thirsty has no direction; thirst returns every 100 ticks. Founders placed evenly are 56 to 67% within 2 tiles of water after one year. The bank is not preferred: births are lower and starvation higher there.
+  - **Glitch, fixed but off:** food scent spreads over water, so at a bare bank it points into the river and hungry people stand facing it (starving adults: 23 to 43% of decisions). `shoreScentEnabled` and `shoreSlideEnabled` (both off by default; `src/sim/rules.ts`, `tests/shore-scent.test.ts`). With both on, population at year 30 is 18 to 30% higher (35 to 38% on scarce land); where people live does not change.
+  - **Not fixed:** 1 to 8% of land has no walkable route to fresh water and founders are placed on it; and a person on good grass can outlast zero hydration.
+  - **Checks:** `VERIFY_VISUAL=1 npm run verify` exit 0 on ed97c0d; fingerprints with the switches off unchanged (`dbeaac54ed27afd8`, `453f741794e836ee` with weather); both on gives `b5e3ddb6a7686d39`; perf 4.201 µs per person per tick at 13,854 people.
+  - **Proposed next:** a walk back after drinking (the central-place return trip), then the per-head stay check; and turning the shore fix on by default. All need the user's say.
 - **2026-11-13, watchability W1a: 7 read-only rounds done, stopped for a decision (branch `watch-w1a-abundance`, off `watch-w0-probe`; neither merged).** 89 runs on command-line overrides. No default changed, no switch added, no simulation file touched. Full tables in `docs/findings.md` ("W1a round 1" to "W1a summary").
   - **Scarcer grass gives fewer people, not travel.** Land stays 90 to 93% full; population at year 30 falls from 5,100 to 6,000 to 470 to 2,900.
   - **People live in dense camps on bare ground by the water** (6 to 9 to a tile; 86% of adults within 5 tiles of fresh water), fed from heaps. `scripts/move-probe.ts` shows what the step rule decides and why.
