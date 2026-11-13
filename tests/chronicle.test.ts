@@ -28,7 +28,7 @@ describe('Phase 4 chronicle', () => {
   it('a fight is reported after it ends, with its size and outcome', () => {
     const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1, ...S3_OFF }, 5);
     const chronicle = new Chronicle();
-    for (let i = 0; i < 600; i++) {
+    for (let i = 0; i < 1200; i++) { // long enough for at least two bands to form on the current defaults
       world.step();
       chronicle.record(world);
     }
@@ -72,7 +72,7 @@ describe('Phase 4 chronicle', () => {
   it('fights are sized skirmish, battle or great battle by their clashes', () => {
     const world = new World({ initialPopulation: 300, chronicleBattleMinSize: 1, chronicleBattleCooldown: 0, ...S3_OFF }, 5);
     const chronicle = new Chronicle();
-    for (let i = 0; i < 600; i++) {
+    for (let i = 0; i < 1200; i++) { // long enough for at least two bands to form on the current defaults
       world.step();
       chronicle.record(world);
     }

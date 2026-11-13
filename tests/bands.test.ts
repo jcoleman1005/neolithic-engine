@@ -22,7 +22,8 @@ describe('Phase 4 band tracker', () => {
 
   it('tracks bands with sane records on the wrapping grid', async () => {
     const tracker = new BandTracker();
-    const world = await run(600, tracker);
+    // 1200 ticks: since people walk back after drinking they gather more slowly, so bands take longer to form.
+    const world = await run(1200, tracker);
     expect(tracker.bands.size).toBeGreaterThan(0);
     const min = world.config.bandTrackMinSize ?? 10;
     for (const b of tracker.bands.values()) {

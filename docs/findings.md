@@ -1573,3 +1573,38 @@ User decisions of 2026-11-13 (`docs/decisions.md`): the shore fix is on by defau
 - **Guard rails (reported):** no die-out; `hungryPct` no more than about double; herds alive; perf at or under 15 µs.
 - **Not predicted, reported:** net movement and band movement (people who commute to water take many more steps; whether camps move is a separate question), and migration entries.
 - **Arms:** new defaults; return off; each also on scarce land (0.02 × 18, seeds 1 and 2); `bank-probe` and `move-probe` on seed 1 with the new defaults.
+
+**The walk back after drinking, results (12 runs, all finished, none died out): H9 mostly confirmed. The ratchet was the main thing holding people at the bank.** 30 years; both columns have the shore fix and the founders fix on, and differ only in `thirstReturnEnabled`.
+
+| Seed 1 / 2 / 3 | Return off | Return on (new default) |
+|---|---|---|
+| Adults within 5 tiles of water | 87 / 84 / 88% | **69 / 59 / 71%** |
+| Adults more than 10 tiles from water | 5.7 / 8.1 / 6.3% | **20.9 / 29.5 / 20.9%** |
+| Population at year 30 | 7301 / 7271 / 7164 | **9040 / 10330 / 8627** |
+| Mean population | 3866 / 3909 / 3858 | 4526 / 5054 / 4343 |
+| `landFullPct` | 0.935 / 0.941 / 0.933 | 0.920 / 0.916 / 0.922 |
+| Land 21+ tiles from water, how full | 0.995 / 0.994 / 0.993 | 0.975 / 0.961 / 0.971 |
+| `harvestOfMaxYield` | 0.215 / 0.200 / 0.231 | 0.253 / 0.264 / 0.260 |
+| `hungryPct` | 6.2 / 6.4 / 5.7 | 7.0 / 7.2 / 6.6 |
+| Net tiles per adult a year | 9.9 / 10.4 / 9.6 | 8.8 / 9.3 / 8.4 |
+| Band centre tiles a year | 5.3 / 5.6 / 5.2 | 4.3 / 4.0 / 4.2 |
+| `campStayTimeMedian` | 118 / 109 / 125 | 94 / 81 / 96 |
+| Births a year | 334 / 343 / 341 | 404 / 467 / 396 |
+| Wolves at year 30 | 48 / 0 / 49 | 50 / 47 / 42 |
+
+| Scarce land (0.02 × 18), seed 1 / 2 | Return off | Return on |
+|---|---|---|
+| Adults within 5 tiles of water | 85 / 79% | 64 / 54% |
+| Population at year 30 | 2639 / 2744 | 2868 / 3317 |
+| `landFullPct` | 0.885 / 0.888 | 0.849 / 0.834 |
+| `harvestOfMaxYield` | 0.34 / 0.34 | **0.43 / 0.47** |
+| `hungryPct` | 10.9 / 12.9 | 13.7 / 14.9 |
+
+- **People live away from the water now.** The share within 5 tiles falls by 17 to 25 points (the "under 60%" target is met on seed 2 only; 69 and 71% on seeds 1 and 3), and three to four times as many adults live more than 10 tiles out. Founders: 47.5% within 2 tiles after one year on seed 1, against 59% with the return off and 67% in the old world.
+- **More people, on the same land.** Population at year 30 is 20 to 42% above return-off, and 43 to 100% above the W0 baseline (5494 / 5119 / 6034).
+- **Far from water is now a good place to live** (`bank-probe`, seed 1, years 5 to 20, bands 0-2 / 3-5 / 6-10 / 11-20 / 21+): mean energy 79.6 / 74.9 / 74.4 / 80.1 / 80.4; births per 100 women 57 / 72 / 64 / 84 / 70; no deaths with hydration at zero in any band (7.9 per 100 a year at 21+ before).
+- **Guard rails:** hunger up by about one point (double was the limit); herds 294 to 297; wolves alive on all three seeds.
+- **It is not migration.** Net movement and band movement fall a little (people now have a place they go back to) and no run has a migration entry. This change fixes where people can live; it gives them no reason to move camp. That still needs something that changes over time and place (W1b, W2).
+- **Half of the adults are still within 2 tiles of water.** Not explained; candidates: people within 3 tiles remember nothing (`thirstReturnMinDist`), the walk back is given up when water blocks it, and children are born where their mothers are.
+- **Side effect on tests:** bands form later in the first two years (people gather more slowly), so two test setups that needed bands by tick 600 now run 1,200 ticks (`tests/bands.test.ts`, `tests/chronicle.test.ts`). Over 30 years there are more band-years, not fewer (2,614 to 2,712 against 2,346 to 2,566). The two off-switch parity tests list the four new switches as off and still give their old fingerprints.
+- **Visual baselines 02 to 08 regenerated on purpose** (people stand in different places; 07 and 08 follow a band). 01 unchanged.
