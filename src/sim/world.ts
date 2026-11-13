@@ -45,6 +45,7 @@ import {
   type PersonDetail,
 } from './protocol';
 import { fastBase64Encode } from './base64';
+import { ACT_MASK } from './activity';
 import type { FoodPatch, FoodRegion, SimulationConfig, WorldMetrics } from './types';
 
 /**
@@ -304,6 +305,7 @@ export class World {
     const ppreg = people.pregnant;
     const pener = people.energy;
     const pslotgen = people.slotGenerations;
+    const activity = people.activity;
     const cap = people.capacity;
 
     const adultAge = this.config.adultAge ?? 5760;
@@ -333,6 +335,9 @@ export class World {
         const kind = people.carryKind[slot] & 7;
         const amt = kind === 0 ? 0 : Math.min(31, Math.ceil(people.carry[slot]));
         buf[offset++] = kind | (amt << 3);
+        // Watchability #3a: action this tick and events since the last frame, which are sent once.
+        buf[offset++] = activity[slot];
+        activity[slot] &= ACT_MASK;
       }
     }
 

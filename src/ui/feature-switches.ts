@@ -129,6 +129,7 @@ const TABLE = [
   { key: 'weatherEnabled', group: 'Weather and seasons', label: 'Weather and soil moisture', help: 'Climate from the map, rain and drying winds set how wet each tile\'s soil is, which changes how well plants grow.', when: L },
 
   // Observers and camera
+  { key: 'activityViewEnabled', group: 'Observers and camera', label: 'Show what people do', help: 'Records what each person is doing (grazing, drinking, building, hunting, fleeing) so the viewer can draw it; it only watches.', when: L },
   { key: 'chronicleEnabled', group: 'Observers and camera', label: 'Chronicle', help: 'Writes notable events into the chronicle; it only watches and does not change the world.', when: L },
   { key: 'bandTrackEnabled', group: 'Observers and camera', label: 'Track bands', help: 'Finds and names groups of people who move together; it only watches.', when: L },
   { key: 'settlementTrackEnabled', group: 'Observers and camera', label: 'Track settlements', help: 'Names and ranks clusters of built tiles; it only watches.', when: L },

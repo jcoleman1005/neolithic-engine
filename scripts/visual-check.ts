@@ -8,7 +8,7 @@
  * What it does:
  *   1. builds (or reuses) a saved world of a fixed seed, 3 ticks before its first band split
  *      (scripts/visual-snapshot.ts), so the split is the same one every run;
- *   2. starts the vite dev server and opens the app at ?capture, with Playwright's fake clock, so
+ *   2. starts the vite dev server and opens the app at ?capture (plus VISUAL_QUERY, e.g. `&palette=original`), with Playwright's fake clock, so
  *      every animation and every camera timer is a function of the scripted time;
  *   3. resets to the fixed seed, then zooms with the mouse wheel, pans with a mouse drag, and visits
  *      the cliffs and the shoreline the elevation data says are best (src/ui/capture-hook.ts);
@@ -556,7 +556,7 @@ async function main(): Promise<void> {
     // boots fast and its frames are unchanged.
     {
       const warm = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
-      await warm.goto(`${url}?capture`);
+      await warm.goto(`${url}?capture${process.env.VISUAL_QUERY ?? ''}`);
       await warm.waitForFunction('window.__capture && window.__capture.state() && window.__capture.state().terrainReady', undefined, { timeout: 120_000 }).catch(() => {});
       await warm.close();
     }
@@ -567,7 +567,7 @@ async function main(): Promise<void> {
       if (m.type() === 'error' && !m.location().url.endsWith('favicon.ico')) check!.pageErrors.push(`console error: ${m.text()}`);
     });
     await page.clock.install({ time: 0 });
-    await page.goto(`${url}?capture`);
+    await page.goto(`${url}?capture${process.env.VISUAL_QUERY ?? ''}`);
     await scenario(check, page, snap, seed, log);
   } catch (e) {
     failure = (e as Error).stack ?? String(e);

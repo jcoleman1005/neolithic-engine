@@ -11,7 +11,11 @@ import {
   LOOK_STAGE_ELDER,
   LOOK_ENERGY_MASK,
 } from '../sim/protocol';
+import { ACT_FLEE, ACT_MASK, EV_BIRTH, EV_BUILT, EV_FIRE, EV_KILL, EV_MASK } from '../sim/activity';
+import { holdPose, poseFor, popShape, POP_MS } from './poses';
+import { BAND_COLOURS, LIMITED, limitCanvasColours, quantizeImage, quantizeOver } from './limited-palette';
 import {
+  PERSON_FRAMES,
   createWorldBoxSpriteAtlas,
   hexToABGR,
   type SpriteAtlas,
@@ -110,6 +114,16 @@ const SETTLEMENT_LABEL_MAJOR = '#ffd98a';
 const SETTLEMENT_LABEL_OUTLINE = '#1a1208';
 const SETTLEMENT_ICON = '#e8dcc4';
 const SETTLEMENT_ICON_CAMP = '#c9a26b';
+// #3b event pops: ring size, colours and 5 x 5 icons (0 empty, else an index into POP_COLOURS).
+const POP_CAP = 256;
+const POP_OUTLINE = 'rgba(20, 24, 36, 0.75)';
+const POP_MEAT = '#dc2626';
+const POP_HEART = '#f472b6';
+const POP_COLOURS = ['', '#b91c1c', '#ef4444', '#f8fafc', '#f472b6', '#fbbf24', '#f97316', '#a16207', '#d6b48a', '#3b2a1c'];
+const POP_ICON_MEAT = Uint8Array.from([0, 1, 2, 0, 0, 1, 2, 2, 1, 0, 1, 2, 1, 1, 0, 0, 1, 1, 3, 0, 0, 0, 0, 0, 3]);
+const POP_ICON_HEART = Uint8Array.from([0, 4, 0, 4, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 4, 4, 0, 0, 0, 4, 0, 0]);
+const POP_ICON_FLAME = Uint8Array.from([0, 0, 5, 0, 0, 0, 5, 6, 0, 0, 0, 6, 5, 6, 0, 6, 5, 5, 6, 6, 0, 6, 6, 6, 0]);
+const POP_ICON_HUT = Uint8Array.from([0, 0, 7, 0, 0, 0, 7, 7, 7, 0, 7, 7, 7, 7, 7, 0, 8, 9, 8, 0, 0, 8, 9, 8, 0]);
 const ZOOM_SPRITE_THRESHOLD = 6; // cellSize >= 6 switches from pixel blit to stick figure & trees
 
 // Oblique object pass: light from the north-west, soft shadow to the south-east.
@@ -189,6 +203,7 @@ function hashRootLeaderToABGR(rootId: number): number {
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = (h >> 16) ^ h;
+  if (LIMITED) return hexToABGR(BAND_COLOURS[((h % BAND_COLOURS.length) + BAND_COLOURS.length) % BAND_COLOURS.length]);
   const hue = ((h % 360) + 360) % 360;
 
   const s = 0.85;
@@ -214,6 +229,7 @@ function hashRootLeaderToHex(rootId: number): string {
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = (h >> 16) ^ h;
+  if (LIMITED) return BAND_COLOURS[((h % BAND_COLOURS.length) + BAND_COLOURS.length) % BAND_COLOURS.length];
   const hue = ((h % 360) + 360) % 360;
   return `hsl(${hue}, 85%, 55%)`;
 }
@@ -304,6 +320,16 @@ export class CanvasRenderer {
   /** What each person carries: kind in bits 0 to 2, amount above (see PERSON_FRAME_BYTES). */
   private readonly carryBytes = new Uint8Array(65536);
   private readonly personFacing = new Uint8Array(65536);
+  /** Watchability #3b: what each person is doing (see sim/activity.ts), and the pose on screen with when its hold ends. */
+  private readonly activityBytes = new Uint8Array(65536);
+  private readonly shownPose = new Uint8Array(65536);
+  private readonly poseUntil = new Float64Array(65536);
+  /** Event pops (kills, births, fires, finished huts): a ring of cell, kind and wall-clock start. */
+  private readonly popX = new Float32Array(POP_CAP);
+  private readonly popY = new Float32Array(POP_CAP);
+  private readonly popKind = new Uint8Array(POP_CAP);
+  private readonly popBorn = new Float64Array(POP_CAP);
+  private popNext = 0;
   private readonly bandSizes = new Map<number, number>();
   public colorMode: ColorMode = 'status';
 
@@ -505,12 +531,14 @@ export class CanvasRenderer {
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+    // Limited palette: every colour set on the world canvas is moved into the palette.
+    limitCanvasColours(this.ctx);
     this.world = world;
 
     // Generate procedural sprite atlas once
     this.atlas = createWorldBoxSpriteAtlas();
     for (const type of ['male', 'female', 'pregnant', 'child', 'elder', 'starving']) {
-      for (const frame of ['idle', 'walk_0', 'walk_1']) {
+      for (const frame of PERSON_FRAMES) {
         this.personSprites.push(this.atlas.getSprite(`person_${type}_${frame}` as SpriteKey));
       }
     }
@@ -968,6 +996,7 @@ export class CanvasRenderer {
       const rId =
         (buf[offset + 6] | (buf[offset + 7] << 8) | (buf[offset + 8] << 16) | (buf[offset + 9] << 24)) >>> 0;
       const carried = buf[offset + 10];
+      const activity = buf[offset + 11];
       offset += PERSON_FRAME_BYTES;
 
       if (slot >= 65536) continue;
@@ -986,6 +1015,8 @@ export class CanvasRenderer {
       this.currY[slot] = y;
       this.lookBytes[slot] = look;
       this.carryBytes[slot] = carried;
+      this.activityBytes[slot] = activity;
+      if ((activity & EV_MASK) !== 0) this.addPops(x, y, activity, now);
       this.rootLeaderIds[slot] = rId;
       this.bandSizes.set(rId, (this.bandSizes.get(rId) ?? 0) + 1);
       newMask[slot] = 1;
@@ -1209,6 +1240,8 @@ export class CanvasRenderer {
       this.renderFeaturesFlat(width, height, w, h);
       this.renderHerdsFlat(width, height, w, h);
     }
+    // 4b. #3b: kills, births, new fires and finished huts pop up above everyone.
+    this.drawPops(width, height, nowMs);
 
     this.renderSettlements(width, height, worldPxW, worldPxH);
 
@@ -1274,12 +1307,16 @@ export class CanvasRenderer {
         }
         this.groundChangesSeen = changed ? changed.length : 0;
         this.weatherChangesSeen = wChanged ? wChanged.length : 0;
-        if (x1 >= 0) this.overlayCtx.putImageData(this.overlayImg, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        if (x1 >= 0) {
+          quantizeOver(this.overlayData32, this.terrainData32, 256, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+          this.overlayCtx.putImageData(this.overlayImg, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        }
         return true;
       }
       for (let i = 0; i < 65536; i++) out[i] = this.overlayColor(i, data, paths, structures, waterArr, weather);
       this.groundChangesSeen = changed ? changed.length : 0;
       this.weatherChangesSeen = wChanged ? wChanged.length : 0;
+      quantizeOver(this.overlayData32, this.terrainData32, 256);
       this.overlayCtx.putImageData(this.overlayImg, 0, 0);
     }
     return true;
@@ -1473,6 +1510,7 @@ export class CanvasRenderer {
       }
     }
 
+    quantizeImage(this.terrainData32, 256);
     this.terrainCtx.putImageData(this.terrainImgData, 0, 0);
     this.terrainGenerated = true;
     // The overlay's dry tint reads isGreenGround, so repaint it in full against the new mask.
@@ -2024,8 +2062,15 @@ export class CanvasRenderer {
       }
 
       const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
-      const frame = isMoving ? ((Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2) : 0;
-      this.emitAt(D_PERSON, baseX, baseY, slot, frame | (facing << 2), 0, screenW, screenH, worldPxW, worldPxH);
+      let frame: number;
+      if (isMoving) {
+        frame = (Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2;
+        this.shownPose[slot] = 0;
+      } else {
+        // #3b: a standing person shows what they are doing; a short action holds for about a second.
+        frame = holdPose(this.shownPose, this.poseUntil, slot, poseFor(this.activityBytes[slot]), now);
+      }
+      this.emitAt(D_PERSON, baseX, baseY, slot, frame | (facing << 3), 0, screenW, screenH, worldPxW, worldPxH);
     }
   }
 
@@ -2081,8 +2126,8 @@ export class CanvasRenderer {
   }
 
   private drawPerson(fx: number, fy: number, slot: number, packed: number): void {
-    const frame = packed & 3;
-    const facing = (packed >> 2) & 1;
+    const frame = packed & 7;
+    const facing = (packed >> 3) & 1;
     const look = this.lookBytes[slot];
     const sex = (look & LOOK_SEX_MASK) === 1 ? 0 : 1; // male, female
     const pregnant = (look & LOOK_PREGNANT_MASK) !== 0;
@@ -2094,7 +2139,7 @@ export class CanvasRenderer {
     else if (pregnant) type = 2;
     else if (stage === LOOK_STAGE_CHILD) type = 3;
     else if (stage === LOOK_STAGE_ELDER) type = 4;
-    const spr = this.personSprites[type * 3 + frame];
+    const spr = this.personSprites[type * PERSON_FRAMES.length + frame];
     const ap = this.ap;
 
     if (this.colorMode === 'bands') {
@@ -2128,6 +2173,18 @@ export class CanvasRenderer {
     // What they carry: an outlined load at the hip, its shape and colour by kind.
     const carriedKind = this.carryBytes[slot] & 7;
     if (carriedKind !== 0) this.drawCarry(Math.round(fx + 1.5 * ap), Math.round(fy - 5.5 * ap), carriedKind);
+
+    // #3b: someone fleeing where they were beaten shows a small white alarm mark above the head.
+    if ((this.activityBytes[slot] & ACT_MASK) === ACT_FLEE && this.cellSize >= 10) {
+      const u = Math.max(1, Math.round(ap));
+      const mx = Math.round(fx + 3 * ap);
+      const my = Math.round(fy - spr.anchorY * ap - 3 * u);
+      this.ctx.fillStyle = POP_OUTLINE;
+      this.ctx.fillRect(mx - 1, my - 1, u + 2, 4 * u + 2);
+      this.ctx.fillStyle = '#f8fafc';
+      this.ctx.fillRect(mx, my, u, 2 * u);
+      this.ctx.fillRect(mx, my + 3 * u, u, u);
+    }
 
     // Band Leader Star: gently bobbing golden star hovering above the head
     const isLeader =
@@ -2294,6 +2351,72 @@ export class CanvasRenderer {
    * each bursts out, holds, and fades over CONTEST_LIFE_MS of wall-clock time (paused or not, so a mark
    * finishes while the sim is paused). Ground marks: drawn before anyone standing.
    */
+  /** #3b: one pop per event bit at (x, y), newest overwriting the oldest. */
+  private addPops(x: number, y: number, activity: number, now: number): void {
+    for (let bit = EV_KILL; bit <= EV_BUILT; bit <<= 1) {
+      if ((activity & bit) === 0) continue;
+      const k = this.popNext;
+      this.popNext = (k + 1) % POP_CAP;
+      this.popX[k] = x;
+      this.popY[k] = y;
+      this.popKind[k] = bit;
+      this.popBorn[k] = now;
+    }
+  }
+
+  /**
+   * #3b event pops. Up close, a small icon rises over the head and fades: a haunch of meat for a kill, a
+   * pink heart for a birth, a flame for a new fire, a little roof for a finished hut. Far away, a kill or
+   * a birth is a ring that opens out from the cell (fires and huts already show on the map).
+   */
+  private drawPops(screenW: number, screenH: number, now: number): void {
+    const ctx = this.ctx;
+    const cs = this.cellSize;
+    const near = cs >= ZOOM_SPRITE_THRESHOLD;
+    const u = Math.max(1, Math.round(cs / 8)); // one art pixel
+    let drew = false;
+    for (let k = 0; k < POP_CAP; k++) {
+      const kind = this.popKind[k];
+      if (kind === 0) continue;
+      const age = now - this.popBorn[k];
+      if (age >= POP_MS || age < 0) { this.popKind[k] = 0; continue; }
+      if (!near && kind !== EV_KILL && kind !== EV_BIRTH) continue;
+      const cx = Math.round(this.popX[k] * cs + this.panX + cs / 2);
+      const cy = Math.round(this.popY[k] * cs + this.panY + cs * 0.85);
+      if (cx < -40 || cy < -60 || cx > screenW + 40 || cy > screenH + 40) continue;
+      const { rise, alpha, scale } = popShape(age);
+      drew = true;
+      ctx.globalAlpha = alpha;
+      if (!near) {
+        // A ring opening out, 2 px thick, so it reads over a crowd of dots.
+        const r = Math.max(4, cs * 1.2) * (0.4 + (1.4 * age) / POP_MS);
+        ctx.strokeStyle = POP_OUTLINE;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(cx, cy - cs / 2, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = kind === EV_KILL ? POP_MEAT : POP_HEART;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        continue;
+      }
+      const p = Math.max(1, Math.round(u * scale));
+      // Icons are 5 x 5 art pixels, centred above the head (a figure is about 10 art pixels tall).
+      const ox = cx - Math.round(2.5 * p);
+      const oy = Math.round(cy - (12 + rise) * u);
+      const icon = kind === EV_KILL ? POP_ICON_MEAT : kind === EV_BIRTH ? POP_ICON_HEART : kind === EV_FIRE ? POP_ICON_FLAME : POP_ICON_HUT;
+      ctx.fillStyle = POP_OUTLINE;
+      for (let i = 0; i < 25; i++) if (icon[i] !== 0) ctx.fillRect(ox + (i % 5) * p - 1, oy + Math.floor(i / 5) * p - 1, p + 2, p + 2);
+      for (let i = 0; i < 25; i++) {
+        const c = icon[i];
+        if (c === 0) continue;
+        ctx.fillStyle = POP_COLOURS[c];
+        ctx.fillRect(ox + (i % 5) * p, oy + Math.floor(i / 5) * p, p, p);
+      }
+    }
+    if (drew) ctx.globalAlpha = 1;
+  }
+
   private drawContests(screenW: number, screenH: number): void {
     const now = performance.now();
     this.ingestContests(now);

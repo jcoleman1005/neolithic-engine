@@ -14,8 +14,11 @@ export interface MaterialRamp {
   readonly rimHex: string;
 }
 
+import { LIMITED, paletteHex } from './limited-palette';
+
+/** A `#rrggbb` colour as 0xAABBGGRR, moved into the limited palette when it is on (limited-palette.ts). */
 export function hexToABGR(hex: string, alpha = 255): number {
-  const clean = hex.replace('#', '');
+  const clean = paletteHex(hex.startsWith('#') ? hex : `#${hex}`).replace('#', '');
   const r = parseInt(clean.substring(0, 2), 16);
   const g = parseInt(clean.substring(2, 4), 16);
   const b = parseInt(clean.substring(4, 6), 16);
@@ -82,17 +85,47 @@ export const PALETTE_DF_WILDS = {
   hearthFire: makeRamp('#ffe066', '#f59f00', '#d9480f', '#3b0d0c'),
 } as const;
 
+// Limited palette (limited-palette.ts): ramps picked by hand from its GBA-inspired colours, per theme.
+// Highlight, base, shadow, rim. Sand uses the two muted tones added to calm it down.
+export const PALETTE_LIMITED_CLASSIC = {
+  deepWater: makeRamp('#2850a8', '#182868', '#101828', '#101828'),
+  shallowWater: makeRamp('#3880d0', '#2850a8', '#182868', '#101828'),
+  sand: makeRamp('#f8e090', '#d8c088', '#b89860', '#a85828'),
+  grass: makeRamp('#78c850', '#40a048', '#207840', '#104830'),
+  soil: makeRamp('#985038', '#703020', '#482018', '#101828'),
+  shrub: makeRamp('#40a048', '#207840', '#104830', '#101828'),
+  rock: makeRamp('#c0c8d8', '#8890a8', '#586078', '#303048'),
+  snow: makeRamp('#f8f8f8', '#a8e0f8', '#8890a8', '#586078'),
+  stoneWall: makeRamp('#c0c8d8', '#8890a8', '#586078', '#303048'),
+  earthWall: makeRamp('#e8b850', '#d08838', '#a85828', '#703020'),
+  timber: makeRamp('#985038', '#703020', '#482018', '#101828'),
+  hearthFire: makeRamp('#f8e090', '#f87058', '#d03838', '#882030'),
+} as const;
+
+export const PALETTE_LIMITED_MOUNTAINHOME = {
+  ...PALETTE_LIMITED_CLASSIC,
+  grass: makeRamp('#40a048', '#207840', '#104830', '#101828'),
+  shrub: makeRamp('#207840', '#104830', '#101828', '#101828'),
+  rock: makeRamp('#8890a8', '#586078', '#303048', '#101828'),
+} as const;
+
+export const PALETTE_LIMITED_WILDS = {
+  ...PALETTE_LIMITED_CLASSIC,
+  sand: makeRamp('#c0c8d8', '#8890a8', '#586078', '#303048'),
+  grass: makeRamp('#40a048', '#207840', '#104830', '#101828'),
+} as const;
+
 export function getPaletteForTheme(theme: TerrainTheme) {
   switch (theme) {
-    case 'mountainhome': return PALETTE_DF_MOUNTAINHOME;
-    case 'wilds': return PALETTE_DF_WILDS;
+    case 'mountainhome': return LIMITED ? PALETTE_LIMITED_MOUNTAINHOME : PALETTE_DF_MOUNTAINHOME;
+    case 'wilds': return LIMITED ? PALETTE_LIMITED_WILDS : PALETTE_DF_WILDS;
     case 'classic':
     default:
-      return PALETTE_DF_CLASSIC;
+      return LIMITED ? PALETTE_LIMITED_CLASSIC : PALETTE_DF_CLASSIC;
   }
 }
 
-export const PALETTE = PALETTE_DF_CLASSIC;
+export const PALETTE = LIMITED ? PALETTE_LIMITED_CLASSIC : PALETTE_DF_CLASSIC;
 
 /**
  * Shifts an ABGR color toward cool slate-blue atmospheric haze for lower Z-tiers.

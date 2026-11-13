@@ -1,5 +1,6 @@
 import type { SimulationConfig } from '../sim/types';
 import { FeaturesView } from './features-view';
+import { LIMITED, setLimitedPalette } from '../render/limited-palette';
 
 export interface PlaybackCallbacks {
   onPlayPause: () => void;
@@ -69,6 +70,12 @@ export class PlaybackPill {
             <option value="wilds">DF Wilds Taiga</option>
           </select>
         </label>
+        <label class="pill-menu-item">Palette
+          <select id="select-palette" class="pill-select" aria-label="Palette" title="Draw the world in the GBA-inspired palette or the original colours (reloads the page)">
+            <option value="limited"${LIMITED ? ' selected' : ''}>GBA</option>
+            <option value="original"${LIMITED ? '' : ' selected'}>Original</option>
+          </select>
+        </label>
       </div>
     `;
 
@@ -115,6 +122,12 @@ export class PlaybackPill {
       if (this.sliceSelect) {
         callbacks.onElevationSliceChange?.(parseInt(this.sliceSelect.value, 10));
       }
+    });
+    // Colours are worked out when the page loads, so a palette change saves the choice and reloads.
+    const paletteSelect = container.querySelector<HTMLSelectElement>('#select-palette');
+    paletteSelect?.addEventListener('change', () => {
+      setLimitedPalette(paletteSelect.value === 'limited');
+      location.reload();
     });
     this.terrainSelect?.addEventListener('change', () => {
       if (this.terrainSelect) {

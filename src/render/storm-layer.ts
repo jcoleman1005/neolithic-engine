@@ -8,6 +8,7 @@
  * payload to payload by nearest predicted position; a storm's look (cloud shape, rain drops) is hashed
  * from where it was first seen, so it stays stable for its whole life.
  */
+import { quantizeImage } from './limited-palette';
 
 const WORLD = 256; // tiles, the map wraps
 /** Cloud sprite half-size in tiles; the sim rains within 16 tiles of a storm centre. */
@@ -106,6 +107,7 @@ function buildSprite(key: number): HTMLCanvasElement {
       px[o + 3] = Math.round((step / SHADOW_LEVELS) * SHADOW_ALPHA * 255);
     }
   }
+  quantizeImage(new Uint32Array(px.buffer), CLOUD_SIZE); // limited palette
   sctx.putImageData(img, 0, 0);
   return sprite;
 }

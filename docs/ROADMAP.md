@@ -369,4 +369,9 @@ These ideas are deferred on purpose; revisit them after Phase 10 or when a phase
 - GPU diffusion and WebAssembly, only if the S21 benchmark demands them
 - Chronicle entries written by a language model (needs a server off the phone)
 - Clash animation and visual combat feedback: packed clash stream from `Rules.clashLog`, transient procedural impact sparks / dust puffs and fatal injury flecks in `CanvasRenderer`, optional macro-scale battle pings when skirmishes cluster
+- Watchability ideas from 2026-11-12 (`docs/decisions.md`; #3, the activity byte and camera moments, is being planned now):
+  - Uneven land: berry and fruit tiles ripen by place and season (from elevation and 6b-1 moisture), rich when ripe and poor otherwise, with slower grass regrowth, so bands make a yearly round and grazed ground stays bare a while.
+  - Migrating herds and pursuit hunts: herds follow the green-up in the moisture field; a hunter who senses prey commits for several ticks, the animal flees, and a kill is carried home. Wolves compete for the same herds.
+  - Distant materials: good flint, clay and timber are rare and away from rivers, so builders make round trips and S2 paths form spokes; wells (above) later let camps leave the bank.
+  - Floods and fire that move camps: 6b-3 wet-year floods cover the low bank, so camps move uphill and back; 6b-2 wildfire (parked) burns dry grass and its regrowth draws herds and hunters.
 - Roaming pressure (jitter shelved, wiring in `scripts/probes/jitter-wiring.patch`): today unoccupied land is 99% full with about 1,000 adults on 65,536 tiles, so foragers only hop to the next tile. Try slower regrowth, lower `landFoodMax` or seasonal food swings, then revisit the persistent-walk jitter (`src/sim/jitter.ts`, currently a behavioural no-op). Notes and probes in `scripts/probes/README.md`; numbers in `docs/findings.md`

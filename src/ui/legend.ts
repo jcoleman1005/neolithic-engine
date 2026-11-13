@@ -7,6 +7,8 @@ export const LEGEND_HTML = `
       <li>Brown/Gray: Elevation and ridges</li>
       <li>Blue on the ground: stored water</li>
       <li>Up close, a small outlined load at the hip shows what someone carries: tan pouch seeds, orange bundle food, sticks brush, grey block stone, brown basket earth, blue skin water</li>
+      <li>Up close, a standing figure shows what they are doing: bent over to graze, gather or build; kneeling to drink or fish; sitting in shelter; holding a baby; spear raised to hunt or fight. A white mark above the head: fleeing</li>
+      <li>Rising icons: meat for a kill, a pink heart for a birth, a flame for a fire lit, a little roof for a finished hut. Far away, a red ring is a kill and a pink ring a birth</li>
       <li>Pale trodden strip: a worn path; wider and rutted the more it is walked</li>
       <li>Grey block: a stone wall. Clay block: a packed-earth wall (it washes away faster)</li>
       <li>Open ring of stones or clay: a wall being built (more sides as it rises), or the last of a fallen one</li>

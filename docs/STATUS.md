@@ -12,6 +12,56 @@
   - Write targets in `docs/findings.md` before running anything.
   - Rules: AGENTS.md 14 and 15, CLAUDE.md, and up to 8 tuning rounds.
 
+## Viewer: GBA-inspired palette replaces the 30-colour one (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-13)
+- **Choice:** the user previewed six palettes and chose a GBA-inspired one, designed here, with the sand toned down. Preview patches for the others are in the session scratchpad and are not committed.
+  - The six: the 30-colour build below, a 46-colour palette, a 256-colour palette, a muted 32-colour palette, a bright 32-colour palette (first as given, then toned down), and the GBA-inspired one.
+- **The palette (34 colours):**
+  - Built on Game Boy Advance rules without copying any game: every channel a multiple of 8 (15-bit colour), saturated colours, hue-shifted ramps (shadows lean blue or purple, highlights yellow), and a navy outline `#101828` instead of black.
+  - The ramps: greens `#104830` to `#b8e870`, blues `#182868` to `#a8e0f8`, yellows `#a85828` to `#f8f8d0`, earth, reds, skin, purples and cool greys.
+  - Two muted sand tones (`#d8c088`, `#b89860`) were added for the toned-down sand.
+- **Hand picks:**
+  - Grass `#40a048`, sand `#d8c088`, deep water `#182868`, rock `#8890a8`, soil `#703020`.
+  - People: men blue, women red, pregnant women pink, children yellow, elders grey, the starving purple.
+- **Overlay:** crop and field tints never land on the two brightest greens (they read as lime) or on the two muted sand tones (faint tilled-soil tints turned into a tan checkerboard on grass). The overlay memo key now scales with the palette size.
+- **Pill menu:** Palette: GBA or Original.
+- **Measured:** seed 42, tick 400: 98.3% of world pixels are exact palette colours at cell size 4, 97.4% at 16 and 97.4% at 32.
+- **Checks:**
+  - With `&palette=original`, all 8 visual shots match the pre-palette baselines (commit 89229ec) at 0.000%.
+  - The 8 baselines were regenerated in GBA and reproduce at 0.000%.
+  - `VERIFY_VISUAL=1 npm run verify` exit 0. No simulation file changed.
+- **Needs you:**
+  - A look on the phone.
+  - Whether the interface panels should follow the palette.
+  - Merging to `main`.
+
+## Viewer: the limited 30-colour palette (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-13)
+- **What:** the world view draws in a 30-colour palette the user chose (`src/render/limited-palette.ts`). It is on by default. The pill menu has a "Palette" choice, Limited (30) or Original, saved in localStorage; the page reloads to apply it. `?palette=original` in the URL also works. The interface panels are unchanged.
+- **How colours get there:**
+  - **Picked by hand:** terrain ramps for all three themes (`palette.ts`) and the people's skin, hair and tunics: men light blue, women rust, pregnant women peach, children yellow, elders grey. Also trees, fire, the pops and the band colours (12).
+  - **Mapped automatically:** every other colour in the code goes to its nearest palette colour by perceived difference (OKLab). This happens in `hexToABGR` and in a fillStyle/strokeStyle/shadowColor hook on the world canvas.
+  - **Image data:** the terrain cache, the terrain and storm sprites and the atlases are snapped before being put on a canvas.
+  - **Overlay:** the see-through layer (crops, worked soil, dry grass, paths, building sites) is pre-mixed with the ground under each cell, snapped, and drawn solid. A faint tint is left clear so the ground texture shows.
+- **Measured:** on seed 42, tick 400, about 97 to 98% of world pixels are exact palette colours: 98.0% at cell size 4, 97.1% at 16 and 97.6% at 32. The remainder is translucent drop shadows, glows and fades. The original colours give 0%.
+  - Cost: a cached canvas colour about 18 ns per set; the terrain snap 2 ms per rebuild (24 ms once, for the lookup table); a full overlay repaint 3 to 4 ms.
+- **Checks:** with `&palette=original`, all 8 visual-check shots match the old baselines at 0.000%. The 8 baselines were then regenerated in the limited palette and reproduce at 0.000%. `VERIFY_VISUAL=1 npm run verify` exit 0. No simulation file changed. The visual check now takes `VISUAL_QUERY` (for example `&palette=original`).
+- **Known:**
+  - The palette's darkest colours are `#303843` and `#3d3333`, so water, outlines and shadows are lighter than before.
+  - It has no strong saturated colours, so figures are softer than the original bright tunics.
+  - Bluff and wall drop shadows still blend.
+- **Needs you:** a look at the phone and desktop in both palettes. Then decide whether the interface panels should follow, and whether the remaining translucent shadows should become solid palette shades.
+
+## Watchability #3: what people are doing, on screen (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-12)
+- **Why:** the user found the world dull to watch (`docs/decisions.md` 2026-11-12). Of the five ideas recorded, #3 went first because it changes no outcome.
+- **3a (sim, observer only), commit 58e156a:** `People.activity`, one byte per person, not saved or hashed, with no random draws. The low 4 bits hold this tick's action, where a higher code wins: idle, resting, tending a heap, grazing, gathering, eating, fishing, nursing, drinking, building, walking, fleeing, hunting, giving way, fighting. The high bits hold kill, birth, fire lit and hut finished, kept until the next frame. The person frame is 12 bytes (was 11). The server's merge for slow viewers carries unsent events over. Switch `activityViewEnabled` (on).
+  - Fingerprints unchanged at 1800 ticks: `dbeaac54ed27afd8` default (also with the switch off) and `453f741794e836ee` weather on.
+  - Perf on this machine at about 13,850 people: 4.165 µs per person per tick against 4.223 on `main`.
+  - Seed 42, year 8, share of person-ticks: grazing 39%, walking 19%, tending 12%, gathering 10%, resting 8%, idle 7%, nursing 2.5%. Building, drinking, fishing and giving way are each under 1%. In that year: 100 kills, 374 births, 76 fires lit, 180 huts finished.
+- **3b (viewer):** five new figure poses per person type (bend, kneel, strike with a spear, sit, hold a baby). A standing person shows their action, held at least 1 s of real time. A fleeing person gets a white alarm mark. Event pops rise and fade over 1.8 s: meat (kill), pink heart (birth), flame (fire), roof (hut). At far zoom, kills and births are red and pink rings. Two legend lines. The capture hook gained a read-only `people()`.
+  - Visual baseline 08 was regenerated on purpose: its tiny figures are now posed and the terrain is identical. 01 to 07 pass unchanged.
+- **Not built:** 3c camera moments. The camera stays off (user decision, `docs/decisions.md`).
+- **Not measured:** browser frame time with the poses and pops.
+- **Needs you (rule 13):** at cell size 16 or more, check that bent grazers, kneeling drinkers, sitters in shelter, mothers holding babies and spear-raised hunters are each readable, and that a kill or birth pop catches the eye without cluttering a crowd. At far zoom, check the kill and birth rings. Then decide on merging to `main`.
+
 ## Batch of 2026-11-09 (steps 0 to 5)
 - **Merged to `main`:** the mid-tick births fix (a782483); S3 viewer art (PR #3); place cost (PR #4, **off by default**, too weak while fights are rare); Phase 5f exposure port (PR #5); wall crossing and burning-tile skip (unit D, built here because Katie's laptop went offline; off by default with S3a).
 - **S3a re-run (step 4):** with S3a on, walls form as lines and partial rooms, settlements last longer and villages appear on all 3 seeds; crossing keeps the lines while wearing through huts. Numbers in `docs/findings.md`.

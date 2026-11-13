@@ -6,6 +6,8 @@
  * art 100% crisp and reproducible.
  */
 
+import { paletteHex } from './limited-palette';
+
 export interface SpriteRect {
   readonly x: number;
   readonly y: number;
@@ -16,6 +18,7 @@ export interface SpriteRect {
 }
 
 export type SpriteKey =
+  | `person_${'male' | 'female' | 'pregnant' | 'child' | 'elder' | 'starving'}_${(typeof PERSON_FRAMES)[number]}`
   | 'person_male_idle'
   | 'person_male_walk_0'
   | 'person_male_walk_1'
@@ -77,8 +80,9 @@ export class PixelBuffer {
 }
 
 // Convert CSS Hex '#RRGGBB' to 32-bit ABGR uint for little-endian pixel buffers
+/** A `#rrggbb` colour as 0xAABBGGRR, moved into the limited palette when it is on (limited-palette.ts). */
 export function hexToABGR(hex: string, alpha = 255): number {
-  const clean = hex.replace('#', '');
+  const clean = paletteHex(hex.startsWith('#') ? hex : `#${hex}`).replace('#', '');
   const r = parseInt(clean.substring(0, 2), 16);
   const g = parseInt(clean.substring(2, 4), 16);
   const b = parseInt(clean.substring(4, 6), 16);
@@ -159,15 +163,34 @@ function paintMap(
 }
 
 /**
+ * Person frames in the atlas, per type. 0 to 2 are standing and walking; 3 to 7 are the activity
+ * poses (Watchability #3b), all drawn facing right (the renderer mirrors them for facing left).
+ */
+export const PERSON_FRAMES = ['idle', 'walk_0', 'walk_1', 'bend', 'kneel', 'strike', 'sit', 'hold'] as const;
+export type PersonFrame = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const POSE_BEND = 3; // grazing, gathering, tending a heap, building
+export const POSE_KNEEL = 4; // drinking, fishing
+export const POSE_STRIKE = 5; // hunting, fighting
+export const POSE_SIT = 6; // resting in shelter
+export const POSE_HOLD = 7; // nursing: a swaddled baby at the chest
+
+const SPEAR = hexToABGR('#6b4423');
+const SPEAR_TIP = hexToABGR('#cbd5e1');
+const SWADDLE = hexToABGR('#efe3c8');
+
+/**
  * Draws an 8x10 front-facing figure (seen from a little above) into the pixel buffer at (ox, oy).
  * The feet end on row 7 and a soft shadow sits on row 8, offset one pixel to the south-east.
+ * Frames 0 to 2 are standing and walking; 3 to 7 are poses (see PERSON_FRAMES): bending and
+ * kneeling lower and lean the body forward (to the right), sitting lowers it with the legs out in
+ * front, striking raises the front arm with a spear, and holding puts a bundle at the chest.
  */
 function drawPerson(
   buf: PixelBuffer,
   ox: number,
   oy: number,
   type: 'male' | 'female' | 'pregnant' | 'child' | 'elder' | 'starving',
-  walkFrame: 0 | 1 | 2 // 0 = idle, 1 = walk left fwd, 2 = walk right fwd
+  frame: PersonFrame
 ): void {
   const isChild = type === 'child';
   const isElder = type === 'elder';
@@ -201,73 +224,141 @@ function drawPerson(
 
   // Children are smaller (shifted down 2 pixels, shorter torso) but their feet share the adult baseline
   const yOff = isChild ? 2 : 0;
+  // Poses move the head and the body: kneeling and sitting lower both, upright; bending keeps the hips
+  // high and bows the head down in front of the body (drawn over it). A child is already short, so it
+  // drops at most one row.
+  const lowered = frame === POSE_BEND || frame === POSE_KNEEL || frame === POSE_SIT;
+  const headDrop = frame === POSE_KNEEL ? 2 : frame === POSE_SIT ? 3 : 0;
+  // Bending: the hips stay where they are and the head hangs below them, in front.
+  const bodyDrop = frame === POSE_BEND ? 0 : headDrop;
+  const hx = ox + (frame === POSE_BEND ? (isChild ? 2 : 3) : 0); // head left edge
+  const hy = frame === POSE_BEND ? oy + (isChild ? 4 : 4) : oy + yOff + (isChild ? Math.min(1, headDrop) : headDrop); // head top
+  const bx = ox; // body left edge
+  const torsoY = oy + yOff + 3 + (isChild ? Math.min(1, bodyDrop) : bodyDrop);
+  const torsoH = isChild || lowered ? 2 : 3;
 
-  // 1. Head: hair on top with crisp boundary, face lit on the left, eye on right
-  buf.fillRect(ox + 2, oy + yOff + 0, 4, 1, hair);
-  buf.setPixel(ox + 1, oy + yOff + 0, OUTLINE);
-  buf.setPixel(ox + 6, oy + yOff + 0, OUTLINE);
-  buf.setPixel(ox + 2, oy + yOff + 1, hair);
-  buf.setPixel(ox + 5, oy + yOff + 1, hair);
-  if (type === 'female' || isPregnant) {
-    buf.setPixel(ox + 1, oy + yOff + 1, hair);
-    buf.setPixel(ox + 1, oy + yOff + 2, hair);
-    buf.setPixel(ox + 6, oy + yOff + 1, hair);
-    buf.setPixel(ox + 6, oy + yOff + 2, hair);
-  }
-  buf.fillRect(ox + 3, oy + yOff + 1, 2, 2, skin);
-  buf.setPixel(ox + 4, oy + yOff + 1, HAIR_DARK); // eye
-  if (!isElder && !isStarving) buf.setPixel(ox + 4, oy + yOff + 2, SKIN_SHADE);
-  buf.setPixel(ox + 2, oy + yOff + 2, OUTLINE);
-  buf.setPixel(ox + 5, oy + yOff + 2, OUTLINE);
-  if (isElder) buf.fillRect(ox + 3, oy + yOff + 2, 2, 2, HAIR_ELDER); // full beard
+  const drawHead = (): void => {
+    // Head: hair on top with crisp boundary, face lit on the left, eye on right
+    buf.fillRect(hx + 2, hy + 0, 4, 1, hair);
+    buf.setPixel(hx + 1, hy + 0, OUTLINE);
+    buf.setPixel(hx + 6, hy + 0, OUTLINE);
+    buf.setPixel(hx + 2, hy + 1, hair);
+    buf.setPixel(hx + 5, hy + 1, hair);
+    if (type === 'female' || isPregnant) {
+      buf.setPixel(hx + 1, hy + 1, hair);
+      buf.setPixel(hx + 1, hy + 2, hair);
+      buf.setPixel(hx + 6, hy + 1, hair);
+      buf.setPixel(hx + 6, hy + 2, hair);
+    }
+    buf.fillRect(hx + 3, hy + 1, 2, 2, skin);
+    buf.setPixel(hx + 4, hy + 1, HAIR_DARK); // eye
+    if (!isElder && !isStarving) buf.setPixel(hx + 4, hy + 2, SKIN_SHADE);
+    buf.setPixel(hx + 2, hy + 2, OUTLINE);
+    buf.setPixel(hx + 5, hy + 2, OUTLINE);
+    if (isElder) buf.fillRect(hx + 3, hy + 2, 2, 2, HAIR_ELDER); // full beard
+  };
 
-  // 2. Torso: lit left, shaded right column, distinct leather belt & buckle
-  const torsoY = oy + yOff + 3;
-  const torsoH = isChild ? 2 : 3;
-  buf.fillRect(ox + 2, torsoY, 4, torsoH - 1, tunic);
-  buf.setPixel(ox + 5, torsoY, tunicDark);
-  buf.setPixel(ox + 1, torsoY, OUTLINE);
-  buf.setPixel(ox + 6, torsoY, OUTLINE);
+  // 1. Head (a bowed head is drawn after the body, in front of it)
+  if (frame !== POSE_BEND) drawHead();
 
-  // Arms: left in the light, right in shade
-  buf.setPixel(ox + 1, torsoY + 1, skin);
-  buf.setPixel(ox + 6, torsoY + 1, SKIN_SHADE);
+  // 2. Torso: lit left, shaded right column, distinct leather belt & buckle. Lowered figures fold to
+  // two rows so the feet keep the baseline.
+  buf.fillRect(bx + 2, torsoY, 4, torsoH - 1, tunic);
+  buf.setPixel(bx + 5, torsoY, tunicDark);
+  buf.setPixel(bx + 1, torsoY, OUTLINE);
+  buf.setPixel(bx + 6, torsoY, OUTLINE);
+
+  // Arms: left in the light, right (the front) in shade, unless the pose uses the front arm
+  buf.setPixel(bx + 1, torsoY + 1, skin);
+  const frontArmFree = frame !== POSE_BEND && frame !== POSE_KNEEL && frame !== POSE_STRIKE;
+  if (frontArmFree) buf.setPixel(bx + 6, torsoY + 1, SKIN_SHADE);
 
   // Leather belt & buckle
-  buf.fillRect(ox + 2, torsoY + torsoH - 1, 4, 1, BELT);
-  buf.setPixel(ox + 3, torsoY + torsoH - 1, BUCKLE);
-  buf.setPixel(ox + 1, torsoY + torsoH - 1, OUTLINE);
-  buf.setPixel(ox + 6, torsoY + torsoH - 1, OUTLINE);
+  buf.fillRect(bx + 2, torsoY + torsoH - 1, 4, 1, BELT);
+  buf.setPixel(bx + 3, torsoY + torsoH - 1, BUCKLE);
+  buf.setPixel(bx + 1, torsoY + torsoH - 1, OUTLINE);
+  buf.setPixel(bx + 6, torsoY + torsoH - 1, OUTLINE);
 
   if (isPregnant) {
-    buf.fillRect(ox + 4, torsoY + 1, 2, 1, BELLY_HIGHLIGHT);
-    buf.setPixel(ox + 5, torsoY + 1, tunicDark);
+    buf.fillRect(bx + 4, torsoY + 1, 2, 1, BELLY_HIGHLIGHT);
+    buf.setPixel(bx + 5, torsoY + 1, tunicDark);
   }
 
   // 3. Legs and feet (feet on row 7 for every figure)
-  const legY = torsoY + torsoH;
+  const feetY = oy + 7;
   if (isChild) {
-    buf.setPixel(ox + 3, legY, FEET);
-    buf.setPixel(ox + 4, legY, FEET);
-  } else if (walkFrame === 0) {
-    buf.setPixel(ox + 2, legY, LEGS_DARK);
-    buf.setPixel(ox + 5, legY, LEGS_DARK);
-    buf.setPixel(ox + 2, legY + 1, FEET);
-    buf.setPixel(ox + 5, legY + 1, FEET);
-    buf.setPixel(ox + 1, legY + 1, OUTLINE);
-    buf.setPixel(ox + 6, legY + 1, OUTLINE);
-  } else if (walkFrame === 1) {
-    buf.setPixel(ox + 2, legY, LEGS_DARK);
-    buf.setPixel(ox + 2, legY + 1, FEET);
-    buf.setPixel(ox + 1, legY + 1, FEET);
-    buf.setPixel(ox + 5, legY, FEET);
-    buf.setPixel(ox + 0, legY + 1, OUTLINE);
+    if (frame === POSE_SIT) {
+      buf.setPixel(ox + 5, feetY, FEET);
+      buf.setPixel(ox + 6, feetY, FEET);
+    } else {
+      buf.setPixel(ox + 3, feetY, FEET);
+      buf.setPixel(ox + 4, feetY, FEET);
+    }
+  } else if (frame === POSE_KNEEL) {
+    // Folded: the shin flat on the ground behind, the front knee up
+    buf.fillRect(ox + 1, feetY, 3, 1, LEGS_DARK);
+    buf.setPixel(ox + 0, feetY, FEET);
+    buf.setPixel(ox + 4, feetY, LEGS_DARK);
+  } else if (frame === POSE_SIT) {
+    // Legs out in front
+    buf.fillRect(ox + 4, feetY, 3, 1, LEGS_DARK);
+    buf.setPixel(ox + 7, feetY, FEET);
+  } else if (frame === POSE_BEND) {
+    // Straight legs under high hips
+    buf.setPixel(ox + 2, feetY - 2, LEGS_DARK);
+    buf.setPixel(ox + 4, feetY - 2, LEGS_DARK);
+    buf.setPixel(ox + 2, feetY - 1, LEGS_DARK);
+    buf.setPixel(ox + 4, feetY - 1, LEGS_DARK);
+    buf.setPixel(ox + 2, feetY, FEET);
+    buf.setPixel(ox + 4, feetY, FEET);
+    buf.setPixel(ox + 1, feetY, OUTLINE);
   } else {
-    buf.setPixel(ox + 2, legY, FEET);
-    buf.setPixel(ox + 5, legY, LEGS_DARK);
-    buf.setPixel(ox + 5, legY + 1, FEET);
-    buf.setPixel(ox + 6, legY + 1, FEET);
-    buf.setPixel(ox + 7, legY + 1, OUTLINE);
+    const legY = torsoY + torsoH;
+    const stance = frame === POSE_STRIKE ? 1 : frame === POSE_HOLD ? 0 : frame;
+    if (stance === 0) {
+      buf.setPixel(ox + 2, legY, LEGS_DARK);
+      buf.setPixel(ox + 5, legY, LEGS_DARK);
+      buf.setPixel(ox + 2, legY + 1, FEET);
+      buf.setPixel(ox + 5, legY + 1, FEET);
+      buf.setPixel(ox + 1, legY + 1, OUTLINE);
+      buf.setPixel(ox + 6, legY + 1, OUTLINE);
+    } else if (stance === 1) {
+      buf.setPixel(ox + 2, legY, LEGS_DARK);
+      buf.setPixel(ox + 2, legY + 1, FEET);
+      buf.setPixel(ox + 1, legY + 1, FEET);
+      buf.setPixel(ox + 5, legY, FEET);
+      buf.setPixel(ox + 0, legY + 1, OUTLINE);
+    } else {
+      buf.setPixel(ox + 2, legY, FEET);
+      buf.setPixel(ox + 5, legY, LEGS_DARK);
+      buf.setPixel(ox + 5, legY + 1, FEET);
+      buf.setPixel(ox + 6, legY + 1, FEET);
+      buf.setPixel(ox + 7, legY + 1, OUTLINE);
+    }
+  }
+
+  // 4. The front arm for the poses that use it
+  if (frame === POSE_BEND) {
+    // Bowed head in front of the body, the hand reaching down to the ground under it
+    drawHead();
+    buf.setPixel(ox + 6, feetY - 1, SKIN_SHADE);
+    buf.setPixel(ox + 7, feetY, skin);
+  } else if (frame === POSE_KNEEL) {
+    // Cupped hand forward and down, at the water's edge
+    buf.setPixel(bx + 6, torsoY + 1, SKIN_SHADE);
+    buf.setPixel(bx + 7, torsoY + 2, SKIN_SHADE);
+    buf.setPixel(bx + 7, feetY, skin);
+  } else if (frame === POSE_STRIKE) {
+    // Front arm raised, a spear held high with its point forward
+    buf.setPixel(bx + 6, torsoY, SKIN_SHADE);
+    buf.setPixel(bx + 7, torsoY - 1, skin);
+    for (let y = oy - 1 + yOff; y <= torsoY + 1; y++) buf.setPixel(bx + 8, y, SPEAR);
+    buf.setPixel(bx + 8, oy - 1 + yOff, SPEAR_TIP);
+  } else if (frame === POSE_HOLD) {
+    // A swaddled baby across the chest, its face to the front
+    buf.fillRect(bx + 3, torsoY + 1, 4, 1, SWADDLE);
+    buf.setPixel(bx + 6, torsoY, SKIN);
+    buf.setPixel(bx + 7, torsoY + 1, OUTLINE);
   }
 }
 
@@ -406,8 +497,6 @@ export function createWorldBoxSpriteAtlas(): SpriteAtlas {
   const sprites: Record<string, SpriteRect> = {};
 
   const personTypes = ['male', 'female', 'pregnant', 'child', 'elder', 'starving'] as const;
-  const walkFrames = [0, 1, 2] as const;
-  const frameNames = ['idle', 'walk_0', 'walk_1'] as const;
 
   // Grid layout: 8x10 person sprites spaced by 12x12 slots
   let curX = 0;
@@ -415,12 +504,10 @@ export function createWorldBoxSpriteAtlas(): SpriteAtlas {
 
   for (let t = 0; t < personTypes.length; t++) {
     const pType = personTypes[t];
-    for (let f = 0; f < walkFrames.length; f++) {
-      const frame = walkFrames[f];
-      const name = frameNames[f];
-      const key: SpriteKey = `person_${pType}_${name}` as SpriteKey;
+    for (let f = 0; f < PERSON_FRAMES.length; f++) {
+      const key = `person_${pType}_${PERSON_FRAMES[f]}` as SpriteKey;
 
-      drawPerson(pBuf, curX + 2, curY + 1, pType, frame);
+      drawPerson(pBuf, curX + 2, curY + 1, pType, f as PersonFrame);
 
       sprites[key] = {
         x: curX,
