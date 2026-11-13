@@ -1373,3 +1373,33 @@ Seed 2 at W0 is the same (adults 62 / 18 / 7 / 5 / 8%; full 0.85 / 0.92 / 0.98 /
 - **Water and paths:** `thirstSeek 30`; `pathPull 0`.
 - **Pressure:** `reproductionThreshold 50` (faster breeding fills the land sooner).
 A lever "works" if net movement or band movement at least doubles on both seeds. No default is changed in this round.
+
+**W1a round 5 results (26 runs, all finished, none died out): no single lever makes people travel.** Seed 1 / seed 2, 30 years. "Works" was set as net or band movement at least doubling.
+
+| Change | Net tiles per adult a year | Band centre tiles a year | Steps per adult a year | `campStayTimeMedian` | Adults beyond 5 tiles of water | Pop. year 30 |
+|---|---|---|---|---|---|---|
+| Today | 7.9 / 7.9 | 4.4 / 4.1 | 96 / 88 | 163 / 169 | 13 / 19% | 5494 / 5119 |
+| `calmMovementEnabled false` | 10.4 / 11.5 | 6.7 / 7.0 | 222 / 217 | 68 / 64 | 18 / 25% | 2703 / 3805 |
+| `stayValueEnabled false` | 9.8 / 11.1 | 6.8 / 7.2 | 177 / 177 | 86 / 76 | 15 / 24% | 3210 / 3522 |
+| `comfortableStayEnabled false` | 9.6 / 10.0 | 6.4 / 6.4 | 168 / 156 | 91 / 96 | 16 / 22% | 3737 / 3712 |
+| `stayFoodFraction 0.9` | 9.1 / 9.8 | 5.6 / 5.6 | 149 / 147 | 117 / 110 | 12 / 19% | 4095 / 4248 |
+| `stockpilesEnabled false` | 8.9 / 8.7 | 6.1 / 5.8 | 113 / 107 | 135 / 156 | 17 / 20% | 4297 / 3284 |
+| `reproductionThreshold 50` | 8.3 / 9.2 | 4.7 / 4.6 | 99 / 103 | 155 / 129 | 14 / 21% | 6370 / 6213 |
+| `thirstSeek 30` | 8.3 / 8.8 | 4.4 / 4.2 | 93 / 87 | 165 / 167 | 16 / 23% | 5763 / 5304 |
+| `scentFoodEmitRate 0.3` | 8.0 / 8.3 | 3.9 / 4.0 | 105 / 99 | 152 / 148 | 13 / 18% | 5309 / 4801 |
+| `pathPull 0` | 8.0 / 8.1 | 4.3 / 4.1 | 92 / 85 | 169 / 179 | 13 / 19% | 5939 / 5415 |
+| `hungerLeaderPullMul 0` | 8.0 / 8.2 | 4.5 / 4.4 | 93 / 88 | 171 / 165 | 13 / 19% | 4974 / 4977 |
+| `farSightPull 3`, margin 0.05 | 7.9 / 7.8 | 4.5 / 3.8 | 95 / 86 | 164 / 180 | 13 / 19% | 5512 / 4396 |
+| `copyEnabled false` | 7.7 / 7.7 | 4.1 / 4.4 | 88 / 80 | 175 / 181 | 13 / 19% | 5876 / 5026 |
+| `hungerSearchFood 12`, drive at 0.6 | 7.5 / 8.1 | 3.6 / 3.5 | 85 / 82 | 190 / 172 | 13 / 21% | 6192 / 5693 |
+
+- **Nothing doubles movement; migration entries are 0 in all 26 runs; the land stays 95 to 96% full in all of them.**
+- **Loosening the camp** (calm off, stay value off, comfortable stay off) doubles the steps and halves the stays, but net movement rises only 25 to 45%: people shuffle more, they don't go anywhere. It costs a third to half of the population.
+- **Leaders, paths, far sight and thirst timing do nothing measurable.**
+- **Reading:** movement is a local random walk. Steps without a direction add up to about √steps, and the range from water matches that: a person takes about 30 steps between drinks, so they diffuse about 5 tiles, which is where 86% of adults are. Travel needs a pull with a direction that lasts.
+- **A candidate for why the existing pulls don't act:** the food-scent slope a person feels averages 4 to 8 (round 4), times a weight of 1 to 3.75, against 1.0 for far sight, 1.2 for search persistence and 0.2 to 1.6 for a leader. The scent term is 10 to 20 times bigger than every directed pull, and food heaps add to it (`storeScentEnabled`), so it points back at the camp.
+- **Wolves are too noisy to be a guard rail on two seeds:** they died out on one seed or both in 9 of the 13 arms, including arms that change nothing about food.
+
+**W1a round 6 (written before the runs): does a directed pull, freed from the scent, produce travel?** Seeds 1 and 2, 30 years. H6: with the scent weakened or far sight strengthened above it, hungry people on poor ground walk to richer blocks, so on scarce land the far land is used (`landFullPct` falls, more adults beyond 5 tiles, population above scarce-alone's 1873 / 1976) and net movement at least doubles. Arms:
+- today's land: `storeScentEnabled false`; `scentFoodEmitRate 0.01`; `farSightPull 15` with `hungerSearchPersist 6`.
+- scarce land (0.02 × 18) with: `farSightPull 15` and `hungerSearchPersist 6`; `scentFoodEmitRate 0.01`; `thirstEnabled false`; `stayValueEnabled false` plus the far-sight pair; `weatherEnabled true`.
