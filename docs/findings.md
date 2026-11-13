@@ -1292,3 +1292,41 @@ Branch `watch-w1a-abundance`. Probe `scripts/watch-probe.ts`, measured from year
 - **H4, people travel:** `stepsPerAdultYear` (96 / 88 / 104) and `netDisplacePerAdultYear` (7.9 / 7.9 / 8.4) rise by at least half; `nearWaterPct` (66 / 62 / 67) falls by at least 10 points.
 - **Guard rails (reported, not tuned toward):** no die-out in 50 years; population at year 30 at least 1,500 on every seed; `hungryPct` no more than about double W0's (4.8 / 6.0 / 5.5, so about 11); herds alive at year 50 on every seed; wolves alive at year 30 on seeds 2 and 3, where W0 has them (50 and 47).
 - **Round 1, a grid with no code change** (config overrides on the command line): `landRegrowthRate` 0.02, 0.015, 0.01 × `landFoodMax` 25, 18, 12, seeds 1 to 3, 30 years, 27 runs. Then the mildest setting that meets H1 to H4 inside the guard rails is confirmed at 50 years on 5 seeds. At most 8 rounds; misses are reported.
+
+**W1a round 1 (grid, 27 runs, seeds 1 to 3, 30 years, command-line overrides, no code change): the planned levers miss.** All 27 runs finished, none died out. Ranges over the three seeds:
+
+| `landRegrowthRate` | `landFoodMax` | Pop. year 30 | `campStayTimeMedian` | `landFullPct` | `harvestOfMaxYield` | `nearWaterPct` | `hungryPct` | Wolves year 30 |
+|---|---|---|---|---|---|---|---|---|
+| 0.05 (W0) | 25 | 5119 to 6034 | 157 to 169 | 0.94 to 0.96 | 0.15 to 0.20 | 62 to 67 | 4.8 to 6.0 | 0 / 50 / 47 |
+| 0.02 | 25 | 2624 to 2925 | 104 to 118 | 0.91 to 0.93 | 0.25 to 0.29 | 55 to 63 | 6.3 to 8.1 | 0 / 36 / 17 |
+| 0.02 | 18 | 1873 to 1976 | 85 to 103 | 0.92 | 0.26 to 0.28 | 57 to 64 | 8.4 to 10.2 | 0 |
+| 0.02 | 12 | 1084 to 1282 | 72 to 86 | 0.92 | 0.26 to 0.27 | 59 to 65 | 13.9 to 16.2 | 0 |
+| 0.015 | 25 | 1856 to 2173 | 103 to 117 | 0.92 | 0.26 to 0.29 | 57 to 64 | 6.4 to 8.0 | 0 / 0 / 23 |
+| 0.015 | 18 | 1255 to 1468 | 90 to 105 | 0.92 | 0.27 to 0.29 | 58 to 66 | 8.7 to 11.1 | 0 |
+| 0.015 | 12 | 800 to 1008 | 75 to 87 | 0.92 | 0.29 to 0.30 | 58 to 65 | 14.7 to 16.5 | 0 |
+| 0.01 | 25 | 1339 to 1566 | 94 to 120 | 0.90 to 0.91 | 0.31 to 0.34 | 53 to 64 | 6.9 to 8.2 | 0 |
+| 0.01 | 18 | 927 to 1076 | 88 to 99 | 0.91 | 0.31 to 0.33 | 56 to 63 | 8.8 to 10.3 | 0 |
+| 0.01 | 12 | 473 to 540 | 88 to 94 | 0.92 to 0.93 | 0.29 to 0.32 | 59 to 66 | 13.6 to 16.2 | 0 |
+
+- **H1 missed:** the shortest time-weighted stay is 72 to 86 ticks (target 14 to 40), and only where the population is near or under the 1,500 floor.
+- **H2 missed everywhere:** the land stays 90 to 93% full at every setting.
+- **H3 missed:** `harvestOfMaxYield` peaks at 0.31 to 0.34 (target 0.35), at populations under 1,600.
+- **H4 partly:** steps rise by up to 40% (0.02 × 12), net movement from 8 to 10 to 13 tiles a year; `nearWaterPct` hardly moves.
+- **Guard rails:** only 0.02 × 25, 0.02 × 18 and 0.015 × 25 keep every seed above 1,500 at year 30. Hunger passes about 11% at cap 12. Herds are unaffected (294 to 300). Wolves die out by year 30 in 23 of 27 runs, including seeds 2 and 3 where W0 keeps them.
+- **Reading:** scarcer grass gives fewer people, not people who move. The population shrinks to fit the same strip of land.
+
+**W1a round 2 (diagnosis, seed 1 unless noted, 30 years): the unused land is the land away from water.** The probe now splits productive land by distance to fresh water.
+
+| Tiles from fresh water | 0 to 2 | 3 to 5 | 6 to 10 | 11 to 20 | 21 or more |
+|---|---|---|---|---|---|
+| Share of productive land | 15% | 15% | 16% | 17% | 37% |
+| How full, W0 | 0.85 | 0.91 | 0.98 | 0.99 | 0.99 |
+| Share of adults, W0 | 66% | 21% | 6% | 3% | 4% |
+| How full, 0.02 × 18 | 0.76 | 0.82 | 0.96 | 0.97 | 0.98 |
+| Share of adults, 0.02 × 18 | 62% | 24% | 6% | 4% | 5% |
+| How full, 0.01 × 12 | 0.78 | 0.85 | 0.97 | 0.97 | 0.98 |
+| Share of adults, 0.01 × 12 | 66% | 21% | 7% | 4% | 3% |
+
+Seed 2 at W0 is the same (adults 62 / 18 / 7 / 5 / 8%; full 0.85 / 0.92 / 0.98 / 0.98 / 0.99). About 86% of adults live on the 30% of land within 5 tiles of water, and the other 70% of the land is 96 to 99% full whatever the grass does. What holds people is the water, not the food.
+
+**W1a round 3 (written before the runs): is it thirst?** Hypothesis H5: the tether is `thirstRate` (0.4 a tick, seek below 60, so a person turns back about every 100 ticks). If so, with a slower thirst the share of adults within 5 tiles falls well below 86%, land beyond 5 tiles falls clearly below 0.96 full, and population rises. Runs (seed 1, 30 years, read only): `thirstRate` 0.2; 0.1; `thirstEnabled false` as the upper bound; and `thirstRate` 0.2 with 0.02 × 18. `thirstRate` is not on the plan's lever list, so this is a measurement for the user's decision, not a re-tune.
