@@ -1455,3 +1455,54 @@ The user supplied a framework for when moving beats staying: Charnov's marginal 
 - **P2 (marginal value): people don't leave because the patch ran down.** Prediction: the 7 × 7 catchment is about as full when a stay ends as when it began, at every stay length.
 - **P3 (group size): the stay decision ignores N.** `Rules.worthStaying` compares plants plus heap with a need that doesn't divide by the people on the tile. Prediction: plants per head fall steeply with crowd size while the share passing the stay check does not.
 - **P4 (variance): places have their good and bad years together.** With weather off a block's growth is identical every year by construction (the season curve only). Prediction with weather on: mean correlation between blocks' yearly growth above 0.5, and year-to-year spread small against the seasonal swing.
+
+**Foraging-theory measurements, results (8 runs, all finished; today's-land hashes equal the W0 runs', so the new probes changed nothing).** Seed 1 / seed 2, 30 years unless noted.
+
+*P1, central place: confirmed, and stronger than predicted.* Trips are counted from stepping more than 1 tile from fresh water until back beside it.
+
+| | Today's land | Scarce (0.02 × 18) |
+|---|---|---|
+| Furthest point of a trip, median / 90th / 99th percentile (tiles) | 2 / 4 / 19 and 2 / 5 / 26 | 2 / 4 / 19 and 2 / 5 / 25 |
+| Mean trip length (ticks) | 20 / 24 | 16 / 19 |
+| Lowest hydration on a trip (mean; full is 100, people seek water at 60) | 91.5 / 89.7 | 93.1 / 91.8 |
+| Adult time spent more than 1 tile from water | 59 / 60% | 63 / 67% |
+
+The physiological reach is of the order of 100 tiles; the typical trip turns round at 2 tiles after 20 ticks with hydration still above 90. Thirst does not end a normal trip. Something else brings people back to the bank within 20 ticks (the candidates are what is there: richer riparian ground, fish, the heaps, and everybody else), and the thirst walk only matters for the few who live far out.
+
+*P2, marginal value: mostly confirmed.* Fullness of the 7 × 7 tiles around where a stay began:
+
+| Stay length (ticks) | under 10 | 10 to 39 | 40 to 119 | 120 or more |
+|---|---|---|---|---|
+| Share of stays, today | 26 / 35% | 42 / 37% | 19 / 17% | 12 / 11% |
+| On arrival → on leaving, today | 0.72 → 0.68 / 0.74 → 0.71 | 0.71 → 0.62 / 0.74 → 0.65 | 0.73 → 0.65 / 0.76 → 0.69 | 0.77 → 0.66 / 0.79 → 0.69 |
+| On arrival → on leaving, scarce | 0.67 → 0.64 / 0.67 → 0.64 | 0.69 → 0.58 / 0.71 → 0.60 | 0.71 → 0.59 / 0.74 → 0.62 | 0.72 → 0.62 / 0.75 → 0.66 |
+
+A stay takes a catchment down by 4 to 13 points and people leave it still 58 to 71% full; long stays deplete no more than short ones, so regrowth keeps pace. The patch is not what ends a stay.
+
+*P3, group size: half right.* Adults by how many people share their tile (seed 1, 20 years):
+
+| People on the tile | 1 | 2 to 3 | 4 to 7 | 8 or more |
+|---|---|---|---|---|
+| Share of adult time, today / scarce | 29 / 32% | 23 / 26% | 22 / 25% | 27 / 17% |
+| Plants per head on the tile, today / scarce | 13.7 / 5.6 | 3.8 / 1.3 | 0.66 / 0.25 | 0.09 / 0.03 |
+| Plants plus heap in reach per head | 18.2 / 7.5 | 7.6 / 2.8 | 4.4 / 1.9 | 1.8 / 1.0 |
+| Stay check passed | 91 / 69% | 79 / 51% | 70 / 49% | 53 / 40% |
+| Stepped | 8 / 25% | 15 / 36% | 22 / 37% | 29 / 29% |
+| Mean energy (breeding needs 65) | 86.5 / 78.9 | 80.1 / 70.8 | 70.2 / 65.6 | 64.6 / 60.1 |
+| Hungry | 2.1 / 5.5% | 2.2 / 6.3% | 2.6 / 6.2% | 3.7 / 11.2% |
+
+Crowding does lower the pass rate (the shared tile really is emptier), so the prediction that it wouldn't was wrong. But food per head falls 150 times from a lone forager to a crowd of 8, and the pass rate falls only from 91% to 53%: the check compares the tile and its heap with one person's need, not with the people sharing it. A quarter of adult time is spent in crowds of 8 or more with 0.09 plant food each, at a mean energy of 64.6, right on the breeding threshold. That is where the population is held.
+
+*P4, variance: confirmed.* Weather on, 25 measured years, blocks of 16 × 16:
+
+| | Seed 1 | Seed 2 |
+|---|---|---|
+| A block's year-to-year spread (CV) | 0.105 | 0.090 |
+| The whole map's year-to-year spread | 0.085 | 0.063 |
+| Mean correlation between blocks' yearly growth | 0.64 | 0.53 |
+| Fixed spread between blocks (climate) | 0.20 | 0.23 |
+| Growth by quarter of the year | 0.89, 1.44, 0.78, 0.23 | same |
+
+Years vary by about 10% and places share them (correlation 0.5 to 0.6), while the season swings growth six-fold for every tile at once. With weather off there is no year-to-year variation at all. Moving between patches pools no risk today.
+
+**The framework's terms, as measured:** λ at camp scale is small (P2); N raises depletion but the decision to stay doesn't feel it per head (P3); the water limit r_max is about 50 times looser than the range people use (P1); σ² is small and shared (P4). Each one sits on the side that favours staying.
