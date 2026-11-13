@@ -6,6 +6,8 @@
  * art 100% crisp and reproducible.
  */
 
+import { paletteHex } from './limited-palette';
+
 export interface SpriteRect {
   readonly x: number;
   readonly y: number;
@@ -78,8 +80,9 @@ export class PixelBuffer {
 }
 
 // Convert CSS Hex '#RRGGBB' to 32-bit ABGR uint for little-endian pixel buffers
+/** A `#rrggbb` colour as 0xAABBGGRR, moved into the limited palette when it is on (limited-palette.ts). */
 export function hexToABGR(hex: string, alpha = 255): number {
-  const clean = hex.replace('#', '');
+  const clean = paletteHex(hex.startsWith('#') ? hex : `#${hex}`).replace('#', '');
   const r = parseInt(clean.substring(0, 2), 16);
   const g = parseInt(clean.substring(2, 4), 16);
   const b = parseInt(clean.substring(4, 6), 16);

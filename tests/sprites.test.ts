@@ -3,17 +3,13 @@ import { createWorldBoxSpriteAtlas, hexToABGR, type SpriteKey } from '../src/ren
 
 describe('WorldBox Sprite Atlas', () => {
   it('converts hex colors to 32-bit little-endian ABGR integers', () => {
-    // Red: #ff0000 -> (A=255, B=0, G=0, R=255) -> 0xff0000ff
-    const red = hexToABGR('#ff0000', 255);
-    expect(red >>> 0).toBe(0xff0000ff >>> 0);
-
-    // Green: #00ff00 -> (A=255, B=0, G=255, R=0) -> 0xff00ff00
-    const green = hexToABGR('#00ff00', 255);
-    expect(green >>> 0).toBe(0xff00ff00 >>> 0);
-
-    // Blue: #0000ff -> (A=255, B=255, G=0, R=0) -> 0xffff0000
-    const blue = hexToABGR('#0000ff', 255);
-    expect(blue >>> 0).toBe(0xffff0000 >>> 0);
+    // Palette colours map to themselves (the limited palette is on by default), so the byte order shows.
+    // #b55945 -> (A=255, B=0x45, G=0x59, R=0xb5) -> 0xff4559b5
+    expect(hexToABGR('#b55945', 255) >>> 0).toBe(0xff4559b5 >>> 0);
+    // #44702d -> 0xff2d7044
+    expect(hexToABGR('#44702d', 255) >>> 0).toBe(0xff2d7044 >>> 0);
+    // #405273 -> 0xff735240, with alpha 128 -> 0x80735240
+    expect(hexToABGR('#405273', 128) >>> 0).toBe(0x80735240 >>> 0);
   });
 
   it('generates all person stick-figure variants and trees in procedural atlas', () => {

@@ -13,6 +13,7 @@ import {
 } from '../sim/protocol';
 import { ACT_FLEE, ACT_MASK, EV_BIRTH, EV_BUILT, EV_FIRE, EV_KILL, EV_MASK } from '../sim/activity';
 import { holdPose, poseFor, popShape, POP_MS } from './poses';
+import { BAND_COLOURS, LIMITED, limitCanvasColours, quantizeImage, quantizeOver } from './limited-palette';
 import {
   PERSON_FRAMES,
   createWorldBoxSpriteAtlas,
@@ -202,6 +203,7 @@ function hashRootLeaderToABGR(rootId: number): number {
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = (h >> 16) ^ h;
+  if (LIMITED) return hexToABGR(BAND_COLOURS[((h % BAND_COLOURS.length) + BAND_COLOURS.length) % BAND_COLOURS.length]);
   const hue = ((h % 360) + 360) % 360;
 
   const s = 0.85;
@@ -227,6 +229,7 @@ function hashRootLeaderToHex(rootId: number): string {
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = ((h >> 16) ^ h) * 0x45d9f3b;
   h = (h >> 16) ^ h;
+  if (LIMITED) return BAND_COLOURS[((h % BAND_COLOURS.length) + BAND_COLOURS.length) % BAND_COLOURS.length];
   const hue = ((h % 360) + 360) % 360;
   return `hsl(${hue}, 85%, 55%)`;
 }
@@ -528,6 +531,8 @@ export class CanvasRenderer {
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+    // Limited palette: every colour set on the world canvas is moved into the palette.
+    limitCanvasColours(this.ctx);
     this.world = world;
 
     // Generate procedural sprite atlas once
@@ -1302,12 +1307,16 @@ export class CanvasRenderer {
         }
         this.groundChangesSeen = changed ? changed.length : 0;
         this.weatherChangesSeen = wChanged ? wChanged.length : 0;
-        if (x1 >= 0) this.overlayCtx.putImageData(this.overlayImg, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        if (x1 >= 0) {
+          quantizeOver(this.overlayData32, this.terrainData32, 256, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+          this.overlayCtx.putImageData(this.overlayImg, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+        }
         return true;
       }
       for (let i = 0; i < 65536; i++) out[i] = this.overlayColor(i, data, paths, structures, waterArr, weather);
       this.groundChangesSeen = changed ? changed.length : 0;
       this.weatherChangesSeen = wChanged ? wChanged.length : 0;
+      quantizeOver(this.overlayData32, this.terrainData32, 256);
       this.overlayCtx.putImageData(this.overlayImg, 0, 0);
     }
     return true;
@@ -1501,6 +1510,7 @@ export class CanvasRenderer {
       }
     }
 
+    quantizeImage(this.terrainData32, 256);
     this.terrainCtx.putImageData(this.terrainImgData, 0, 0);
     this.terrainGenerated = true;
     // The overlay's dry tint reads isGreenGround, so repaint it in full against the new mask.

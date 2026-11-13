@@ -6,6 +6,7 @@
  */
 
 import { PixelBuffer, hexToABGR } from './sprites';
+import { quantizeImage } from './limited-palette';
 import {
   type TerrainTheme,
   type MaterialRamp,
@@ -104,6 +105,7 @@ export function createTerrainAtlas(theme: TerrainTheme = 'classic'): TerrainAtla
     const imgData = ctx.createImageData(ATLAS_W, ATLAS_H);
     const data32 = new Uint32Array(imgData.data.buffer);
     data32.set(buf.data);
+    quantizeImage(data32, ATLAS_W); // limited palette: blended texels snap to it
     ctx.putImageData(imgData, 0, 0);
   } else {
     canvas = { width: ATLAS_W, height: ATLAS_H } as unknown as HTMLCanvasElement;

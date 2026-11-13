@@ -14,8 +14,11 @@ export interface MaterialRamp {
   readonly rimHex: string;
 }
 
+import { LIMITED, paletteHex } from './limited-palette';
+
+/** A `#rrggbb` colour as 0xAABBGGRR, moved into the limited palette when it is on (limited-palette.ts). */
 export function hexToABGR(hex: string, alpha = 255): number {
-  const clean = hex.replace('#', '');
+  const clean = paletteHex(hex.startsWith('#') ? hex : `#${hex}`).replace('#', '');
   const r = parseInt(clean.substring(0, 2), 16);
   const g = parseInt(clean.substring(2, 4), 16);
   const b = parseInt(clean.substring(4, 6), 16);
@@ -82,17 +85,55 @@ export const PALETTE_DF_WILDS = {
   hearthFire: makeRamp('#ffe066', '#f59f00', '#d9480f', '#3b0d0c'),
 } as const;
 
+// Limited palette (limited-palette.ts): ramps picked by hand from its 30 colours, per theme. Highlight,
+// base, shadow, rim. Its darkest colours are #303843 (cool) and #3d3333 (warm), so water and rims are
+// lighter than in the original ramps.
+export const PALETTE_LIMITED_CLASSIC = {
+  deepWater: makeRamp('#6c81a1', '#405273', '#303843', '#303843'),
+  shallowWater: makeRamp('#96a9c1', '#6c81a1', '#405273', '#303843'),
+  sand: makeRamp('#d4c692', '#bcad9f', '#a57855', '#734c44'),
+  grass: makeRamp('#819447', '#44702d', '#2f4d2f', '#303843'),
+  soil: makeRamp('#a57855', '#734c44', '#593e47', '#3d3333'),
+  shrub: makeRamp('#a6b04f', '#819447', '#546756', '#2f4d2f'),
+  rock: makeRamp('#bbc3d0', '#87857c', '#636663', '#3d3333'),
+  snow: makeRamp('#f1f6f0', '#d5d6db', '#bbc3d0', '#6c81a1'),
+  stoneWall: makeRamp('#d5d6db', '#bbc3d0', '#87857c', '#3d3333'),
+  earthWall: makeRamp('#f2b888', '#a57855', '#734c44', '#3d3333'),
+  timber: makeRamp('#a57855', '#734c44', '#593e47', '#3d3333'),
+  hearthFire: makeRamp('#fdd179', '#de9f47', '#b55945', '#3d3333'),
+} as const;
+
+export const PALETTE_LIMITED_MOUNTAINHOME = {
+  ...PALETTE_LIMITED_CLASSIC,
+  sand: makeRamp('#fee1b8', '#bcad9f', '#87857c', '#636663'),
+  grass: makeRamp('#89a477', '#546756', '#2f4d2f', '#303843'),
+  shrub: makeRamp('#a6b04f', '#819447', '#44702d', '#2f4d2f'),
+  soil: makeRamp('#7a5859', '#593e47', '#3d3333', '#303843'),
+  rock: makeRamp('#96a9c1', '#6c81a1', '#405273', '#303843'),
+} as const;
+
+export const PALETTE_LIMITED_WILDS = {
+  ...PALETTE_LIMITED_CLASSIC,
+  deepWater: makeRamp('#405273', '#303843', '#303843', '#3d3333'),
+  shallowWater: makeRamp('#96a9c1', '#6c81a1', '#405273', '#303843'),
+  sand: makeRamp('#d4c692', '#bcad9f', '#87857c', '#593e47'),
+  grass: makeRamp('#a6b04f', '#819447', '#546756', '#2f4d2f'),
+  shrub: makeRamp('#d4c692', '#a6b04f', '#819447', '#546756'),
+  soil: makeRamp('#7a5859', '#593e47', '#3d3333', '#303843'),
+  rock: makeRamp('#bcad9f', '#87857c', '#636663', '#3d3333'),
+} as const;
+
 export function getPaletteForTheme(theme: TerrainTheme) {
   switch (theme) {
-    case 'mountainhome': return PALETTE_DF_MOUNTAINHOME;
-    case 'wilds': return PALETTE_DF_WILDS;
+    case 'mountainhome': return LIMITED ? PALETTE_LIMITED_MOUNTAINHOME : PALETTE_DF_MOUNTAINHOME;
+    case 'wilds': return LIMITED ? PALETTE_LIMITED_WILDS : PALETTE_DF_WILDS;
     case 'classic':
     default:
-      return PALETTE_DF_CLASSIC;
+      return LIMITED ? PALETTE_LIMITED_CLASSIC : PALETTE_DF_CLASSIC;
   }
 }
 
-export const PALETTE = PALETTE_DF_CLASSIC;
+export const PALETTE = LIMITED ? PALETTE_LIMITED_CLASSIC : PALETTE_DF_CLASSIC;
 
 /**
  * Shifts an ABGR color toward cool slate-blue atmospheric haze for lower Z-tiers.
