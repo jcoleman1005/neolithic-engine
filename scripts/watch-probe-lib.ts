@@ -149,6 +149,12 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
     return hist.length - 1;
   };
 
+  // By distance to fresh water: 0-2, 3-5, 6-10, 11-20, 21 and more tiles.
+  const BANDS = [2, 5, 10, 20, 255];
+  const bandOf = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { let b = 0; while (L.waterDist[i] > BANDS[b]) b++; bandOf[i] = b; }
+  const bandTiles = new Float64Array(5), bandFull = new Float64Array(5), bandAdults = new Float64Array(5);
+
   const sample = (): void => {
     const p = w.people;
     const n = p.capacity;
@@ -164,6 +170,7 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
       if (age[q] < adultAge) { ringGen[o] = -1; continue; }
       adultsSeen++;
       if (L.waterDist[(y[q] << 8) | x[q]] <= 2) nearWater++;
+      bandAdults[bandOf[(y[q] << 8) | x[q]]]++;
       if (haveOld) {
         const k = old * cap + q;
         if (ringGen[k] === gen[q]) {
@@ -182,6 +189,7 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
       const f = Math.min(1, L.food[i] / c);
       full += f; food += L.food[i];
       if (f > 0.9) nearFull++;
+      bandTiles[bandOf[i]]++; bandFull[bandOf[i]] += f;
     }
     samples++;
     fullSum += full / Math.max(1, tiles);
@@ -300,6 +308,11 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
       harvestShare: r3((grazedPeople + grazedHerds) / Math.max(1e-9, regrown)),
       harvestSharePeople: r3(grazedPeople / Math.max(1e-9, regrown)),
       harvestShareHerds: r3(grazedHerds / Math.max(1e-9, regrown)),
+      // By distance to fresh water (tiles 0-2, 3-5, 6-10, 11-20, 21+): share of productive land, how full
+      // it is, and the share of adults standing there.
+      waterBandLandPct: Array.from(bandTiles, (v) => r1(100 * v / Math.max(1, bandTiles.reduce((a, b) => a + b, 0)))),
+      waterBandFull: Array.from(bandFull, (v, b) => r3(v / Math.max(1, bandTiles[b]))),
+      waterBandAdultPct: Array.from(bandAdults, (v) => r1(100 * v / Math.max(1, adultsSeen))),
       // Grazing against the most the land could regrow: every tile held at half capacity, where logistic
       // regrowth peaks at rate x capacity / 4 (base rate; the seasons average 1, farming boosts left out).
       harvestOfMaxYield: r3((grazedPeople + grazedHerds) / Math.max(1, flowTicks) / Math.max(1e-9, maxYieldSum / sn)),
