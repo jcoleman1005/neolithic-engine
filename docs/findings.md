@@ -1531,3 +1531,35 @@ Years vary by about 10% and places share them (correlation 0.5 to 0.6), while th
 - **Cause.** `ScentFields.step` spreads scent over every tile, water included, and `getFoodGradient` reads the four neighbours whether or not they can be walked on. A camp grazes its own ground bare (a tile at or under 1.0 food gives off no scent), so the scent lying over the river, fed by the far bank and by ungrazed shore, is stronger than the scent on land. The hungrier the person, the more the scent weighs (`hungerFoodWeightMul` 2.5), so the people who most need to leave are the ones held hardest.
 
 **Test 4 (written before the runs): does fixing the scent free people from the bank?** Two new switches, both off by default (off gives `dbeaac54ed27afd8`): `shoreScentEnabled` (the slope a person feels treats a water neighbour as their own tile) and `shoreSlideEnabled` (blocked by water both ways, step sideways along the shore). H8: with both on, the blocked exit falls to near zero for hungry and starving adults, hunger falls, adults beyond 5 tiles of water rise from 13 / 19%, and net movement rises. Also tried, because it is the existing way to live away from water: bigger carried-water stores (`waterCarryMax 80`, `waterFetchChance 0.5`, `waterEvaporation 0.005`). Arms, seeds 1 and 2, 30 years: scent only; slide only; both; both on scarce land (0.02 × 18); water stores only; both plus water stores.
+
+**Test 4 results (16 runs, all finished, none died out): the glitch is real and worth fixing, but it is not what holds people at the bank.** Seed 1 / seed 2, 30 years.
+
+| Arm | Stood still with the stay check failed: hungry / starving (seed 1, 20 years) | Pop. year 30 | Mean pop. | Adults within 5 tiles of water | Net tiles per adult a year | `hungryPct` |
+|---|---|---|---|---|---|---|
+| Today | 13% / 23% | 5494 / 5119 | 3062 / 2937 | 87 / 81% | 7.9 / 7.9 | 4.8 / 6.0 |
+| `shoreScentEnabled` | | 6442 / 6404 | 3546 / 3563 | 86 / 81% | 9.6 / 9.5 | 5.4 / 6.7 |
+| `shoreSlideEnabled` | | 5903 / 5455 | 3207 / 3037 | 86 / 80% | 8.5 / 8.5 | 5.6 / 6.5 |
+| Both | 1.7% / 5.2% | **6492 / 6649** | 3474 / 3673 | 86 / 80% | 9.2 / 10.1 | 5.3 / 6.7 |
+| Scarce (0.02 × 18), today | 16% / 43% | 1873 / 1976 | 1555 / 1568 | 86 / 80% | 11.0 / 11.9 | 8.9 / 10.2 |
+| Scarce, both | 1.0% / 3.0% | **2520 / 2727** | 1841 / 1991 | 83 / 76% | 13.0 / 13.1 | 10.3 / 11.4 |
+| Bigger water stores | | 6023 / 4905 | 3178 / 2942 | 87 / 81% | 8.1 / 8.2 | 5.1 / 6.1 |
+| Both + bigger water stores | | 7031 / 7236 | 3638 / 3691 | 86 / 80% | 9.5 / 9.9 | 5.5 / 6.5 |
+
+- **H8, the blocked exit: confirmed.** Starving adults standing still with nowhere worth staying fall from 23% to 5% of decisions on today's land and from 43% to 3% on scarce land; they step on 67% and 83% of decisions instead of 55% and 42%.
+- **H8, more people: confirmed.** Population at year 30 is 18 to 30% higher on today's land and 35 to 38% higher on scarce land, where `harvestOfMaxYield` reaches 0.34. The scent switch does most of it; the slide adds little on its own.
+- **H8, hunger falls: not seen.** `hungryPct` is unchanged or slightly up (5.3 / 6.7 against 4.8 / 6.0). The extra people fill the same ground.
+- **H8, people leave the bank: refuted.** 86 / 80% of adults are still within 5 tiles of water (87 / 81% before), and no run has a migration entry. Founders are still collected in the first year (seed 1 with both on: 56% within 2 tiles at year 1, 68% at year 20; without, 59% and 70%).
+- **Bigger water stores do nothing** to where people live.
+- **So the ratchet (test 1) is what holds people at the bank.** Removing thirst is the only change in any round that moved them (round 3: 51% within 5 tiles; round 6 on scarce land: 36 to 45%).
+
+**More from `bank-probe` (seed 1, years 5 to 20, by band 0-2 / 3-5 / 6-10 / 11-20 / 21+):**
+- Steps taken when not thirsty lean outward everywhere except 3 to 5 tiles, where they lean back in: growing half +0.05 / −0.16 / +0.08 / +0.12 / +0.16 tiles a decision. People do drift away from water between drinks; the thirst walk undoes it.
+- Births per 100 women a year: 53 / 84 / 68 / 89 / 41. Mean energy 79.5 / 74.2 / 72.9 / 70.6 / 65.1.
+- **Another oddity: thirst does not kill on its own.** In the 21+ band (which includes the land with no route to water) 13.6% are hungry, deaths with hydration at zero run at 7.9 per 100 a year, and yet women there still bear 41 children per 100 a year. At zero hydration a person loses `dehydrationDamage` 0.5 energy a tick, which a full bite of grass (1.0) more than covers, so someone on good grass can live without water indefinitely.
+
+**Summary of what holds people at the bank.**
+1. *The thirst ratchet* (design): straight in, random out, every 100 ticks. The main cause.
+2. *Scent over water* (glitch, fix built, off by default): holds the hungriest at the shore and costs 18 to 38% of the population.
+3. *Founders on land with no route to water* (small glitch, not fixed): 1 to 8% of land.
+4. *Thirst that food can outlast* (oddity, not fixed).
+None of this is people preferring the bank: births are lower and starvation higher there than a few tiles out.
