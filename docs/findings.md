@@ -1238,3 +1238,47 @@ Branch `watch-w0-probe`. W0 is a measurement, not a mechanic, so there are no ta
 - **E4, production is mostly unused:** `harvestShare` well below 1.
 - **Checked before the runs:** the probe leaves `stateHash()` unchanged (test `tests/watch-probe.test.ts`; seed 42 at 1800 ticks gives `dbeaac54ed27afd8` with the probe attached), and its birth and kill counts from the event bits equal direct counts of `People.spawn` and `Herds.killed` (seed 42, years 5 to 7: 184.5 births and 13.5 kills a year both ways).
 - **Found while building, before the runs:** `harvestShare` as the plan defines it (plants eaten ÷ plants regrown) is about 1 by construction (1.007 on seed 42, years 5 to 7). Regrowth is logistic, so a full tile regrows nothing and the land only regrows what was eaten. E4 can't be tested with it. Added `harvestOfMaxYield`: plants eaten ÷ the most the land could regrow if every tile were held at half capacity (`landRegrowthRate` × capacity ÷ 4 per tile).
+
+## W0 baseline (2026-11-13, `main` 9f9163d, default config, `scripts/watch-probe.ts`, measured from year 5)
+
+All four runs finished, none died out. The 30-year column is the first 30 years of the 50-year run of that seed.
+
+| Metric | S1 30y | S2 30y | S3 30y | S1 50y | S2 50y | S3 50y | S1 30y weather on |
+|---|---|---|---|---|---|---|---|
+| `stepsPerAdultYear` | 95.6 | 87.7 | 103.9 | 100.1 | 94.9 | 101.2 | 98.8 |
+| `netDisplacePerAdultYear` (tiles) | 7.9 | 7.9 | 8.4 | 8.8 | 9.1 | 9.2 | 8.1 |
+| `nearWaterPct` | 65.6 | 62.4 | 66.9 | 62.7 | 59.2 | 62.8 | 65.9 |
+| `campStayMedian` (ticks) | 21 | 17 | 19 | 19 | 16 | 17 | 22 |
+| `campStayMedianGrowing` | 21 | 17 | 19 | 20 | 16 | 18 | 22 |
+| `campStayP90` | 141 | 131 | 125 | 135 | 121 | 127 | 137 |
+| `campStayTimeMedian` | 163 | 169 | 157 | 146 | 139 | 148 | 159 |
+| `landFullPct` | 0.953 | 0.959 | 0.944 | 0.930 | 0.939 | 0.920 | 0.903 |
+| `landNearFullPct` | 0.912 | 0.923 | 0.899 | 0.868 | 0.883 | 0.851 | 0.843 |
+| `harvestShare` (eaten ÷ regrown) | 1.004 | 1.003 | 1.005 | 1.003 | 1.002 | 1.002 | 0.999 |
+| of which herds | 0.036 | 0.036 | 0.032 | 0.026 | 0.026 | 0.025 | 0.035 |
+| `harvestOfMaxYield` | 0.167 | 0.151 | 0.198 | 0.230 | 0.212 | 0.263 | 0.167 |
+| `tilesPerPerson` (mean) | 10.7 | 11.8 | 9.0 | 8.3 | 9.2 | 7.2 | 10.7 |
+| `hungryPct` | 4.8 | 6.0 | 5.5 | 10.9 | 11.3 | 12.4 | 5.1 |
+| `migrationsPer10y` | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `bandDisplacePerYear` (tiles) | 4.4 | 4.1 | 4.3 | 4.9 | 4.6 | 5.0 | 4.8 |
+| Mean population | 3062 | 2937 | 3411 | 4284 | 4197 | 4592 | 3002 |
+| Population, years 10 / 30 / 50 | 2362 / 5494 | 2591 / 5119 | 2629 / 6034 | … / 6357 | … / 6700 | … / 5748 | 2421 / 5333 |
+| Herds, year 30 / 50 | 297 | 294 | 297 | 296 | 297 | 296 | 294 |
+| Wolves, year 30 / 50 | **0** | 50 | 47 | **0** | 18 | 18 | **0** |
+| Events a year: kills / births / fires / huts | 12 / 256 / 12 / 37 | 11 / 246 / 9 / 37 | 9 / 295 / 18 / 39 | 8 / 308 / 15 / 50 | 9 / 314 / 12 / 48 | 8 / 333 / 20 / 52 | 9 / 251 / 12 / 35 |
+
+Share of person-ticks by activity (30 years, seeds 1 / 2 / 3): grazing 35 / 35 / 34%, walking 24 / 23 / 26%, tending a heap 10 / 10 / 10%, resting 10 / 10 / 9%, idle 9 / 10 / 9%, gathering 6 / 7 / 6%, nursing 2.5 / 2.5 / 2.4%, fishing 0.9 / 1.3 / 1.1%, drinking 0.9%, giving way 0.5%, building 0.4%, eating 0.2%, fighting 0.02%, hunting and fleeing under 0.005%. At 50 years idle rises to about 13% and gathering falls to 4 to 5%.
+
+**Reading, against the expectations:**
+- **E1 confirmed.** The land is 92 to 96% full, and 85 to 92% of productive tiles are above 0.9.
+- **E2 half refuted.** People hardly travel (8 to 9 tiles of net movement a year; bands' centres 4 to 5 tiles; no migration entry in any run), but `campStayMedian` is 16 to 22 ticks, not seasons. That median counts every completed stay equally, so it is ruled by short stops: an adult takes about 100 steps a year and makes about 4 "stays" a year by the 3-tile rule. Weighted by time, half of adult time is in stays of 140 to 170 ticks or more (`campStayTimeMedian`), and a tenth of stays last over 120 to 140 ticks.
+- **E3 confirmed.** 59 to 67% of adults are within 2 tiles of fresh water.
+- **E4 confirmed with the new measure.** People and herds eat 15 to 20% of the land's best possible yield at 30 years and 21 to 26% at 50. `harvestShare` as planned is 1.00 on every run and says nothing (see the note above). Herds take about 3% of what is eaten.
+- **Population does not fill the land by year 50:** 7 to 9 productive tiles per person, and hunger doubles between the 30- and 50-year windows (5 to 6% → 11 to 12%) while the land is still over 92% full.
+- **Wolves die out on seed 1** between years 10 and 20 with today's defaults (and with weather on). On seeds 2 and 3 they fall from about 50 to 18 by year 50.
+- **Weather on (seed 1, 30 years):** the land is a little emptier (0.903 against 0.953) and withering is about three times higher (9.3 against 3.3 food a tick); movement and stays are the same within noise.
+
+**What this means for W1a's targets (for the user to decide; nothing was tuned):**
+- The `campStayMedian` target of 14 to 40 ticks is already met today, so it can't steer W1a. `campStayTimeMedian` (about 150 ticks today) or `campStayP90` (about 130) would.
+- The `harvestShare` target ("rises well above today's") can't move. `harvestOfMaxYield` (about 0.17 today at 30 years) can.
+- The guard rail "wolves survive 50 years on every seed" already fails on seed 1 before any change.
