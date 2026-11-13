@@ -12,6 +12,22 @@
   - Write targets in `docs/findings.md` before running anything.
   - Rules: AGENTS.md 14 and 15, CLAUDE.md, and up to 8 tuning rounds.
 
+## Viewer: the limited 30-colour palette (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-13)
+- **What:** the world view draws in a 30-colour palette the user chose (`src/render/limited-palette.ts`). It is on by default. The pill menu has a "Palette" choice, Limited (30) or Original, saved in localStorage; the page reloads to apply it. `?palette=original` in the URL also works. The interface panels are unchanged.
+- **How colours get there:**
+  - **Picked by hand:** terrain ramps for all three themes (`palette.ts`) and the people's skin, hair and tunics: men light blue, women rust, pregnant women peach, children yellow, elders grey. Also trees, fire, the pops and the band colours (12).
+  - **Mapped automatically:** every other colour in the code goes to its nearest palette colour by perceived difference (OKLab). This happens in `hexToABGR` and in a fillStyle/strokeStyle/shadowColor hook on the world canvas.
+  - **Image data:** the terrain cache, the terrain and storm sprites and the atlases are snapped before being put on a canvas.
+  - **Overlay:** the see-through layer (crops, worked soil, dry grass, paths, building sites) is pre-mixed with the ground under each cell, snapped, and drawn solid. A faint tint is left clear so the ground texture shows.
+- **Measured:** on seed 42, tick 400, about 97 to 98% of world pixels are exact palette colours: 98.0% at cell size 4, 97.1% at 16 and 97.6% at 32. The remainder is translucent drop shadows, glows and fades. The original colours give 0%.
+  - Cost: a cached canvas colour about 18 ns per set; the terrain snap 2 ms per rebuild (24 ms once, for the lookup table); a full overlay repaint 3 to 4 ms.
+- **Checks:** with `&palette=original`, all 8 visual-check shots match the old baselines at 0.000%. The 8 baselines were then regenerated in the limited palette and reproduce at 0.000%. `VERIFY_VISUAL=1 npm run verify` exit 0. No simulation file changed. The visual check now takes `VISUAL_QUERY` (for example `&palette=original`).
+- **Known:**
+  - The palette's darkest colours are `#303843` and `#3d3333`, so water, outlines and shadows are lighter than before.
+  - It has no strong saturated colours, so figures are softer than the original bright tunics.
+  - Bluff and wall drop shadows still blend.
+- **Needs you:** a look at the phone and desktop in both palettes. Then decide whether the interface panels should follow, and whether the remaining translucent shadows should become solid palette shades.
+
 ## Watchability #3: what people are doing, on screen (branch `claude/busy-mccarthy-vw1tsc`, 2026-11-12)
 - **Why:** the user found the world dull to watch (`docs/decisions.md` 2026-11-12). Of the five ideas recorded, #3 went first because it changes no outcome.
 - **3a (sim, observer only), commit 58e156a:** `People.activity`, one byte per person, not saved or hashed, with no random draws. The low 4 bits hold this tick's action, where a higher code wins: idle, resting, tending a heap, grazing, gathering, eating, fishing, nursing, drinking, building, walking, fleeing, hunting, giving way, fighting. The high bits hold kill, birth, fire lit and hut finished, kept until the next frame. The person frame is 12 bytes (was 11). The server's merge for slow viewers carries unsent events over. Switch `activityViewEnabled` (on).
