@@ -1345,3 +1345,31 @@ Seed 2 at W0 is the same (adults 62 / 18 / 7 / 5 / 8%; full 0.85 / 0.92 / 0.98 /
 - **Scarce grass plus slow thirst** (last row) is hardly different from scarce grass alone (population 2052 against 1873; land 0.917 full).
 - **Reading after three rounds:** two things hold together. With today's grass, numbers are held by how fast people breed, not by food, so nobody needs to leave (7 to 12 productive tiles a head, 5% hungry). With scarce grass people are hungry (8 to 16%) beside land that is 96 to 98% full a few tiles further out, and still don't walk to it. So the missing piece is in how a hungry person finds and moves to food beyond their own neighbourhood (the step rule, the S1 stay check, far sight), not in how much the land gives. That is outside W1a's lever list.
 - **W1a stopped here (3 of 8 rounds used), nothing re-tuned, no switch added.** Reported to the user for a decision.
+
+**W1a round 4 (movement diagnosis, `scripts/move-probe.ts`, seeds 1 and 2, 20 years, counted from year 5): people are held by camps, not by grass.** The probe wraps `Rules.climb` (read only; seed 42 still gives `dbeaac54ed27afd8`) and tallies each adult decision. Seed 1 / seed 2:
+
+| | Today's land: fed | hungry | starving | 0.02 × 18: fed | hungry | starving |
+|---|---|---|---|---|---|---|
+| Share of adult time | 97 / 96% | 2.0 / 2.7% | 0.7 / 1.2% | 93 / 92% | 5.1 / 5.9% | 1.8 / 2.2% |
+| Stayed, stay check passed | 68 / 66% | 28 / 31% | 11 / 9% | 51 / 51% | 31 / 33% | 5 / 6% |
+| Stayed though the check failed | 8 / 7% | 13 / 13% | 23 / 33% | 12 / 10% | 16 / 15% | 43 / 38% |
+| Stepped | 17 / 17% | 49 / 40% | 55 / 44% | 30 / 28% | 45 / 45% | 42 / 48% |
+| Walking to water | 7 / 10% | 10 / 16% | 11 / 15% | 7 / 11% | 8 / 7% | 11 / 9% |
+| Own tile grazed bare | 48 / 48% | 63 / 61% | 69 / 69% | 57 / 55% | 73 / 74% | 77 / 78% |
+| People on their tile | 6.5 / 6.5 | 8.6 / 8.8 | 9.4 / 9.3 | 4.3 / 4.4 | 6.0 / 7.0 | 7.0 / 7.3 |
+| A richer block within far sight | 82 / 76% | 86 / 81% | 80 / 78% | 84 / 80% | 85 / 86% | 87 / 82% |
+| Has a leader | 61 / 63% | 77 / 79% | 79 / 77% | 59 / 60% | 71 / 78% | 71 / 73% |
+
+- **People live in clumps on bare ground.** A fed adult shares a tile with 6 others, and that tile is grazed to the floor half the time, yet the stay check passes two times in three. The S1 stay check counts the food heap in reach, so a camp with a store holds people on ground with no grass.
+- **The land-wide average hides this.** Camp tiles are bare; everything else is full. That's why `landFullPct` barely moves.
+- **A richer block is in sight about 80% of the time, for everyone.** Far sight only acts on hungry people whose 5 tiles average under `hungerSearchFood`, and it is one pull among several.
+- **Starving people stand still 23 to 43% of the time with the stay check failed.** Not explained yet: candidates are the no-reversal rule, opposing pulls cancelling (leader, scent, paths), and roaming being switched off when starving and not searching.
+- **Hungry and starving people more often have a leader** (71 to 79% against about 60%), and stand in bigger crowds.
+
+**W1a round 5 (written before the runs): which lever makes people travel?** One change each, today's land, seeds 1 and 2, 30 years, `watch-probe`. Read out: `netDisplacePerAdultYear` (7.9 / 7.9 today), `bandDisplacePerYear` (4.4 / 4.1), `migrationsPer10y` (0), share of adults beyond 5 tiles of water (13 / 19%), `landFullPct`, `campStayTimeMedian`, with population and hunger as the cost. Expectations:
+- **Camp holds (expected to matter most):** `stayValueEnabled false` (the heap no longer counts), `stockpilesEnabled false` (no heaps at all), `stayFoodFraction 0.9`, `calmMovementEnabled false`, `comfortableStayEnabled false`.
+- **Leaders:** `copyEnabled false`, `hungerLeaderPullMul 0`.
+- **Finding food further off:** `hungerSearchFood 12` with `hungerDriveThreshold 0.6`; `farSightPull 3` with `farSightMargin 0.05`; `scentFoodEmitRate 0.3`.
+- **Water and paths:** `thirstSeek 30`; `pathPull 0`.
+- **Pressure:** `reproductionThreshold 50` (faster breeding fills the land sooner).
+A lever "works" if net movement or band movement at least doubles on both seeds. No default is changed in this round.
