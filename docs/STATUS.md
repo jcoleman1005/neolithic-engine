@@ -1,6 +1,10 @@
 # Neolithic Engine — Status
 
 ## Handoff (2026-11-12): read this first
+- **2026-11-13, watchability W1a stopped for a decision (branch `watch-w1a-abundance`, off `watch-w0-probe`; neither merged).** Three rounds of read-only runs, no simulation code changed, no switch added. Details in `docs/findings.md` ("W1a round 1" to "round 3").
+  - **Scarcer grass misses every target:** across `landRegrowthRate` 0.02 to 0.01 × `landFoodMax` 25 to 12 the land stays 90 to 93% full; the population shrinks instead (5,100 to 6,000 → 470 to 2,900 at year 30), and wolves die out in 23 of 27 runs.
+  - **Why:** about 86% of adults live within 5 tiles of fresh water (30% of the land); the other 70% of the land is 96 to 99% full at every setting. Slower thirst spreads them a little; with thirst off they live everywhere but move less.
+  - **Open:** hungry people don't walk to full land a few tiles further out. The next step needs the user's choice: diagnose the movement rule, go to W1b on today's abundance, or ship a mild re-tune.
 - **2026-11-13, watchability W0 done (branch `watch-w0-probe`, not merged): waiting at the STOP before W1a.** The read-only watch probe is `scripts/watch-probe.ts` (`npm run watch-probe -- --seed 1 --years 50 --report 30`); the measuring is in `scripts/watch-probe-lib.ts`, and `tests/watch-probe.test.ts` checks it changes no outcome. No simulation file changed. The baseline table is "W0 baseline" in `docs/findings.md`.
   - **Baseline (seeds 1 to 3, 30 years):** land 94 to 96% full; adults move 8 tiles net a year; 62 to 67% of adults within 2 tiles of water; people and herds eat 15 to 20% of the land's best possible yield; 9 to 12 productive tiles per person; no migration entries.
   - **Checks:** `VERIFY_VISUAL=1 npm run verify` exit 0; fingerprints unchanged at 1800 ticks (`dbeaac54ed27afd8`, `453f741794e836ee` with weather); perf 4.057 µs per person per tick at 13,854 people (3.993 before).

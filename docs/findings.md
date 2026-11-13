@@ -1330,3 +1330,18 @@ Branch `watch-w1a-abundance`. Probe `scripts/watch-probe.ts`, measured from year
 Seed 2 at W0 is the same (adults 62 / 18 / 7 / 5 / 8%; full 0.85 / 0.92 / 0.98 / 0.98 / 0.99). About 86% of adults live on the 30% of land within 5 tiles of water, and the other 70% of the land is 96 to 99% full whatever the grass does. What holds people is the water, not the food.
 
 **W1a round 3 (written before the runs): is it thirst?** Hypothesis H5: the tether is `thirstRate` (0.4 a tick, seek below 60, so a person turns back about every 100 ticks). If so, with a slower thirst the share of adults within 5 tiles falls well below 86%, land beyond 5 tiles falls clearly below 0.96 full, and population rises. Runs (seed 1, 30 years, read only): `thirstRate` 0.2; 0.1; `thirstEnabled false` as the upper bound; and `thirstRate` 0.2 with 0.02 × 18. `thirstRate` is not on the plan's lever list, so this is a measurement for the user's decision, not a re-tune.
+
+**W1a round 3 results (seed 1, 30 years): thirst is part of the tether, but removing it does not make people move.**
+
+| Run | Adults by distance band (0-2 / 3-5 / 6-10 / 11-20 / 21+) | Land full by band | Pop. year 30 | `campStayTimeMedian` | `landFullPct` | Steps / net tiles a year |
+|---|---|---|---|---|---|---|
+| W0 (`thirstRate` 0.4) | 66 / 21 / 6 / 3 / 4% | 0.85 / 0.91 / 0.98 / 0.99 / 0.99 | 5494 | 163 | 0.953 | 96 / 7.9 |
+| `thirstRate` 0.2 | 59 / 23 / 6 / 5 / 7% | 0.86 / 0.91 / 0.98 / 0.98 / 0.99 | 5754 | 162 | 0.953 | 92 / 8.3 |
+| `thirstRate` 0.1 | 54 / 24 / 7 / 7 / 9% | 0.85 / 0.90 / 0.97 / 0.97 / 0.98 | 6733 | 182 | 0.948 | 89 / 9.5 |
+| `thirstEnabled false` | 35 / 15 / 6 / 8 / 35% | 0.91 / 0.94 / 0.99 / 0.98 / 0.96 | 7558 | 280 | 0.954 | 62 / 6.5 |
+| `thirstRate` 0.2 with 0.02 × 18 | 57 / 24 / 7 / 6 / 7% | 0.77 / 0.83 / 0.96 / 0.96 / 0.98 | 2052 | 102 | 0.917 | 121 / 11.7 |
+
+- **H5 half right.** Slower thirst spreads people a little (within 5 tiles: 87% → 82% → 77%), and with no thirst they live everywhere. But the land stays 95% full, stays get longer (280 ticks) and steps fall (62 a year). Thirst is what makes people walk today; it is not what keeps the land full.
+- **Scarce grass plus slow thirst** (last row) is hardly different from scarce grass alone (population 2052 against 1873; land 0.917 full).
+- **Reading after three rounds:** two things hold together. With today's grass, numbers are held by how fast people breed, not by food, so nobody needs to leave (7 to 12 productive tiles a head, 5% hungry). With scarce grass people are hungry (8 to 16%) beside land that is 96 to 98% full a few tiles further out, and still don't walk to it. So the missing piece is in how a hungry person finds and moves to food beyond their own neighbourhood (the step rule, the S1 stay check, far sight), not in how much the land gives. That is outside W1a's lever list.
+- **W1a stopped here (3 of 8 rounds used), nothing re-tuned, no switch added.** Reported to the user for a decision.
