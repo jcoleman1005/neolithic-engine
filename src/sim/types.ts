@@ -150,6 +150,13 @@ export interface SimulationConfig {
   shoreScentEnabled?: boolean;
   /** W1a shore fix: a step blocked by water becomes a sideways step along the shore. */
   shoreSlideEnabled?: boolean;
+  /** Founders only on land with a walkable route to fresh water. */
+  founderWaterReachEnabled?: boolean;
+  /** After drinking, walk back to where thirst found them. */
+  thirstReturnEnabled?: boolean;
+  thirstReturnMinDist?: number;
+  thirstReturnHydration?: number;
+  thirstReturnTicks?: number;
   weatherEnabled?: boolean;
   weatherAirSpeed?: number;
   weatherEvaporation?: number;

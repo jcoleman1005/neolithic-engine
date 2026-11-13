@@ -53,7 +53,7 @@ import type { FoodPatch, FoodRegion, SimulationConfig, WorldMetrics } from './ty
  * refuses a save with a higher schema than its own. Saves with no schema (written before this
  * stamp existed) still load; the per-person field check in people.ts covers those.
  */
-export const SAVE_SCHEMA = 4; // 2: Settlements S3 per-person state (fear, restTicks, confidence). 3: S3x place cost (placeCost, costX, costY). 4: 6b-1 soil moisture and weather state (land.moisture, land.weather).
+export const SAVE_SCHEMA = 5; // 5: the walk back after drinking (homeX, homeY, homeState, homeTicks). 2: Settlements S3 per-person state (fear, restTicks, confidence). 3: S3x place cost (placeCost, costX, costY). 4: 6b-1 soil moisture and weather state (land.moisture, land.weather).
 
 export interface WorldState {
   readonly formatVersion: 1;
@@ -442,6 +442,7 @@ export class World {
 
     const fearOn = this.config.fearEnabled !== false;
     const placeCostOn = this.config.placeCostEnabled !== false; // S3x unit A
+    const returnOn = this.config.thirstReturnEnabled !== false;
     const contestOn = this.config.contestEnabled !== false;
     const residenceOn = contestOn && this.config.residenceEnabled !== false;
     const selfAssessOn = contestOn && this.config.selfAssessEnabled !== false;
@@ -482,6 +483,12 @@ export class World {
           h.updateFloat(people.placeCost[slot]);
           h.updateInt(people.costX[slot]);
           h.updateInt(people.costY[slot]);
+        }
+        if (returnOn) {
+          h.updateInt(people.homeX[slot]);
+          h.updateInt(people.homeY[slot]);
+          h.updateInt(people.homeState[slot]);
+          h.updateInt(people.homeTicks[slot]);
         }
         const gOff = slot * GENE_COUNT;
         for (let g = 0; g < GENE_COUNT; g++) h.updateInt(genes[gOff + g]);

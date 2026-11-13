@@ -187,7 +187,7 @@ export class Rules {
 
     // Scent gradients
     fields.getFoodGradient(px, py, scratchGradFood);
-    if (config.shoreScentEnabled === true) {
+    if (config.shoreScentEnabled !== false) {
       // W1a shore fix: scent drifts over water, but nobody can walk there. A water neighbour counts as
       // this tile's own scent, so the slope never points into a river or lake.
       const fc = fields.foodCurrent;
@@ -299,6 +299,16 @@ export class Rules {
       if (land.waterDist[cellHere] <= 1 || (carriedWater && land.waterInReach(px, py))) return 4;
       const dist = carriedWater ? land.drinkDist : land.waterDist;
       const here = dist[cellHere];
+      // The walk back: remember where thirst found them (far enough out to be worth remembering). Someone
+      // who turns thirsty again on the way back keeps the place they were heading for.
+      if (config.thirstReturnEnabled !== false) {
+        if (people.homeState[slot] === 2) people.homeState[slot] = 1;
+        else if (people.homeState[slot] === 0 && here < 255 && here >= (config.thirstReturnMinDist ?? 3)) {
+          people.homeX[slot] = px;
+          people.homeY[slot] = py;
+          people.homeState[slot] = 1;
+        }
+      }
       if (here < 255) {
         let best = 4;
         let bestD = here;
@@ -310,6 +320,38 @@ export class Rules {
         }
         if (best !== 4) return best;
       }
+    }
+
+    // The walk back after drinking: drink up beside the water, then head straight for the remembered place.
+    if (config.thirstReturnEnabled !== false && people.homeState[slot] !== 0) {
+      let st = people.homeState[slot];
+      if (st === 1) {
+        if (people.hydration[slot] >= (config.thirstReturnHydration ?? 90)) {
+          st = 2;
+          people.homeTicks[slot] = Math.min(255, config.thirstReturnTicks ?? 200);
+        } else if (land.waterDist[(py << 8) | px] <= 1 || (carriedWater && land.waterInReach(px, py))) {
+          return 4; // still drinking
+        } else {
+          st = 0; // watered some other way (a carried skin): nothing to walk back from
+        }
+      }
+      if (st === 2) {
+        const dx = wrapDiff(people.homeX[slot], px);
+        const dy = wrapDiff(people.homeY[slot], py);
+        const ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+        if ((ax <= 1 && ay <= 1) || people.homeTicks[slot] === 0) {
+          st = 0;
+        } else {
+          people.homeTicks[slot]--;
+          const xDir = dx > 0 ? 0 : 1, yDir = dy > 0 ? 2 : 3;
+          const first = ax >= ay ? xDir : yDir;
+          const second = ax >= ay ? (ay > 0 ? yDir : -1) : (ax > 0 ? xDir : -1);
+          if (Rules.canStep(px, py, first, land)) { people.homeState[slot] = 2; return first; }
+          if (second !== -1 && Rules.canStep(px, py, second, land)) { people.homeState[slot] = 2; return second; }
+          st = 0; // water in the way: give the place up
+        }
+      }
+      people.homeState[slot] = st;
     }
 
     // Cold: a fed person in the cold heads for the nearest cave or fire and stays once sheltered.
@@ -463,7 +505,7 @@ export class Rules {
 
     // W1a shore fix: blocked by water both ways. Step sideways along the shore (keeping the last heading
     // when it is one of the two sideways steps) rather than stand facing the water. No random draw.
-    if (config.shoreSlideEnabled === true) {
+    if (config.shoreSlideEnabled !== false) {
       const a = primaryDir < 2 ? 2 : 0;
       const prev = people.prevDir[slot];
       const first = prev === a + 1 ? a + 1 : a;

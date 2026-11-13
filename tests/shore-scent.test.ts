@@ -39,17 +39,17 @@ const climb = (w: World, slot: number): number => Rules.climb(slot, w.people, w.
 
 describe('W1a shore fix', () => {
   it('without it, scent over the water holds a starving person at the bank', () => {
-    const { w, slot } = shoreWorld({});
+    const { w, slot } = shoreWorld({ shoreScentEnabled: false, shoreSlideEnabled: false });
     for (let k = 0; k < 20; k++) expect(climb(w, slot)).toBe(4);
   });
 
   it('with shoreScentEnabled the slope ignores water, so they follow the scent on land', () => {
-    const { w, slot } = shoreWorld({ shoreScentEnabled: true });
+    const { w, slot } = shoreWorld({ shoreScentEnabled: true, shoreSlideEnabled: false });
     for (let k = 0; k < 20; k++) expect(climb(w, slot)).toBe(1); // west, toward the land scent
   });
 
   it('with shoreSlideEnabled a step blocked by water becomes a step along the shore, never into water', () => {
-    const { w, slot, cell } = shoreWorld({ shoreSlideEnabled: true });
+    const { w, slot, cell } = shoreWorld({ shoreScentEnabled: false, shoreSlideEnabled: true });
     const x = cell & 255, y = cell >> 8;
     for (let k = 0; k < 20; k++) {
       const d = climb(w, slot);

@@ -1129,11 +1129,16 @@ export class LifeSystem {
     let seeded = 0;
     let attempts = 0;
     const maxAttempts = pop * 100;
+    // Founders stand only where fresh water can be walked to (when the map has any and thirst is on).
+    let needWater = false;
+    if (config.founderWaterReachEnabled !== false && config.finiteResourcesEnabled !== false && config.thirstEnabled !== false) {
+      for (let i = 0; i < 65536 && !needWater; i++) if (land.waterDist[i] === 0) needWater = true;
+    }
 
     while (seeded < pop && attempts++ < maxAttempts) {
       const x = prng.nextInt(0, 255);
       const y = prng.nextInt(0, 255);
-      if (!land.isWaterAt(x, y) && (!land.elevation || land.elevation.water[(y << 8) | x] === 0)) {
+      if (!land.isWaterAt(x, y) && (!land.elevation || land.elevation.water[(y << 8) | x] === 0) && (!needWater || land.waterDist[(y << 8) | x] < 255)) {
         const sex = prng.next() < 0.5 ? 0 : 1;
         // Start as young adults so mating begins reasonably soon
         const founderAge = adultAge + prng.nextInt(0, 1000);

@@ -51,6 +51,8 @@ const TABLE = [
   { key: 'calmMovementEnabled', group: 'Movement', label: 'Calm movement', help: 'People stay and graze on a rich enough tile and do not step straight back without a strong pull.', when: L },
   { key: 'shoreScentEnabled', group: 'Movement', label: 'Scent ignores water', help: 'The food scent a person follows no longer counts scent that has drifted over water, so it cannot point them into a river or lake.', when: L },
   { key: 'shoreSlideEnabled', group: 'Movement', label: 'Walk along the shore', help: 'Someone whose step is blocked by water steps sideways along the shore instead of standing still.', when: L },
+  { key: 'thirstReturnEnabled', group: 'Movement', label: 'Walk back after drinking', help: 'A person who walked to water to drink remembers where they were and walks back there afterwards, instead of wandering off from the bank.', when: L },
+  { key: 'founderWaterReachEnabled', group: 'Land and terrain', label: 'Founders can reach water', help: 'The first people are placed only on land with a walkable route to fresh water.', when: L },
   { key: 'hungerSearchEnabled', group: 'Movement', label: 'Hungry search', help: 'A hungry person on poor ground with no better smell nearby keeps walking the way they were going.', when: L },
   { key: 'farSightEnabled', group: 'Movement', label: 'Far sight', help: 'A searching person can see which nearby block of land holds the most plant food and heads that way.', when: L, requires: ['hungerSearchEnabled'] },
   { key: 'stayValueEnabled', group: 'Movement', label: 'Honest stay check', help: 'Deciding whether to stay counts the food heap underfoot and the real upkeep of the tile.', when: L },

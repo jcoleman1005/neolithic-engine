@@ -1563,3 +1563,13 @@ Years vary by about 10% and places share them (correlation 0.5 to 0.6), while th
 3. *Founders on land with no route to water* (small glitch, not fixed): 1 to 8% of land.
 4. *Thirst that food can outlast* (oddity, not fixed).
 None of this is people preferring the bank: births are lower and starvation higher there than a few tiles out.
+
+## The walk back after drinking: targets (written 2026-11-13, before the runs)
+
+User decisions of 2026-11-13 (`docs/decisions.md`): the shore fix is on by default, founders are placed only where fresh water can be walked to (`founderWaterReachEnabled`), and the walk back after drinking is built (`thirstReturnEnabled`; `thirstReturnMinDist` 3, `thirstReturnHydration` 90, `thirstReturnTicks` 200; per-person `homeX`, `homeY`, `homeState`, `homeTicks`, saved, save schema 5).
+- **Mechanism:** when thirst sends a person to water from 3 or more tiles out, they remember the tile. They drink up to 90, then walk straight back (larger gap first), giving up after 200 ticks or if water blocks both ways. Thirsty again on the way, they go to water and keep the same place.
+- **Switch check, done before the runs:** with all four switches off the fingerprints are the old ones (`dbeaac54ed27afd8`, `453f741794e836ee` with weather). New defaults: `bc2e5165908de31a`, `b50f6c93e5e62260` with weather.
+- **H9, the ratchet is the cause:** against the same world with only `thirstReturnEnabled false`, on seeds 1 to 3 at 30 years: adults within 5 tiles of water fall from about 86 / 80% to under 60%; the far land is grazed (`landFullPct` down, `harvestOfMaxYield` up); population at year 30 is higher.
+- **Guard rails (reported):** no die-out; `hungryPct` no more than about double; herds alive; perf at or under 15 µs.
+- **Not predicted, reported:** net movement and band movement (people who commute to water take many more steps; whether camps move is a separate question), and migration entries.
+- **Arms:** new defaults; return off; each also on scarce land (0.02 × 18, seeds 1 and 2); `bank-probe` and `move-probe` on seed 1 with the new defaults.
