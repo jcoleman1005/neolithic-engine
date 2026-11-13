@@ -1425,3 +1425,25 @@ A lever "works" if net movement or band movement at least doubles on both seeds.
 - **Water is what unlocks the land.** On scarce land with thirst off, 55 to 64% of adults live beyond 5 tiles of water, the far land is grazed (0.86 full at 21 tiles or more), `harvestOfMaxYield` reaches 0.39 (W1a's target was 0.35) and the population is 70 to 85% higher than scarce land with thirst. This is the case for wells and carried water (W3).
 
 **W1a round 7 (written before the runs): search before starving.** H7: if the hunger drive starts where breeding stops (`hungerDriveThreshold 0.6`, close to `reproductionThreshold` 65 of 100) and the directed pulls are strong (`farSightPull 15`, `hungerSearchPersist 6`), people on poor ground walk to richer blocks: net movement at least doubles and the far land is used. Arms, seeds 1 and 2, 30 years: scarce land with the three changes; the same plus `thirstRate 0.2`; the same plus `stayValueEnabled false`; today's land with the three changes plus `hungerSearchFood 12`. Note: `hungryPct` in these arms counts people under 0.6, so it is not comparable with other rows.
+
+**W1a round 7 results (8 runs, all finished, none died out): H7 refuted.** Seed 1 / seed 2, 30 years.
+
+| Arm | Net tiles per adult a year | Band centre tiles a year | Steps per adult a year | Adults beyond 5 tiles of water | `landFullPct` | Pop. year 30 |
+|---|---|---|---|---|---|---|
+| Scarce alone (round 1) | 11.0 / 11.9 | 6.7 / 7.1 | 124 / 123 | 14 / 20% | 0.917 / 0.924 | 1873 / 1976 |
+| Scarce + drive at 0.6 + far sight 15, persist 6 | 9.3 / 10.2 | 4.7 / 5.0 | 90 / 91 | 15 / 24% | 0.918 / 0.923 | 2050 / 1898 |
+| … + `thirstRate 0.2` | 10.5 / 11.4 | 5.1 / 5.2 | 90 / 92 | 21 / 30% | 0.913 / 0.912 | 2280 / 2490 |
+| … + `stayValueEnabled false` | 11.5 / 14.0 | 6.9 / 8.1 | 172 / 181 | 16 / 30% | 0.924 / 0.898 | 1263 / 1753 |
+| Today's land + drive at 0.6, search 12, far sight 15, persist 6 | 6.8 / 7.2 | 3.0 / 3.2 | 65 / 67 | 14 / 21% | 0.953 / 0.957 | 6067 / 5755 |
+
+An earlier hunger drive makes people move less, not more: the drive also multiplies the food-scent weight by 2.5 (`hungerFoodWeightMul`) and cuts roaming, so they hold tighter to the nearest food. Migration entries are 0 in all 8 runs.
+
+**W1a summary after 7 of 8 rounds (86 read-only runs, no default changed, no simulation code touched).**
+1. **Scarcer grass does not make people move.** It makes fewer people (round 1).
+2. **People live in dense camps on bare ground near water** (6 to 9 to a tile, 86% within 5 tiles of water), fed from heaps; the rest of the map is 96 to 99% full (rounds 2 and 4).
+3. **No existing setting produces travel.** Across 25 levers and combinations the best net movement is 13 to 14 tiles a year against 8 today, and no run has a migration entry. Loosening the camp rules buys more steps, not more distance (rounds 5 to 7).
+4. **Movement is a random walk.** Every pull a person feels is local (the scent slope at their feet, the neighbouring blocks, a leader a few tiles off) and none lasts, so steps cancel out. Thirst then resets them to the bank about every 100 ticks.
+5. **Water reach is the one thing that changes where people live.** Thirst off on scarce land: 55 to 64% of adults beyond 5 tiles, far land grazed, `harvestOfMaxYield` 0.39, population up 70 to 85% (round 6).
+6. **Why hunger does not push people out:** the population is held by mothers falling under the breeding threshold long before adults are hungry enough to search, so the search rules act on 2 to 8% of adult time.
+
+**What this says about the plan:** migration needs something new with a direction that lasts and changes over time, which is what W1b (a ripening wave), W2 (herds to follow) and W3 (wells, so camps can leave the bank) add. Re-tuning grass alone (W1a as written) should not ship. The evidence favours doing water reach (W3's wells, or carried water going further) before or with W1b, because a wave of good grazing 20 tiles from the river can't be followed by people who diffuse 5 tiles between drinks.
