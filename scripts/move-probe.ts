@@ -39,6 +39,10 @@ const mk = () => ({
   tileFull: 0, tileBare: 0, around: 0, scent: 0, blockBetter: 0, crowd: 0, band: [0, 0, 0, 0, 0],
 });
 const tally = [mk(), mk(), mk()];
+// By how many people share the tile: 1, 2-3, 4-7, 8 or more.
+const CROWD = ['1', '2-3', '4-7', '8+'];
+const mkC = () => ({ n: 0, hungry: 0, moved: 0, stayWorth: 0, foodPerHead: 0, plantsPerHead: 0, energy: 0 });
+const crowdTally = [mkC(), mkC(), mkC(), mkC()];
 const grad = new Float32Array(2);
 let on = false;
 let growing = 1;
@@ -82,6 +86,14 @@ const orig: Climb = Rules.climb.bind(Rules);
   g.scent += Math.hypot(grad[0], grad[1]);
   if (better) g.blockBetter++;
   g.crowd += crowdHere;
+  const c = crowdTally[crowdHere <= 1 ? 0 : crowdHere <= 3 ? 1 : crowdHere <= 7 ? 2 : 3];
+  const head = Math.max(1, crowdHere);
+  c.n++; c.energy += e;
+  if (e < hungryBelow) c.hungry++;
+  if (!thirsty && dir !== 4) c.moved++;
+  if (stay) c.stayWorth++;
+  c.plantsPerHead += Math.max(0, f[cell] - floor) / head;
+  c.foodPerHead += (Math.max(0, f[cell] - floor) + land.pileInReach(px, py)) / head;
   let b = 0;
   while (land.waterDist[cell] > BANDS[b]) b++;
   g.band[b]++;
@@ -110,6 +122,16 @@ const orig: Climb = Rules.climb.bind(Rules);
       crowdOnTile: +(g.crowd / n).toFixed(2), byWaterBandPct: g.band.map((v) => pct(v, n)),
     };
   }
+  const byCrowd: Record<string, unknown> = {};
+  crowdTally.forEach((c, k) => {
+    const n = Math.max(1, c.n);
+    byCrowd[CROWD[k]] = {
+      shareOfAdultTicksPct: pct(c.n, total), hungryPct: pct(c.hungry, n), steppedPct: pct(c.moved, n), stayCheckPassedPct: pct(c.stayWorth, n),
+      plantsPerHead: +(c.plantsPerHead / n).toFixed(2), plantsAndHeapPerHead: +(c.foodPerHead / n).toFixed(2), energy: +(c.energy / n).toFixed(1),
+    };
+  });
+  out.byCrowd = byCrowd;
   for (const k of GROUPS) console.log(k, JSON.stringify(out[k]));
+  for (const k of CROWD) console.log('crowd', k, JSON.stringify(byCrowd[k]));
   console.log(`RESULT ${JSON.stringify(out)}`);
 }

@@ -92,6 +92,10 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
   let prevX = new Uint8Array(0), prevY = new Uint8Array(0), prevGen = new Int32Array(0);
   let stayX = new Uint8Array(0), stayY = new Uint8Array(0), stayGen = new Int32Array(0), stayStart = new Int32Array(0);
   let stayGrowing = new Uint8Array(0);
+  let stayFull0 = new Float32Array(0);
+  // Trips away from the bank (central place foraging): start tick (-1 while beside water), furthest
+  // distance from fresh water, lowest hydration.
+  let tripStart = new Int32Array(0), tripMax = new Uint8Array(0), tripMinH = new Float32Array(0);
   let ringX = new Uint8Array(0), ringY = new Uint8Array(0), ringGen = new Int32Array(0);
   const ensure = (need: number): void => {
     if (need <= cap) return;
@@ -108,6 +112,9 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
     prevX = g8(prevX); prevY = g8(prevY); prevGen = g32(prevGen);
     stayX = g8(stayX); stayY = g8(stayY); stayGen = g32(stayGen); stayStart = g32(stayStart);
     stayGrowing = g8(stayGrowing);
+    { const n = new Float32Array(need); n.set(stayFull0); stayFull0 = n; }
+    { const n = new Float32Array(need); n.set(tripMinH); tripMinH = n; }
+    tripStart = g32(tripStart); tripMax = g8(tripMax);
     cap = need;
   };
 
@@ -136,8 +143,26 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
   let bandNetSum = 0, bandPathSum = 0, bandYears = 0;
   let migrationsFrom = 0;
 
+  /** How full the 7 x 7 tiles around (x, y) are (productive tiles only). */
+  const catchmentFull = (cx: number, cy: number): number => {
+    let sum = 0, k = 0;
+    for (let dy = -STAY_RADIUS; dy <= STAY_RADIUS; dy++) for (let dx = -STAY_RADIUS; dx <= STAY_RADIUS; dx++) {
+      const i = (((cy + dy) & 255) << 8) | ((cx + dx) & 255);
+      const c = L.capacityAt(i, cfg);
+      if (c > 0) { sum += Math.min(1, L.food[i] / c); k++; }
+    }
+    return k > 0 ? sum / k : 1;
+  };
+  // Stays by length (under 10, 10 to 39, 40 to 119, 120 and more ticks): catchment fullness on arrival and on leaving.
+  const lenBin = (len: number): number => (len < 10 ? 0 : len < 40 ? 1 : len < 120 ? 2 : 3);
+  const stayBinN = new Float64Array(4), stayBinFull0 = new Float64Array(4), stayBinFull1 = new Float64Array(4);
+  // Trips: furthest distance from water (histogram), length and lowest hydration.
+  const tripHist = new Uint32Array(256);
+  let trips = 0, tripLenSum = 0, tripMinHSum = 0, tripTicks = 0, bankTicks = 0;
   const endStay = (q: number, tick: number): void => {
     const len = Math.min(STAY_BINS - 1, tick - stayStart[q]);
+    const b = lenBin(len);
+    stayBinN[b]++; stayBinFull0[b] += stayFull0[q]; stayBinFull1[b] += catchmentFull(stayX[q], stayY[q]);
     stayHist[len]++; stays++;
     if (stayGrowing[q] === 1) { stayHistGrowing[len]++; staysGrowing++; }
   };
@@ -254,10 +279,24 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
           if (prevX[q] !== px || prevY[q] !== py) adultMoves++;
         }
         if (stayGen[q] !== g) {
-          stayGen[q] = g; stayX[q] = px; stayY[q] = py; stayStart[q] = t; stayGrowing[q] = growing;
+          stayGen[q] = g; stayX[q] = px; stayY[q] = py; stayStart[q] = t; stayGrowing[q] = growing; stayFull0[q] = catchmentFull(px, py);
+          tripStart[q] = -1;
         } else if (wrapD(px - stayX[q]) > STAY_RADIUS || wrapD(py - stayY[q]) > STAY_RADIUS) {
           endStay(q, t);
-          stayX[q] = px; stayY[q] = py; stayStart[q] = t; stayGrowing[q] = growing;
+          stayX[q] = px; stayY[q] = py; stayStart[q] = t; stayGrowing[q] = growing; stayFull0[q] = catchmentFull(px, py);
+        }
+        const wd = L.waterDist[(py << 8) | px];
+        if (wd <= 1) {
+          bankTicks++;
+          if (tripStart[q] >= 0) {
+            trips++; tripHist[tripMax[q]]++; tripLenSum += t - tripStart[q]; tripMinHSum += tripMinH[q];
+            tripStart[q] = -1;
+          }
+        } else {
+          tripTicks++;
+          const h = p.hydration[q];
+          if (tripStart[q] < 0) { tripStart[q] = t; tripMax[q] = wd; tripMinH[q] = h; }
+          else { if (wd > tripMax[q]) tripMax[q] = wd; if (h < tripMinH[q]) tripMinH[q] = h; }
         }
       }
       prevX[q] = px; prevY[q] = py; prevGen[q] = g;
@@ -302,6 +341,15 @@ export function attachWatchProbe(w: World, options: WatchProbeOptions = {}): Wat
       // Half of adult time is spent in stays at least this long (open stays count at their length so far).
       campStayTimeMedian: timeMedian,
       openStaysYearPlusPct: r1(100 * openYearPlus / Math.max(1, open)),
+      // Catchment (7 x 7 tiles) fullness on arrival and on leaving, for stays under 10, 10-39, 40-119 and 120+ ticks.
+      stayBinSharePct: Array.from(stayBinN, (v) => r1(100 * v / Math.max(1, stays))),
+      catchmentFullOnArrival: Array.from(stayBinFull0, (v, b) => r3(v / Math.max(1, stayBinN[b]))),
+      catchmentFullOnLeaving: Array.from(stayBinFull1, (v, b) => r3(v / Math.max(1, stayBinN[b]))),
+      // Trips away from the bank (more than 1 tile from fresh water, until back): furthest distance reached,
+      // length in ticks, lowest hydration; and the share of adult time spent away.
+      trips, tripMaxDistMedian: quantile(tripHist, trips, 0.5), tripMaxDistP90: quantile(tripHist, trips, 0.9), tripMaxDistP99: quantile(tripHist, trips, 0.99),
+      tripLenMean: r1(tripLenSum / Math.max(1, trips)), tripMinHydrationMean: r1(tripMinHSum / Math.max(1, trips)),
+      awayFromBankPct: r1(100 * tripTicks / Math.max(1, tripTicks + bankTicks)),
       // Land.
       landFullPct: r3(fullSum / sn), landNearFullPct: r3(nearFullSum / sn),
       foodPerTile: r3(foodPerTileSum / sn), tilesPerPerson: r1(tilesPerPersonSum / sn),
