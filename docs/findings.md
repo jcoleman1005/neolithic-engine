@@ -1608,3 +1608,27 @@ User decisions of 2026-11-13 (`docs/decisions.md`): the shore fix is on by defau
 - **Half of the adults are still within 2 tiles of water.** Not explained; candidates: people within 3 tiles remember nothing (`thirstReturnMinDist`), the walk back is given up when water blocks it, and children are born where their mothers are.
 - **Side effect on tests:** bands form later in the first two years (people gather more slowly), so two test setups that needed bands by tick 600 now run 1,200 ticks (`tests/bands.test.ts`, `tests/chronicle.test.ts`). Over 30 years there are more band-years, not fewer (2,614 to 2,712 against 2,346 to 2,566). The two off-switch parity tests list the four new switches as off and still give their old fingerprints.
 - **Visual baselines 02 to 08 regenerated on purpose** (people stand in different places; 07 and 08 follow a band). 01 unchanged.
+
+**50-year confirmation of the new defaults (seeds 1 to 3, all finished, none died out), against the W0 baseline at 50 years:**
+
+| Seed 1 / 2 / 3 | W0 (old world) | New defaults |
+|---|---|---|
+| Population at year 30 | 5494 / 5119 / 6034 | 9040 / 10330 / 8627 |
+| Population at year 50 | 6357 / 6700 / 5748 | 7930 / 8792 / 8820 |
+| Mean population | 4284 / 4197 / 4592 | 6219 / 7032 / 6337 |
+| `landFullPct` | 0.930 / 0.939 / 0.920 | 0.885 / 0.878 / 0.877 |
+| `harvestOfMaxYield` | 0.230 / 0.212 / 0.263 | **0.350 / 0.375 / 0.385** |
+| `tilesPerPerson` | 8.3 / 9.2 / 7.2 | 5.9 / 5.9 / 5.5 |
+| Adults within 5 tiles of water | (62.7 / 59.2 / 62.8% within 2) | 66 / 56 / 64% (43 / 36 / 43% within 2) |
+| `hungryPct` | 10.9 / 11.3 / 12.4 | 15.4 / 16.4 / 14.8 |
+| `campStayTimeMedian` | 146 / 139 / 148 | 88 / 74 / 85 |
+| Net tiles per adult a year | 8.8 / 9.1 / 9.2 | 9.7 / 10.3 / 9.7 |
+| Migration entries per 10 years | 0 | 0 |
+| Herds at year 50 | 296 / 297 / 296 | 296 / 298 / 295 |
+| Wolves at year 50 | 0 / 18 / 18 | 7 / 8 / 0 |
+
+- The population now peaks around year 30 and settles lower by year 50 (seeds 1 and 2), with the land 88% full and 5.5 to 5.9 productive tiles a head: the map is being filled, which it never was before.
+- `harvestOfMaxYield` reaches W1a's 0.35 target on every seed with no change to the grass.
+- Hunger is higher (15 to 16% against 11 to 12%), inside the "no more than double" guard rail. It is what a fuller map looks like.
+- Wolves end lower on seeds 2 and 3 and die out on seed 3 (they died out on seed 1 before). Still too noisy on three seeds to call.
+- **Checks on fd68bb1:** `VERIFY_VISUAL=1 npm run verify` exit 0; perf 3.522 µs per person per tick at 14,358 people (4.201 before; budget 15).
