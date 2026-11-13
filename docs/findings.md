@@ -1282,3 +1282,13 @@ Share of person-ticks by activity (30 years, seeds 1 / 2 / 3): grazing 35 / 35 /
 - The `campStayMedian` target of 14 to 40 ticks is already met today, so it can't steer W1a. `campStayTimeMedian` (about 150 ticks today) or `campStayP90` (about 130) would.
 - The `harvestShare` target ("rises well above today's") can't move. `harvestOfMaxYield` (about 0.17 today at 30 years) can.
 - The guard rail "wolves survive 50 years on every seed" already fails on seed 1 before any change.
+
+## Watchability W1a: scarcer grazing, targets (written 2026-11-13, before the runs)
+
+Branch `watch-w1a-abundance`. Probe `scripts/watch-probe.ts`, measured from year 5. W0 values are the 30-year baseline above (seeds 1 / 2 / 3). Targets as changed by the user on 2026-11-13 (`docs/decisions.md`).
+- **H1, people stop sitting:** `campStayTimeMedian` falls from 163 / 169 / 157 ticks to about 14 to 40 on every seed.
+- **H2, the land is patchy:** `landFullPct` falls from 0.95 to between 0.5 and 0.7.
+- **H3, production is used:** `harvestOfMaxYield` at least doubles, from 0.17 / 0.15 / 0.20 to 0.35 or more.
+- **H4, people travel:** `stepsPerAdultYear` (96 / 88 / 104) and `netDisplacePerAdultYear` (7.9 / 7.9 / 8.4) rise by at least half; `nearWaterPct` (66 / 62 / 67) falls by at least 10 points.
+- **Guard rails (reported, not tuned toward):** no die-out in 50 years; population at year 30 at least 1,500 on every seed; `hungryPct` no more than about double W0's (4.8 / 6.0 / 5.5, so about 11); herds alive at year 50 on every seed; wolves alive at year 30 on seeds 2 and 3, where W0 has them (50 and 47).
+- **Round 1, a grid with no code change** (config overrides on the command line): `landRegrowthRate` 0.02, 0.015, 0.01 × `landFoodMax` 25, 18, 12, seeds 1 to 3, 30 years, 27 runs. Then the mildest setting that meets H1 to H4 inside the guard rails is confirmed at 50 years on 5 seeds. At most 8 rounds; misses are reported.
