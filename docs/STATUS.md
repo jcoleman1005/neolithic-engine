@@ -1,11 +1,12 @@
 # Neolithic Engine — Status
 
 ## Handoff (2026-11-12): read this first
-- **2026-11-13, watchability W1a: 7 read-only rounds done, stopped for a decision (branch `watch-w1a-abundance`, off `watch-w0-probe`; neither merged).** 86 runs on command-line overrides. No default changed, no switch added, no simulation file touched. Full tables in `docs/findings.md` ("W1a round 1" to "W1a summary").
+- **2026-11-13, watchability W1a: 7 read-only rounds done, stopped for a decision (branch `watch-w1a-abundance`, off `watch-w0-probe`; neither merged).** 89 runs on command-line overrides. No default changed, no switch added, no simulation file touched. Full tables in `docs/findings.md` ("W1a round 1" to "W1a summary").
   - **Scarcer grass gives fewer people, not travel.** Land stays 90 to 93% full; population at year 30 falls from 5,100 to 6,000 to 470 to 2,900.
   - **People live in dense camps on bare ground by the water** (6 to 9 to a tile; 86% of adults within 5 tiles of fresh water), fed from heaps. `scripts/move-probe.ts` shows what the step rule decides and why.
   - **No existing setting produces travel:** 25 levers and combinations, best net movement 13 to 14 tiles a year against 8, zero migration entries anywhere. Movement is a random walk; thirst resets it to the bank.
   - **Water reach is the big lever:** scarce land with thirst off puts 55 to 64% of adults beyond 5 tiles and raises population 70 to 85%.
+  - **Checks:** `VERIFY_VISUAL=1 npm run verify` exit 0 on 2896e19; fingerprints unchanged (`dbeaac54ed27afd8`, `453f741794e836ee` with weather). Perf not re-run (no simulation file changed since W0's 4.057 µs).
   - **Recommendation waiting on the user:** don't ship W1a's re-tune alone; do water reach (W3 wells or further-carried water) before or with W1b's ripening wave.
 - **2026-11-13, watchability W0 done (branch `watch-w0-probe`, not merged): waiting at the STOP before W1a.** The read-only watch probe is `scripts/watch-probe.ts` (`npm run watch-probe -- --seed 1 --years 50 --report 30`); the measuring is in `scripts/watch-probe-lib.ts`, and `tests/watch-probe.test.ts` checks it changes no outcome. No simulation file changed. The baseline table is "W0 baseline" in `docs/findings.md`.
   - **Baseline (seeds 1 to 3, 30 years):** land 94 to 96% full; adults move 8 tiles net a year; 62 to 67% of adults within 2 tiles of water; people and herds eat 15 to 20% of the land's best possible yield; 9 to 12 productive tiles per person; no migration entries.

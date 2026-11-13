@@ -1438,7 +1438,7 @@ A lever "works" if net movement or band movement at least doubles on both seeds.
 
 An earlier hunger drive makes people move less, not more: the drive also multiplies the food-scent weight by 2.5 (`hungerFoodWeightMul`) and cuts roaming, so they hold tighter to the nearest food. Migration entries are 0 in all 8 runs.
 
-**W1a summary after 7 of 8 rounds (86 read-only runs, no default changed, no simulation code touched).**
+**W1a summary after 7 of 8 rounds (89 read-only runs, no default changed, no simulation code touched).**
 1. **Scarcer grass does not make people move.** It makes fewer people (round 1).
 2. **People live in dense camps on bare ground near water** (6 to 9 to a tile, 86% within 5 tiles of water), fed from heaps; the rest of the map is 96 to 99% full (rounds 2 and 4).
 3. **No existing setting produces travel.** Across 25 levers and combinations the best net movement is 13 to 14 tiles a year against 8 today, and no run has a migration entry. Loosening the camp rules buys more steps, not more distance (rounds 5 to 7).
