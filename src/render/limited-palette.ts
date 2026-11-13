@@ -1,21 +1,33 @@
 /**
- * The limited palette (user choice, 2026-11-13): every colour the world view draws comes from these
- * 30, unless the viewer picks "Original colours" in the pill menu (stored in localStorage; also
- * `?palette=original` in the URL). Viewer only: nothing here touches the simulation.
+ * The limited palette (user choice, 2026-11-13): a GBA-inspired set of 34 colours, and every colour
+ * the world view draws comes from it, unless the viewer picks "Original" in the pill menu (stored in
+ * localStorage; also `?palette=original` in the URL). Viewer only: nothing here touches the simulation.
+ *
+ * The palette follows Game Boy Advance rules without copying any game: every channel is a multiple of
+ * 8 (the GBA's 15-bit colour), colours are bright and saturated (made for an unlit screen), ramps shift
+ * hue (shadows lean blue or purple, highlights lean yellow), and outlines are a dark navy, not black.
+ * Two muted sand tones (#d8c088, #b89860) were added at the user's request to tone the sand down.
  *
  * How colours get here:
  * - The terrain ramps and the people's colours are picked by hand (palette.ts, OVERRIDES below).
  * - Every other colour written in the code is mapped to its nearest palette colour by perceived
  *   difference (OKLab), when it is turned into a number (hexToABGR) or set on the canvas (paletteCss).
- * - Pixels written straight into image data (the terrain cache, the overlay, far-zoom people, sprite
- *   atlases) are snapped with quantizeImage before they are put on a canvas.
+ * - Pixels written straight into image data (the terrain cache, tile and storm sprites) are snapped
+ *   with quantizeImage, and the see-through overlay is made solid with quantizeOver.
  * Translucent drawing (shadows, glows, fades) still blends palette colours with what is under them.
  */
 
 export const LIMITED_PALETTE: readonly string[] = [
-  '#636663', '#87857c', '#bcad9f', '#f2b888', '#eb9661', '#b55945', '#734c44', '#3d3333', '#593e47', '#7a5859',
-  '#a57855', '#de9f47', '#fdd179', '#fee1b8', '#d4c692', '#a6b04f', '#819447', '#44702d', '#2f4d2f', '#546756',
-  '#89a477', '#a4c5af', '#cae6d9', '#f1f6f0', '#d5d6db', '#bbc3d0', '#96a9c1', '#6c81a1', '#405273', '#303843',
+  '#101828', '#f8f8f8', // navy outline, white
+  '#104830', '#207840', '#40a048', '#78c850', '#b8e870', // greens: dark teal-green to yellow-green
+  '#182868', '#2850a8', '#3880d0', '#60b0f0', '#a8e0f8', // blues: navy to sky
+  '#a85828', '#d08838', '#e8b850', '#f8e090', '#f8f8d0', // yellows: orange shadow to cream
+  '#482018', '#703020', '#985038', // earth
+  '#882030', '#d03838', '#f87058', // reds
+  '#f8b888', '#d08860', // skin and its shade
+  '#503078', '#8850b0', '#f888c8', // purples and pink
+  '#303048', '#586078', '#8890a8', '#c0c8d8', // cool greys
+  '#d8c088', '#b89860', // muted sand
 ];
 
 function readMode(): boolean {
@@ -43,35 +55,34 @@ export function setLimitedPalette(on: boolean): void {
 
 /**
  * Hand picks for colours that matter more than their nearest match: people, trees, the spear and the
- * swaddle, the fire, crops and the darkest outlines (the palette has no black; its darkest are
- * #303843 and #3d3333). Keys are the original colours in the code, lower case.
+ * swaddle, the fire, the pops and the darkest outlines. Keys are the original colours in the code,
+ * lower case.
  */
 const OVERRIDES: Readonly<Record<string, string>> = {
   // People (sprites.ts): skin, hair, tunics by who they are, legs, outline.
-  '#f5c69b': '#f2b888', '#fde2c7': '#fee1b8', '#fef08a': '#d4c692', '#d9a578': '#eb9661',
-  '#3b2314': '#734c44', '#1c1917': '#3d3333', '#e2e8f0': '#d5d6db',
-  '#2563eb': '#96a9c1', '#1d4ed8': '#6c81a1', // man
-  '#e11d48': '#b55945', '#be123c': '#7a5859', // woman
-  '#f43f5e': '#eb9661', '#fda4af': '#fee1b8', // pregnant
-  '#f59e0b': '#fdd179', '#d97706': '#de9f47', // child
-  '#64748b': '#87857c', '#475569': '#636663', // elder
-  '#991b1b': '#7a5859', '#7f1d1d': '#593e47', // starving
-  '#1e293b': '#303843', '#3b2a1c': '#3d3333', '#141824': '#303843', '#3a2414': '#593e47', '#d4af37': '#de9f47',
-  '#6b4423': '#a57855', '#cbd5e1': '#d5d6db', '#efe3c8': '#fee1b8',
+  '#f5c69b': '#f8b888', '#fde2c7': '#f8f8d0', '#fef08a': '#f8e090', '#d9a578': '#d08860',
+  '#3b2314': '#703020', '#1c1917': '#101828', '#e2e8f0': '#f8f8f8',
+  '#2563eb': '#3880d0', '#1d4ed8': '#2850a8', // man
+  '#e11d48': '#d03838', '#be123c': '#882030', // woman
+  '#f43f5e': '#f888c8', '#fda4af': '#f8f8d0', // pregnant
+  '#f59e0b': '#e8b850', '#d97706': '#d08838', // child
+  '#64748b': '#8890a8', '#475569': '#586078', // elder
+  '#991b1b': '#8850b0', '#7f1d1d': '#503078', // starving
+  '#1e293b': '#303048', '#3b2a1c': '#482018', '#141824': '#101828', '#3a2414': '#703020', '#d4af37': '#e8b850',
+  '#6b4423': '#985038', '#cbd5e1': '#c0c8d8', '#efe3c8': '#f8f8d0',
   // Trees: broadleaf, pine, fruit, bark.
-  '#1b4332': '#2f4d2f', '#2d6a4f': '#44702d', '#40916c': '#819447', '#74c69d': '#a6b04f',
-  '#064e3b': '#2f4d2f', '#047857': '#546756', '#10b981': '#89a477', '#34d399': '#a4c5af',
-  '#ef4444': '#b55945', '#facc15': '#fdd179', '#78350f': '#734c44', '#451a03': '#593e47', '#9a5a22': '#a57855',
-  // Fire and crops.
-  '#ffe066': '#fdd179', '#f59f00': '#de9f47', '#d9480f': '#b55945', '#3b0d0c': '#3d3333',
-  // Far-zoom people (one dot each): light enough to read on grass and on sand.
-  // (#f43f5e pregnant and #cbd5e1 elder share the sprite picks above.)
-  '#38bdf8': '#96a9c1', '#fb7185': '#eb9661', '#888888': '#bcad9f',
-  // Event pops (renderer.ts): a red heart, red meat with a pale bone, a yellow and orange flame, a clay hut.
-  '#f472b6': '#b55945', '#dc2626': '#b55945', '#b91c1c': '#7a5859', '#f8fafc': '#f1f6f0', '#fbbf24': '#fdd179',
-  '#f97316': '#de9f47', '#a16207': '#a57855', '#d6b48a': '#d4c692',
+  '#1b4332': '#104830', '#2d6a4f': '#207840', '#40916c': '#40a048', '#74c69d': '#78c850',
+  '#064e3b': '#104830', '#047857': '#207840', '#10b981': '#40a048', '#34d399': '#b8e870',
+  '#ef4444': '#d03838', '#facc15': '#f8e090', '#78350f': '#703020', '#451a03': '#482018', '#9a5a22': '#985038',
+  // Fire.
+  '#ffe066': '#f8e090', '#f59f00': '#d08838', '#d9480f': '#d03838', '#3b0d0c': '#482018',
+  // Far-zoom people (one dot each), light enough to read on grass and sand.
+  '#38bdf8': '#60b0f0', '#fb7185': '#f888c8', '#888888': '#8890a8',
+  // Event pops: a pink heart, red meat with a pale bone, a yellow and orange flame, a clay hut.
+  '#f472b6': '#f888c8', '#dc2626': '#d03838', '#b91c1c': '#882030', '#f8fafc': '#f8f8f8', '#fbbf24': '#f8e090',
+  '#f97316': '#f87058', '#a16207': '#a85828', '#d6b48a': '#e8b850',
   // Pure black and the page background.
-  '#000000': '#303843', '#0b0f19': '#303843',
+  '#000000': '#101828', '#0b0f19': '#101828',
 };
 
 // --- Perceived colour (OKLab) and nearest match ---
@@ -98,11 +109,12 @@ const PAL_RGB: readonly (readonly [number, number, number])[] = LIMITED_PALETTE.
 ]);
 const PAL_LAB = PAL_RGB.map(([r, g, b]) => oklab(r, g, b));
 
-/** Index of the palette colour nearest (r, g, b). */
-export function nearestIndex(r: number, g: number, b: number): number {
+/** Index of the palette colour nearest (r, g, b), skipping any indices in `avoid`. */
+export function nearestIndex(r: number, g: number, b: number, avoid?: ReadonlySet<number>): number {
   const [L, A, B] = oklab(r, g, b);
   let best = 0, bestD = Infinity;
   for (let i = 0; i < PAL_LAB.length; i++) {
+    if (avoid && avoid.has(i)) continue;
     const p = PAL_LAB[i];
     const d = (L - p[0]) ** 2 + (A - p[1]) ** 2 + (B - p[2]) ** 2;
     if (d < bestD) { bestD = d; best = i; }
@@ -223,6 +235,13 @@ export function quantizeImage(data: Uint32Array, width: number, x0 = 0, y0 = 0, 
 }
 
 const overMemo = new Map<number, number>();
+/**
+ * Colours overlay mixes never land on: the two brightest greens (crops would read as lime) and the two
+ * muted sand tones (faint tilled-soil tints on grass would turn into a tan checkerboard).
+ */
+const OVERLAY_AVOID: ReadonlySet<number> = new Set(
+  ['#b8e870', '#78c850', '#d8c088', '#b89860'].map((h) => LIMITED_PALETTE.indexOf(h))
+);
 const OVER_MEMO_MAX = 65536;
 
 /** How much nearer (squared OKLab distance) an overlay mix must be to its new colour than to the ground. */
@@ -253,7 +272,7 @@ export function quantizeOver(
       const g = ground[i];
       // Few overlay colours and alpha steps meet few ground colours: remember each answer.
       const gi = exact.get(g & 0xffffff);
-      const key = gi === undefined ? -1 : (c >>> 0) * 32 + gi;
+      const key = gi === undefined ? -1 : (c >>> 0) * LIMITED_PALETTE.length + gi;
       if (key >= 0) {
         const hit = overMemo.get(key);
         if (hit !== undefined) { data[i] = hit; continue; }
@@ -262,7 +281,7 @@ export function quantizeOver(
       const r = Math.round((c & 0xff) * t + (g & 0xff) * (1 - t));
       const gg = Math.round(((c >> 8) & 0xff) * t + ((g >> 8) & 0xff) * (1 - t));
       const b = Math.round(((c >> 16) & 0xff) * t + ((g >> 16) & 0xff) * (1 - t));
-      const q = quantizeABGR(((0xff << 24) | (b << 16) | (gg << 8) | r) >>> 0);
+      const q = ((0xff << 24) | PAL_ABGR[nearestIndex(r, gg, b, OVERLAY_AVOID)]) >>> 0;
       // A faint tint stays the ground: the mix must sit clearly nearer the new colour than the ground.
       const out = (q & 0xffffff) === (g & 0xffffff) || labDist2(r, gg, b, g) <= OVERLAY_BIAS * labDist2(r, gg, b, q) ? 0 : q;
       data[i] = out;
@@ -276,6 +295,6 @@ export function quantizeOver(
 
 /** Band colours: well-separated palette colours that read on grass and sand. */
 export const BAND_COLOURS: readonly string[] = [
-  '#b55945', '#de9f47', '#6c81a1', '#a4c5af', '#eb9661', '#405273', '#fdd179', '#7a5859',
-  '#cae6d9', '#a6b04f', '#f2b888', '#96a9c1',
+  '#d03838', '#e8b850', '#3880d0', '#60b0f0', '#8850b0', '#f8e090', '#f888c8', '#f87058',
+  '#78c850', '#a8e0f8', '#d08838', '#503078',
 ];

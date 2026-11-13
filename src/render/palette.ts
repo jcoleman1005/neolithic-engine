@@ -85,42 +85,34 @@ export const PALETTE_DF_WILDS = {
   hearthFire: makeRamp('#ffe066', '#f59f00', '#d9480f', '#3b0d0c'),
 } as const;
 
-// Limited palette (limited-palette.ts): ramps picked by hand from its 30 colours, per theme. Highlight,
-// base, shadow, rim. Its darkest colours are #303843 (cool) and #3d3333 (warm), so water and rims are
-// lighter than in the original ramps.
+// Limited palette (limited-palette.ts): ramps picked by hand from its GBA-inspired colours, per theme.
+// Highlight, base, shadow, rim. Sand uses the two muted tones added to calm it down.
 export const PALETTE_LIMITED_CLASSIC = {
-  deepWater: makeRamp('#6c81a1', '#405273', '#303843', '#303843'),
-  shallowWater: makeRamp('#96a9c1', '#6c81a1', '#405273', '#303843'),
-  sand: makeRamp('#d4c692', '#bcad9f', '#a57855', '#734c44'),
-  grass: makeRamp('#819447', '#44702d', '#2f4d2f', '#303843'),
-  soil: makeRamp('#a57855', '#734c44', '#593e47', '#3d3333'),
-  shrub: makeRamp('#a6b04f', '#819447', '#546756', '#2f4d2f'),
-  rock: makeRamp('#bbc3d0', '#87857c', '#636663', '#3d3333'),
-  snow: makeRamp('#f1f6f0', '#d5d6db', '#bbc3d0', '#6c81a1'),
-  stoneWall: makeRamp('#d5d6db', '#bbc3d0', '#87857c', '#3d3333'),
-  earthWall: makeRamp('#f2b888', '#a57855', '#734c44', '#3d3333'),
-  timber: makeRamp('#a57855', '#734c44', '#593e47', '#3d3333'),
-  hearthFire: makeRamp('#fdd179', '#de9f47', '#b55945', '#3d3333'),
+  deepWater: makeRamp('#2850a8', '#182868', '#101828', '#101828'),
+  shallowWater: makeRamp('#3880d0', '#2850a8', '#182868', '#101828'),
+  sand: makeRamp('#f8e090', '#d8c088', '#b89860', '#a85828'),
+  grass: makeRamp('#78c850', '#40a048', '#207840', '#104830'),
+  soil: makeRamp('#985038', '#703020', '#482018', '#101828'),
+  shrub: makeRamp('#40a048', '#207840', '#104830', '#101828'),
+  rock: makeRamp('#c0c8d8', '#8890a8', '#586078', '#303048'),
+  snow: makeRamp('#f8f8f8', '#a8e0f8', '#8890a8', '#586078'),
+  stoneWall: makeRamp('#c0c8d8', '#8890a8', '#586078', '#303048'),
+  earthWall: makeRamp('#e8b850', '#d08838', '#a85828', '#703020'),
+  timber: makeRamp('#985038', '#703020', '#482018', '#101828'),
+  hearthFire: makeRamp('#f8e090', '#f87058', '#d03838', '#882030'),
 } as const;
 
 export const PALETTE_LIMITED_MOUNTAINHOME = {
   ...PALETTE_LIMITED_CLASSIC,
-  sand: makeRamp('#fee1b8', '#bcad9f', '#87857c', '#636663'),
-  grass: makeRamp('#89a477', '#546756', '#2f4d2f', '#303843'),
-  shrub: makeRamp('#a6b04f', '#819447', '#44702d', '#2f4d2f'),
-  soil: makeRamp('#7a5859', '#593e47', '#3d3333', '#303843'),
-  rock: makeRamp('#96a9c1', '#6c81a1', '#405273', '#303843'),
+  grass: makeRamp('#40a048', '#207840', '#104830', '#101828'),
+  shrub: makeRamp('#207840', '#104830', '#101828', '#101828'),
+  rock: makeRamp('#8890a8', '#586078', '#303048', '#101828'),
 } as const;
 
 export const PALETTE_LIMITED_WILDS = {
   ...PALETTE_LIMITED_CLASSIC,
-  deepWater: makeRamp('#405273', '#303843', '#303843', '#3d3333'),
-  shallowWater: makeRamp('#96a9c1', '#6c81a1', '#405273', '#303843'),
-  sand: makeRamp('#d4c692', '#bcad9f', '#87857c', '#593e47'),
-  grass: makeRamp('#a6b04f', '#819447', '#546756', '#2f4d2f'),
-  shrub: makeRamp('#d4c692', '#a6b04f', '#819447', '#546756'),
-  soil: makeRamp('#7a5859', '#593e47', '#3d3333', '#303843'),
-  rock: makeRamp('#bcad9f', '#87857c', '#636663', '#3d3333'),
+  sand: makeRamp('#c0c8d8', '#8890a8', '#586078', '#303048'),
+  grass: makeRamp('#40a048', '#207840', '#104830', '#101828'),
 } as const;
 
 export function getPaletteForTheme(theme: TerrainTheme) {

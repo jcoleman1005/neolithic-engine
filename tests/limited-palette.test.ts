@@ -15,9 +15,10 @@ const hexOf = (c: number): string =>
   '#' + [c & 0xff, (c >> 8) & 0xff, (c >> 16) & 0xff].map((v) => v.toString(16).padStart(2, '0')).join('');
 
 describe('limited palette (viewer)', () => {
-  it('is on by default outside a browser, with 30 distinct colours', () => {
+  it('is on by default outside a browser, with 34 distinct colours, each RGB555-exact (GBA)', () => {
     expect(LIMITED).toBe(true);
-    expect(PAL.size).toBe(30);
+    expect(PAL.size).toBe(34);
+    for (const h of PAL) for (const k of [1, 3, 5]) expect(parseInt(h.slice(k, k + 2), 16) % 8).toBe(0);
   });
 
   it('every hand-picked ramp and band colour is a palette colour', () => {
@@ -31,7 +32,7 @@ describe('limited palette (viewer)', () => {
   });
 
   it('maps any colour into the palette, keeping hand picks and alpha', () => {
-    expect(paletteHex('#2563eb')).toBe('#96a9c1'); // the man's tunic, picked by hand
+    expect(paletteHex('#2563eb')).toBe('#3880d0'); // the man's tunic, picked by hand
     for (const h of ['#000000', '#ffffff', '#ff00ff', '#123456', '#0b0f19']) expect(PAL.has(paletteHex(h))).toBe(true);
     expect(hexOf(hexToABGR('#ff3b1f'))).toBe(paletteHex('#ff3b1f'));
     expect(paletteCss('rgba(20, 24, 36, 0.75)')).toMatch(/^rgba\(\d+, \d+, \d+, 0\.75\)$/);
@@ -41,20 +42,20 @@ describe('limited palette (viewer)', () => {
   });
 
   it('snaps image data in place, leaving clear pixels and keeping alpha', () => {
-    const d = new Uint32Array([0, abgr('#ff00ff'), (0x80000000 | 0x123456) >>> 0, abgr('#44702d')]);
+    const d = new Uint32Array([0, abgr('#ff00ff'), (0x80000000 | 0x123456) >>> 0, abgr('#40a048')]);
     quantizeImage(d, 4);
     expect(d[0]).toBe(0);
     expect(PAL.has(hexOf(d[1]))).toBe(true);
     expect(d[2] >>> 24).toBe(0x80);
     expect(PAL.has(hexOf(d[2]))).toBe(true);
-    expect(d[3]).toBe(abgr('#44702d'));
-    expect(quantizeABGR(abgr('#303843'))).toBe(abgr('#303843'));
+    expect(d[3]).toBe(abgr('#40a048'));
+    expect(quantizeABGR(abgr('#101828'))).toBe(abgr('#101828'));
   });
 
   it('makes an overlay solid in the palette, and a faint one clear', () => {
-    const ground = new Uint32Array([abgr('#44702d'), abgr('#44702d')]);
-    const strong = ((235 << 24) | (abgr('#fdd179') & 0xffffff)) >>> 0;
-    const faint = ((20 << 24) | (abgr('#fdd179') & 0xffffff)) >>> 0;
+    const ground = new Uint32Array([abgr('#40a048'), abgr('#40a048')]);
+    const strong = ((235 << 24) | (abgr('#f8e090') & 0xffffff)) >>> 0;
+    const faint = ((20 << 24) | (abgr('#f8e090') & 0xffffff)) >>> 0;
     const d = new Uint32Array([strong, faint]);
     quantizeOver(d, ground, 2);
     expect(d[0] >>> 24).toBe(255);

@@ -71,8 +71,8 @@ export class PlaybackPill {
           </select>
         </label>
         <label class="pill-menu-item">Palette
-          <select id="select-palette" class="pill-select" aria-label="Palette" title="Draw the world in the limited 30-colour palette or the original colours (reloads the page)">
-            <option value="limited"${LIMITED ? ' selected' : ''}>Limited (30)</option>
+          <select id="select-palette" class="pill-select" aria-label="Palette" title="Draw the world in the GBA-inspired palette or the original colours (reloads the page)">
+            <option value="limited"${LIMITED ? ' selected' : ''}>GBA</option>
             <option value="original"${LIMITED ? '' : ' selected'}>Original</option>
           </select>
         </label>
