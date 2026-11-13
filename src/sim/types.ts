@@ -146,6 +146,10 @@ export interface SimulationConfig {
   wallCrossingEnabled?: boolean;
   /** Watchability #3a: record each person's action and events for the viewer (observer only). */
   activityViewEnabled?: boolean;
+  /** W1a shore fix: the food-scent slope ignores water tiles. */
+  shoreScentEnabled?: boolean;
+  /** W1a shore fix: a step blocked by water becomes a sideways step along the shore. */
+  shoreSlideEnabled?: boolean;
   weatherEnabled?: boolean;
   weatherAirSpeed?: number;
   weatherEvaporation?: number;

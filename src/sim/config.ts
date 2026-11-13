@@ -52,6 +52,11 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
 
   // Feature Switches
   climbEnabled: true,
+  // Watchability W1a shore fix (2026-11-13, docs/findings.md "What keeps people at the bank"). Food scent
+  // drifts across water, so at a grazed-bare bank it points into the river and a hungry person stands
+  // facing it. Both switches are off until the user decides; off reproduces the old fingerprint.
+  shoreScentEnabled: false, // the scent slope a person feels ignores water tiles
+  shoreSlideEnabled: false, // someone whose step is blocked by water steps sideways along the shore instead of standing
   // Phase 4 fix: calmer movement. Stay and graze on a tile that is rich enough, and do not step
   // straight back unless the pull is strong (see docs/findings.md).
   calmMovementEnabled: true,

@@ -1506,3 +1506,28 @@ Crowding does lower the pass rate (the shared tile really is emptier), so the pr
 Years vary by about 10% and places share them (correlation 0.5 to 0.6), while the season swings growth six-fold for every tile at once. With weather off there is no year-to-year variation at all. Moving between patches pools no risk today.
 
 **The framework's terms, as measured:** λ at camp scale is small (P2); N raises depletion but the decision to stay doesn't feel it per head (P3); the water limit r_max is about 50 times looser than the range people use (P1); σ² is small and shared (P4). Each one sits on the side that favours staying.
+
+## What keeps people at the bank (2026-11-13; the user asked for tests and a check for glitches)
+
+**Correction to P1 above.** The trip figures (2 tiles, hydration above 90) are ruled by people who already live on the bank and step back and forth across the 1-tile line. They show the bank is crowded, not what brings people there. The tests below replace that reading.
+
+**Test 1, founders (`scripts/bank-probe.ts`, new, read only; seed 42 gives `dbeaac54ed27afd8`).** Founders are placed evenly over the land. Seed 42, share of people by tiles from fresh water (0-2 / 3-5 / 6-10 / 11-20 / 21+; land is 13 / 18 / 26 / 25 / 19%): year 0 11 / 18 / 26 / 25 / 20%; year 1 **67** / 22 / 6 / 2 / 3%; year 5 75 / 16 / 6 / 1 / 2%. The whole population is delivered to the bank inside one year.
+- **How: the thirst walk is a ratchet.** A thirsty adult's step is toward water every time (mean change in distance −1.00 a decision in every band out to 20 tiles). A step taken when not thirsty has no direction (+0.02 at the bank, −0.13 to +0.03 further out). Walking in is a straight line; walking out is a random walk with nothing to walk back to. Thirst comes round every 100 ticks, so everyone is collected.
+- **The bank is the worst place to be, not the best.** Years 0 to 5: births per 100 women a year are 61 at the bank against 113 and 121 at 3 to 10 tiles; deaths with energy at zero are 2.5 per 100 a year at the bank and 0 to 0.5 elsewhere. People aren't choosing the bank; they're stuck on it.
+
+**Test 2, land with no way to fresh water.** `waterDist` is a walk distance that does not cross water, so land cut off from any lake or river by the sea has none (255). Share of land: seed 1 5.6%, seed 2 8.3%, seed 3 0.7%, seed 42 4.0%. Founders placed there (38, 59, 4 and 22 of 700) never find water: on seed 42 the 21+ band, which includes them, has mean hydration 27, 64% of person-time below 30, and thirst deaths. A small glitch (about 5% of founders are doomed at the start), not the cause of the crowding.
+
+**Test 3, which exit of the step rule people take (a scratch patch tagging every `return` in `Rules.climb`; not committed). Seed 1, 20 years, adults from year 5, today's land / scarce land:**
+
+| Exit | Fed | Hungry | Starving |
+|---|---|---|---|
+| Stay check passed | 61 / 46% | 32 / 35% | 15 / 8% |
+| Stayed in shelter from the cold | 19 / 18% | 0 | 0 |
+| Stepped the way they wanted | 15 / 24% | 48 / 43% | 51 / 41% |
+| **Wanted to step into water, stood still** | 0.8 / 2.3% | **13 / 16%** | **23 / 43%** |
+| Thirst walk | 1.5 / 2.0% | 2.2 / 1.2% | 2.1 / 0.5% |
+
+- **This is a glitch.** A starving adult spends a quarter to nearly half of their decisions trying to walk into the water. All of those cases are on the bank; the person stood still the tick before in 99 to 100% of them; the food scent alone points at the water in 87 to 95%; and its pull (9 to 11) is ten times every other pull.
+- **Cause.** `ScentFields.step` spreads scent over every tile, water included, and `getFoodGradient` reads the four neighbours whether or not they can be walked on. A camp grazes its own ground bare (a tile at or under 1.0 food gives off no scent), so the scent lying over the river, fed by the far bank and by ungrazed shore, is stronger than the scent on land. The hungrier the person, the more the scent weighs (`hungerFoodWeightMul` 2.5), so the people who most need to leave are the ones held hardest.
+
+**Test 4 (written before the runs): does fixing the scent free people from the bank?** Two new switches, both off by default (off gives `dbeaac54ed27afd8`): `shoreScentEnabled` (the slope a person feels treats a water neighbour as their own tile) and `shoreSlideEnabled` (blocked by water both ways, step sideways along the shore). H8: with both on, the blocked exit falls to near zero for hungry and starving adults, hunger falls, adults beyond 5 tiles of water rise from 13 / 19%, and net movement rises. Also tried, because it is the existing way to live away from water: bigger carried-water stores (`waterCarryMax 80`, `waterFetchChance 0.5`, `waterEvaporation 0.005`). Arms, seeds 1 and 2, 30 years: scent only; slide only; both; both on scarce land (0.02 × 18); water stores only; both plus water stores.

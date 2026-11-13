@@ -187,6 +187,18 @@ export class Rules {
 
     // Scent gradients
     fields.getFoodGradient(px, py, scratchGradFood);
+    if (config.shoreScentEnabled === true) {
+      // W1a shore fix: scent drifts over water, but nobody can walk there. A water neighbour counts as
+      // this tile's own scent, so the slope never points into a river or lake.
+      const fc = fields.foodCurrent;
+      const isW = land.isWater;
+      const row = py << 8;
+      const own = fc[row | px];
+      const e = row | ((px + 1) & 0xff), wst = row | ((px - 1) & 0xff);
+      const s = (((py + 1) & 0xff) << 8) | px, n = (((py - 1) & 0xff) << 8) | px;
+      scratchGradFood[0] = (isW[e] === 1 ? own : fc[e]) - (isW[wst] === 1 ? own : fc[wst]);
+      scratchGradFood[1] = (isW[s] === 1 ? own : fc[s]) - (isW[n] === 1 ? own : fc[n]);
+    }
     fields.getDangerGradient(px, py, scratchGradDanger);
 
     const caution = people.habits[hOff + HABIT_CAUTION] / 255;
@@ -447,6 +459,17 @@ export class Rules {
         const back = (d === 0 && awayX < 0) || (d === 1 && awayX > 0) || (d === 2 && awayY < 0) || (d === 3 && awayY > 0);
         if (!back && d !== primaryDir && d !== secondaryDir && Rules.canStep(px, py, d, land)) return d;
       }
+    }
+
+    // W1a shore fix: blocked by water both ways. Step sideways along the shore (keeping the last heading
+    // when it is one of the two sideways steps) rather than stand facing the water. No random draw.
+    if (config.shoreSlideEnabled === true) {
+      const a = primaryDir < 2 ? 2 : 0;
+      const prev = people.prevDir[slot];
+      const first = prev === a + 1 ? a + 1 : a;
+      const second = first === a ? a + 1 : a;
+      if (first !== secondaryDir && Rules.canStep(px, py, first, land)) return first;
+      if (second !== secondaryDir && Rules.canStep(px, py, second, land)) return second;
     }
 
     // Both blocked or water: stay
