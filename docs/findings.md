@@ -1403,3 +1403,25 @@ A lever "works" if net movement or band movement at least doubles on both seeds.
 **W1a round 6 (written before the runs): does a directed pull, freed from the scent, produce travel?** Seeds 1 and 2, 30 years. H6: with the scent weakened or far sight strengthened above it, hungry people on poor ground walk to richer blocks, so on scarce land the far land is used (`landFullPct` falls, more adults beyond 5 tiles, population above scarce-alone's 1873 / 1976) and net movement at least doubles. Arms:
 - today's land: `storeScentEnabled false`; `scentFoodEmitRate 0.01`; `farSightPull 15` with `hungerSearchPersist 6`.
 - scarce land (0.02 × 18) with: `farSightPull 15` and `hungerSearchPersist 6`; `scentFoodEmitRate 0.01`; `thirstEnabled false`; `stayValueEnabled false` plus the far-sight pair; `weatherEnabled true`.
+
+**W1a round 6 results (16 runs, all finished, none died out): H6 refuted; the one big effect is water.** Seed 1 / seed 2, 30 years.
+
+| Arm | Net tiles per adult a year | Band centre tiles a year | Adults beyond 5 tiles of water | `landFullPct` | `harvestOfMaxYield` | Pop. year 30 | `hungryPct` |
+|---|---|---|---|---|---|---|---|
+| Today | 7.9 / 7.9 | 4.4 / 4.1 | 13 / 19% | 0.953 / 0.959 | 0.17 / 0.15 | 5494 / 5119 | 4.8 / 6.0 |
+| `storeScentEnabled false` | 7.9 / 8.3 | 4.3 / 4.2 | 14 / 19% | 0.952 / 0.955 | 0.17 / 0.17 | 5667 / 5597 | 5.2 / 6.4 |
+| `scentFoodEmitRate 0.01` | 7.8 / 8.7 | 5.0 / 5.3 | 12 / 18% | 0.967 / 0.961 | 0.12 / 0.14 | 3784 / 5068 | 6.5 / 8.0 |
+| `farSightPull 15`, persist 6 | 8.0 / 8.1 | 4.3 / 4.1 | 13 / 19% | 0.950 / 0.958 | 0.18 / 0.16 | 6094 / 5428 | 4.8 / 6.0 |
+| Scarce (0.02 × 18) alone, round 1 | 11.0 / 11.9 | 6.7 / 7.1 | 14 / 20% | 0.917 / 0.924 | 0.27 / 0.26 | 1873 / 1976 | 8.9 / 10.2 |
+| Scarce + far sight 15, persist 6 | 10.9 / 12.1 | 6.7 / 6.8 | 13 / 23% | 0.910 / 0.900 | 0.29 / 0.32 | 1985 / 2491 | 8.9 / 10.9 |
+| Scarce + scent 0.01 | 10.2 / 11.4 | 8.7 / 9.0 | 14 / 20% | 0.946 / 0.953 | 0.18 / 0.15 | 1128 / 1126 | 15.4 / 17.5 |
+| Scarce + stay value off + far sight 15 | 12.9 / 13.9 | 8.7 / 9.0 | 17 / 27% | 0.910 / 0.909 | 0.27 / 0.28 | 1314 / 1752 | 8.0 / 8.4 |
+| Scarce + weather on | 10.1 / 11.6 | 6.2 / 6.9 | 13 / 22% | 0.889 / 0.875 | 0.22 / 0.24 | 1546 / 1821 | 8.2 / 9.8 |
+| **Scarce + thirst off** | 12.0 / 12.7 | 8.2 / 8.7 | **55 / 64%** | 0.884 / 0.890 | **0.39 / 0.39** | **3207 / 3652** | 8.3 / 8.5 |
+
+- **No arm doubles movement; migration entries are 0 in all 16.** Net movement tops out at 13 to 14 tiles a year.
+- **The food scent is not the blocker:** weakening it or the heaps' scent, or raising far sight 15 times, changes nothing on today's land. Weak scent makes people find less food (population down, hunger up).
+- **Far sight hardly ever switches on.** It needs a person under `hungerDriveThreshold` (0.35 of full energy) on poor ground, and adults are in that state 2 to 3% of the time today and 5 to 8% on scarce land. The population is held down earlier, by mothers falling under `reproductionThreshold` (65), so most people sit between "too thin to breed" and "hungry enough to search".
+- **Water is what unlocks the land.** On scarce land with thirst off, 55 to 64% of adults live beyond 5 tiles of water, the far land is grazed (0.86 full at 21 tiles or more), `harvestOfMaxYield` reaches 0.39 (W1a's target was 0.35) and the population is 70 to 85% higher than scarce land with thirst. This is the case for wells and carried water (W3).
+
+**W1a round 7 (written before the runs): search before starving.** H7: if the hunger drive starts where breeding stops (`hungerDriveThreshold 0.6`, close to `reproductionThreshold` 65 of 100) and the directed pulls are strong (`farSightPull 15`, `hungerSearchPersist 6`), people on poor ground walk to richer blocks: net movement at least doubles and the far land is used. Arms, seeds 1 and 2, 30 years: scarce land with the three changes; the same plus `thirstRate 0.2`; the same plus `stayValueEnabled false`; today's land with the three changes plus `hungerSearchFood 12`. Note: `hungryPct` in these arms counts people under 0.6, so it is not comparable with other rows.
