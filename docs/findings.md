@@ -1642,3 +1642,52 @@ Read only, nothing changed in the simulation. New probe `scripts/home-probe.ts` 
 4. **Is there a yearly round?** Where adults are in each quarter.
 5. **Where are the settlements, and how big?**
 Runs: new defaults on seeds 1 to 3 for 30 years (counted from year 5), `home-probe`; seed 1 with `thirstReturnEnabled false` for comparison; `bank-probe` on seeds 2 and 3.
+
+**Observation results (6 runs, all finished). New defaults, seeds 1 / 2 / 3, 30 years counted from year 5; "off" is seed 1 with `thirstReturnEnabled false`.**
+
+*1. Water trips.*
+
+| | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Trips per adult a year (from 3 or more tiles out) | 5.6 | 6.9 | 5.3 |
+| Remembered place, tiles from water: median / 90th / 99th percentile | 11 / 28 / 52 | 14 / 33 / 49 | 12 / 30 / 41 |
+| Round trip, mean ticks | 26 | 32 | 27 |
+| Walk back: arrived | 90.0% | 87.5% | 89.4% |
+| Walk back: given up, water in the way | 10.0% | 12.5% | 10.6% |
+| Walk back: ran out of time | 0 | 0 | 0 |
+| Trip dropped before leaving the water | 3.3% | 2.7% | 3.7% |
+| Share of time on a trip, by band (0-2 / 3-5 / 6-10 / 11-20 / 21+) | 4 / 9 / 25 / 26 / 24% | 5 / 13 / 29 / 34 / 27% | 3 / 9 / 30 / 28 / 21% |
+
+People living 6 or more tiles out spend a quarter to a third of their time walking to water and back. One walk back in eight to ten fails, always because water is in the way (the walk is a straight line; the walk in followed the distance map round the bends).
+
+*2. Who is at the bank (within 2 tiles).* 95 to 97% of the adults there are living there, with no remembered place; 2 to 4% are drinking or arriving; about 1% are setting off back. So the half of adults at the bank are residents, not commuters caught passing through.
+
+*3. Where people born in each band live as adults* (share of adult time; people born during the run):
+
+| Born at | Lives at 0-2 | 3-5 | 6-10 | 11-20 | 21+ |
+|---|---|---|---|---|---|
+| 0-2, seeds 1 / 2 / 3 | 50 / 46 / 53% | 25 / 24 / 22 | 9 / 13 / 8 | 10 / 10 / 10 | 6 / 8 / 6 |
+| 6-10 | 35 / 32 / 45% | 21 / 19 / 21 | 14 / 15 / 10 | 18 / 18 / 13 | 12 / 16 / 10 |
+| 21+ | 23 / 17 / 34% | 15 / 12 / 21 | 14 / 14 / 9 | 22 / 24 / 16 | 26 / 35 / 20 |
+| 21+, return off (seed 1) | 57% | 23 | 9 | 8 | 3 |
+
+Nobody stays put: people born far out spend a sixth to a third of their adult life at the bank (the bank is 11 to 13% of the land), and people born at the bank spend half of theirs elsewhere. The pull to the bank is weaker than before (57% → 23% for those born 21+ tiles out on seed 1) but still there.
+
+- **Answer to question 1: the bank is a sink fed by failed walks back.** A commuter makes several trips a year and loses the walk back about one time in eight, so a typical commuter is dropped at the bank about once a year, with nothing remembered, and starts again from there by random walk. Within 3 tiles of water nothing is remembered at all.
+- **It is still draining.** Share of everyone within 2 tiles, year 5 → 10 → 20: seed 1 54 → 56 → 51%; seed 2 52 → 51 → 40%; seed 3 59 → 61 → 54%.
+
+*4. Living away from the bank is better* (`bank-probe`, years 5 to 20, seeds 2 / 3, bands 0-2 / 3-5 / 6-10 / 11-20 / 21+): births per 100 women a year 47 / 77 / 65 / 94 / 75 and 51 / 78 / 75 / 80 / 79; mean energy 78 / 76 / 78 / 82 / 83 and 79 / 75 / 78 / 79 / 82; deaths with energy at zero per 100 a year 0.64 / 0.58 / 0.12 / 0.08 / 0.03 and 1.01 / 0.80 / 0.28 / 0.35 / 0.21; no thirst deaths. A step taken when not thirsty leans outward beyond 5 tiles (+0.12 to +0.20 tiles a decision in the growing half).
+
+*5. A faint yearly round.* Share of adults within 2 tiles of water by quarter (spring / summer / autumn / winter): seed 1 43 / 48 / 52 / 47%; seed 2 37 / 42 / 44 / 36%; seed 3 46 / 50 / 54 / 53%. People are furthest out in spring and closest in by autumn, a swing of 7 to 9 points. With the return off the same swing is bigger (54 / 64 / 70 / 63%). Cause not studied.
+
+*6. Settlements* (tracked at each year end, by mean distance of their tiles from water):
+
+| | Seed 1 | Seed 2 | Seed 3 | Seed 1, return off |
+|---|---|---|---|---|
+| Settlements a year, 0-2 / 3-5 / 6-10 / 11-20 / 21+ | 23 / 13 / 12 / 11 / 8 | 18 / 11 / 21 / 11 / 17 | 36 / 9 / 7 / 10 / 10 | 31 / 14 / 10 / 3 / 0.4 |
+| Residents each | 58 / 31 / 31 / 28 / 27 | 49 / 39 / 34 / 34 / 26 | 44 / 50 / 31 / 22 / 21 | 55 / 36 / 29 / 12 / 8 |
+| Settlements with 20 or more residents | 41 | 48 | 48 | 36 |
+
+Settlements more than 10 tiles from water: about 19 to 28 a year against 3 with the return off, each with 21 to 34 residents. Bank settlements are still the biggest (44 to 58).
+
+*7. One measure that did not discriminate:* "reached water and got 6 or more tiles away during the year" is 54 to 69% of adults with the return on and 54% with it off, since a random walker gets that far once a year too. Not used.
