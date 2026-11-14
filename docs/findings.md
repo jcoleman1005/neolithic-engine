@@ -1632,3 +1632,13 @@ User decisions of 2026-11-13 (`docs/decisions.md`): the shore fix is on by defau
 - Hunger is higher (15 to 16% against 11 to 12%), inside the "no more than double" guard rail. It is what a fuller map looks like.
 - Wolves end lower on seeds 2 and 3 and die out on seed 3 (they died out on seed 1 before). Still too noisy on three seeds to call.
 - **Checks on fd68bb1:** `VERIFY_VISUAL=1 npm run verify` exit 0; perf 3.522 µs per person per tick at 14,358 people (4.201 before; budget 15).
+
+## Observation of the new default world (2026-11-14; the user asked for more observational studies)
+
+Read only, nothing changed in the simulation. New probe `scripts/home-probe.ts` (seed 42 over 6 years gives the same hash as a plain run, `6c4bdfb1991066a5`). Questions, written before the runs:
+1. **Why are about half of adults still within 2 tiles of water?** Expectation: the bank is a sink. Anyone whose walk back fails (water in the way, or watered some other way) ends beside the water with no remembered place, and within 3 tiles nothing is remembered.
+2. **What does a water trip look like?** How far out people live, how long the round trip takes, how often the walk back succeeds.
+3. **Do people stay where they were born?**
+4. **Is there a yearly round?** Where adults are in each quarter.
+5. **Where are the settlements, and how big?**
+Runs: new defaults on seeds 1 to 3 for 30 years (counted from year 5), `home-probe`; seed 1 with `thirstReturnEnabled false` for comparison; `bank-probe` on seeds 2 and 3.
