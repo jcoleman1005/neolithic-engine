@@ -1691,3 +1691,40 @@ Nobody stays put: people born far out spend a sixth to a third of their adult li
 Settlements more than 10 tiles from water: about 19 to 28 a year against 3 with the return off, each with 21 to 34 residents. Bank settlements are still the biggest (44 to 58).
 
 *7. One measure that did not discriminate:* "reached water and got 6 or more tiles away during the year" is 54 to 69% of adults with the return on and 54% with it off, since a random walker gets that far once a year too. Not used.
+
+## Home scent and "can't walk on water": smoke tests before any implementation (2026-11-15)
+
+The user proposed replacing the remembered walk back with rules: people understand they can't walk on water, and a "home" scent that obstacles block, so the way back flows by least resistance. Tested as a prototype outside the simulation (`scripts/home-scent-proto.ts`: a scent that spreads over land only, a climb up it, and a step chosen among passable directions). No simulation file changed.
+
+**Mechanism smoke tests (`tests/home-scent-proto.test.ts`, 13 pass), on synthetic maps:**
+- The scent holds nothing on water and loses nothing into it; an enclosed island gets none.
+- Across a river the far bank gets under 1% of the near bank's scent (only what came round the end).
+- Climbing the scent from across a river walks round it, never through, arrives, and takes exactly the shortest land route.
+- Of two homes it leads to the one nearer over land, not as the crow flies.
+- The passable-step rule never returns a blocked direction and never steps straight away from the pull.
+- **A finding kept as a test:** the passable-step rule alone does not get round a lake. With a straight pull at a point behind an 11-tile lake the walker stays on the near shore. The same rule fed by the land-only scent walks round and arrives.
+
+**Smoke test on real worlds (`scripts/home-scent-smoke.ts`; new defaults at year 20; seeds 1 / 2 / 3; 435 / 671 / 370 adults living 6 or more tiles from water).** Each is put on the shore tile their thirst walk leads to and climbs a settled home scent. Evaporation 0.005 shown; 0.02 and 0.001 give the same picture.
+
+| Who lays the scent | Back to their own camp (within 3 tiles) | To the bank | To another inland camp | No slope to follow | End off by (median tiles) |
+|---|---|---|---|---|---|
+| Everyone | 10 / 7 / 14% | 53 / 48 / 41% | 13 / 1 / 10% | 24 / 43 / 35% | 9 / 11 / 11 |
+| People in shelter (hut, nest, fire, cave) | 25 / 19 / 18% | 29 / 39 / 34% | 30 / 10 / 21% | 16 / 31 / 27% | 9 / 11 / 12 |
+| People 3 or more tiles from water | 32 / 31 / 31% | 0 | 69 / 69 / 70% | 0 | 7 / 8 / 8 |
+
+- **The scent routes well and is cheap.** No climb stepped on water in any of the 27 cases. One field step costs about 0.4 ms (the tick is about 50 ms, and a scent steps every 4 ticks).
+- **The risk is real: a shared scent says "a camp", not "my camp".** If everyone lays it, about half of inland adults are led to the bank, where most people are. If only people 3 or more tiles out lay it, nobody is led to the bank, but only a third get back to their own camp; the rest stop at the first inland camp on the way, a median of 7 to 8 tiles short. Used alone, the far camps would drain into the camps nearest the water.
+- **Evaporation hardly matters** for where a climb ends; it sets how faint the slope is at the shore (in-shelter rule: 34% under the felt minimum of 0.05 at 0.02, 3% at 0.001).
+
+**A remembered place as the destination, three ways of walking to it (same adults, shore tile to home, 200-tick limit):**
+
+| | Arrived, seeds 1 / 2 / 3 | Gave up | Ran out of time |
+|---|---|---|---|
+| Straight line, give up when water blocks both wanted steps (today) | 97.0 / 97.3 / 100% | 3.0 / 2.7 / 0% | 0 |
+| Passable step, slide along the shore | 99.8 / 99.0 / 100% | 0 / 0.1 / 0% | 0.2 / 0.9 / 0% |
+| Straight line, follow the home scent while blocked | 99.8 / 98.7 / 100% | 0 / 0.4 / 0% | 0.2 / 0.9 / 0% |
+
+- Either rule removes nearly all the give-ups. Sliding along the shore does as well as the scent here, because real shores are mostly convex bends, not the lake-in-the-way case.
+- **Caveat:** these adults are the ones still living inland, so people whose way home is blocked are under-counted. In the running world 10 to 12% of walks back are given up, against 0 to 3% here.
+
+**Reading.** Both ideas have merit, for different jobs. "Can't walk on water" as a step rule is cheap, general, and fixes most blocked walks. The land-only scent is the right tool for finding a route, and it would make shared camps and worn approaches emerge. But a shared scent can't tell a person which camp is theirs, so as a full replacement for the remembered place it would move people toward the water again. The combination that the tests support: keep the remembered place as where to go, apply the passable-step rule to every pull, and use a home scent (laid by people away from the water) to steer when the direct way is blocked.
