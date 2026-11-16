@@ -198,4 +198,34 @@ for (const [layName, lays] of [['everyone lays it', () => true], ['laid 3+ tiles
     score(`${K} channels, ${layName}`, K, (s) => fields[chan(s.band)]);
   }
 }
+// The honest version of the family scent: the person tested is away at the water, so their own scent
+// is left out, and only the family members still at home lay it. Someone with no family at home has
+// nothing to follow. (Laid 3+ tiles from water.)
+{
+  let own = 0, bank = 0, elsewhere = 0, none = 0, alone = 0;
+  const off: number[] = [];
+  for (const s of subjects) {
+    const src = new Float32Array(CELLS);
+    let any = false, skipped = false;
+    for (const c of familyCells.get(s.family)!) {
+      if (!skipped && c === s.home) { skipped = true; continue; } // their own share
+      if (inland(c)) { src[c] += 1; any = true; }
+    }
+    if (!any) { alone++; none++; off.push(Math.max(wrap(s.shore & 255, s.home & 255), wrap(s.shore >> 8, s.home >> 8))); continue; }
+    const walk = climbScent(settleField(L.isWater, src, RATE, EVAP, STEPS), L.isWater, s.shore);
+    const dx = wrap(walk.end & 255, s.home & 255), dy = wrap(walk.end >> 8, s.home >> 8);
+    off.push(Math.max(dx, dy));
+    if (walk.steps === 0) none++;
+    else if (dx <= 3 && dy <= 3) own++;
+    else if (L.waterDist[walk.end] <= 2) bank++;
+    else elsewhere++;
+  }
+  const n = subjects.length;
+  const row = {
+    scent: 'one per family, their own scent left out, laid 3+ tiles from water', backToOwnCampPct: pct(own, n), toFamilyElsewherePct: pct(elsewhere, n),
+    toTheBankPct: pct(bank, n), noSlopePct: pct(none, n), ofWhichNoFamilyAtHomePct: pct(alone, n), endOffByTilesMedian: median(off),
+  };
+  results.push(row);
+  console.log(JSON.stringify(row));
+}
 console.log(`RESULT ${JSON.stringify({ identity, tested: subjects.length, results })}`);
