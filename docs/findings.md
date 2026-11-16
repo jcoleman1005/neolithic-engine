@@ -1228,3 +1228,62 @@ Branch `phase-6b-weather`, switch `weatherEnabled` (off by default). Runs: seeds
 **6b-1 round 3 results (run here, seeds 1 to 6, 60 years, main 3c0604c).** All 12 runs finished; no die-outs; weather-off populations identical to round 1. Population at year 60, off → on: −7.4, −7.0, +8.8, −3.4, −11.6, −10.7% (guardrail −25 to +10%, met). Droughts on every seed (7 to 21 years). Climate spread 4.7 to 7.7 (met). Dry land in drought years against normal years: 10.4 / 4.9, **13.8 / 8.8**, 6.7 / 2.7, 11.4 / 4.4, 12.5 / 5.5, 9.4 / 4.1% (2.1 to 2.6 times, but **1.6 on seed 2: target of 2 missed on that seed**). Peak dry land 14 to 27% (was 20 to 32%). Reading: with slower soil a drought now carries over into the following normal years (seed 2 has droughts every few years), which raises the normal-year mean; that lag is what the user asked for, but the target as written counts it against the drought. Not tuned further; reported to the user.
 
 **6b-1 closed (2026-11-12).** The user accepted round 3 as is (the seed-2 drought ratio of 1.6 is the carry-over lag they asked for) and watched 12 years: the rain clouds read well, dry ground reads as dry. No fires were seen; spreading fire is 6b-2, and today's campfires last about 40 days.
+
+## Experiment: patchy wild food and scarce fish (2026-11-10)
+
+Branch `exp-patchy-food` at bc42565 (main plus the `wildPatchesEnabled` switch, off by default; `npm run fingerprint` gives 72742a7c2443591a). Six variants, seeds 1–3, 30 years each. All 36 runs exited 0.
+
+| name | flags |
+|---|---|
+| `base` | (none) |
+| `fishlow` | `--fishCap 3 --fishRegrowRate 0.003` |
+| `patch20` | `--wildPatchesEnabled true --wildPatchShare 0.2` |
+| `patch10` | `--wildPatchesEnabled true --wildPatchShare 0.1` |
+| `patch20-fishlow` | patch20 plus fishlow |
+| `patch10-fishlow` | patch10 plus fishlow |
+
+Commands: `scripts/surplus-probe.ts -- --seed N --years 30 <flags>` (RESULT line) and `scripts/map-dump.ts -- --seed N --years 30 --every 30 --out scratch\exp\<name>-sN <flags>` (Year 30 and layout lines). Logs are in `logs\exp-<name>-s<N>-{probe,map}.log`. Hunger inside against outside settlements is `hungryInPct` / `hungryOutPct`. Flows count from year 10.
+### From the RESULT lines (mean [seed 1, 2, 3])
+
+| variant | popEnd | meanPop | diedOut | settlements10y | heapMealSharePct | berrySharePct | fishSharePct | hungryInPct | hungryOutPct | birthsPerHeadYear |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `base` | 5549 [5494, 5119, 6034] | 3137 [3062, 2937, 3411] | 0/3 [no, no, no] | 34.7 [33, 30, 41] | 5.4 [5.5, 5.4, 5.2] | 0.6 [0.6, 0.5, 0.7] | 1.1 [1.1, 1.1, 1.2] | 4.6 [4.2, 5, 4.7] | 7.6 [6.7, 8.2, 7.8] | 0.0825 [0.0806, 0.0834, 0.0836] |
+| `fishlow` | 5616 [5741, 5090, 6018] | 3145 [3069, 2966, 3400] | 0/3 [no, no, no] | 36 [30, 37, 41] | 5.4 [5.5, 5.4, 5.4] | 0.6 [0.6, 0.5, 0.7] | 0.3 [0.3, 0.3, 0.3] | 4.9 [4.4, 5.3, 5] | 6.5 [6, 7, 6.4] | 0.0826 [0.0803, 0.0841, 0.0833] |
+| `patch20` | 5294 [5434, 5141, 5308] | 3070 [3011, 3025, 3175] | 0/3 [no, no, no] | 33.3 [31, 32, 37] | 5.5 [5.4, 5.5, 5.5] | 0.6 [0.6, 0.5, 0.7] | 1.2 [1.2, 1.1, 1.2] | 4.7 [3.7, 5.8, 4.5] | 7.1 [7, 7.5, 6.8] | 0.0821 [0.0819, 0.0828, 0.0816] |
+| `patch10` | 5368 [5348, 5322, 5433] | 3080 [2990, 3119, 3131] | 0/3 [no, no, no] | 31.3 [28, 30, 36] | 5.6 [5.6, 5.5, 5.6] | 0.6 [0.6, 0.5, 0.6] | 1.1 [1.2, 1, 1.2] | 5.1 [4.6, 5.8, 4.9] | 6.9 [6.9, 7.3, 6.6] | 0.0821 [0.0811, 0.0828, 0.0825] |
+| `patch20-fishlow` | 5319 [5479, 5021, 5456] | 3083 [3037, 2996, 3216] | 0/3 [no, no, no] | 35 [32, 30, 43] | 5.5 [5.5, 5.5, 5.5] | 0.6 [0.6, 0.6, 0.7] | 0.3 [0.3, 0.3, 0.3] | 4.9 [3.8, 6.2, 4.7] | 7 [6.6, 7.7, 6.7] | 0.0821 [0.081, 0.0828, 0.0825] |
+| `patch10-fishlow` | 5094 [5059, 4815, 5407] | 2911 [2860, 2681, 3192] | 0/3 [no, no, no] | 29 [28, 25, 34] | 5.6 [5.7, 5.6, 5.5] | 0.6 [0.6, 0.5, 0.7] | 0.3 [0.3, 0.3, 0.3] | 5.2 [4.4, 6.5, 4.7] | 7 [7.1, 6.5, 7.3] | 0.0827 [0.0821, 0.0837, 0.0823] |
+
+### From the map logs, year 30 (mean [seed 1, 2, 3])
+
+| variant | villages | camps lasting 10y+ | adults outside camps % | built | alone % | in lines % | open tiles walled on 3+ sides |
+|---|---|---|---|---|---|---|---|
+| `base` | 4.7 [4, 3, 7] | 34.7 [33, 30, 41] | 26 [24, 30, 24] | 521 [478, 548, 537] | 29.3 [30, 24, 34] | 45.7 [45, 53, 39] | 21.7 [18, 33, 14] |
+| `fishlow` | 4 [5, 2, 5] | 36 [30, 37, 41] | 20.7 [22, 22, 18] | 544 [531, 548, 553] | 25.7 [25, 21, 31] | 49 [53, 52, 42] | 30 [28, 28, 34] |
+| `patch20` | 4.3 [5, 2, 6] | 33.3 [31, 32, 37] | 24.7 [25, 27, 22] | 534 [515, 564, 522] | 28 [30, 22, 32] | 46.3 [47, 51, 41] | 24.3 [27, 26, 20] |
+| `patch10` | 4.3 [5, 1, 7] | 31.3 [28, 30, 36] | 26 [26, 31, 21] | 555 [536, 562, 567] | 28.3 [30, 22, 33] | 46 [47, 54, 37] | 25.3 [24, 29, 23] |
+| `patch20-fishlow` | 3.7 [4, 2, 5] | 35 [32, 30, 43] | 24 [25, 28, 19] | 549 [543, 545, 560] | 27 [28, 24, 29] | 49.7 [52, 54, 43] | 24.3 [27, 30, 16] |
+| `patch10-fishlow` | 4 [5, 1, 6] | 29 [28, 25, 34] | 26.7 [26, 30, 24] | 508 [470, 540, 515] | 26.3 [30, 21, 28] | 48 [48, 53, 43] | 21.7 [18, 28, 19] |
+
+**Reading.**
+- **No run died out.** Population barely moves. Mean population is within 2% of base in every variant except `patch10-fishlow` (2911 against 3137, −7%), which also has the fewest camps lasting 10 years or more (29 against 34.7). Seed spread is of the same order, so with 3 seeds this is a weak signal at best.
+- **Camps do not become food hubs.** Heaps supply 5.4–5.6% of meals in every variant. Wild plant food was already almost absent from the diet (`berrySharePct` 0.6% in base), so putting it on patches changes almost nothing. Fewer fish cut the fish share from 1.1% to 0.3% and had no visible effect on population or births.
+- **Hunger stays a little lower inside settlements than outside** (about 5% against 7%) in every variant. Patches did not widen the gap.
+- **Walls.** Open tiles walled on 3+ sides average 30 in `fishlow` against 21.7 in base, but per-seed values range from 14 to 34 and the combined fishlow variants don't repeat it (24.3 and 21.7). Treat it as noise for now. The other layout shares (alone, in lines) and the village counts are flat.
+- **Conclusion.** Within 30 years and these settings, patchy wild plant food and scarce fish do not push people to carry food home or cluster walls around camps. People live off grazing, the same finding as S4a. To test the idea properly, wild food (or grazing) has to carry a much larger share of the diet first.
+## Experiment: winter die-off (2026-11-10)
+
+Branch `exp-winter` (22b1ed8): `winterDieOffEnabled` withers standing plant food 2% a day while the season's growth factor is below 0.5 (down to the grazing floor) and lets regrowth stop in deep winter. 60 years, seeds 4 to 6 run on Katie's laptop (`surplus-probe.ts`; map runs on seed 4); seeds 1 to 3 here were stopped after `base` because the laptop's result was already clear (base s1 to s3: heap meal share 4.3 / 4.4 / 4.0%, in line with s4 to s6). No run died out.
+
+| Variant (mean of seeds 4 to 6) | People y60 | Meals from heaps | Food into heaps per head per year | Hungry in / out of camps | Camps lasting 10y+ | Settlements ringed by golden fields, y30 |
+|---|---|---|---|---|---|---|
+| base | 7155 | 4.2% | 6.3 | 13.3% / 16.9% | 70.3 | 73.7 |
+| `seasonAmplitude` 1.0 | 6759 (−5.5%) | 4.6% | 6.6 | 11.3% / 14.6% | 77.7 | 75.0 |
+| winter (1.0 + die-off) | 3699 (−48%) | 4.5% | 6.2 | 10.7% / 15.9% | 76.0 | 1.0 |
+| winter-mild (0.8 + die-off) | 4803 (−33%) | 4.4% | 6.2 | 12.1% / 17.4% | 75.0 | 0 |
+| winter + wild patches 20% | 3919 (−45%) | 4.5% | 6.4 | 10.1% / 14.8% | 76.7 | 0.7 |
+
+Readings:
+- **A hard winter cuts population by a third to a half, and nobody stores more.** Meals from heaps stay at 4 to 5% in every variant and seed, and food put into heaps per head is unchanged (about 6.3 a year). Storing does not respond to the season, because nothing in a person's decision links autumn plenty to winter need: food is gathered by anyone fed with free hands and dropped where a crowd stands, and a heap is eaten from only by someone below half energy standing on or beside it.
+- **Golden fields disappear under die-off**: ripeness needs a tile at 70% of capacity, which withering prevents. Ripeness would need to be seasonal (ripen in late summer, harvested before winter) for golden crops and a dead season to coexist.
+- **The land does fill.** Base population peaks around year 40 (about 8,500 on seed 4) and then falls, with 43% hungry at year 60 on seed 4. The earlier estimate that the land carries three times what people take was wrong past year 40: 30-year runs end before the land fills, and 60-year runs do not.
