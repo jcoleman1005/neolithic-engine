@@ -1728,3 +1728,38 @@ The user proposed replacing the remembered walk back with rules: people understa
 - **Caveat:** these adults are the ones still living inland, so people whose way home is blocked are under-counted. In the running world 10 to 12% of walks back are given up, against 0 to 3% here.
 
 **Reading.** Both ideas have merit, for different jobs. "Can't walk on water" as a step rule is cheap, general, and fixes most blocked walks. The land-only scent is the right tool for finding a route, and it would make shared camps and worn approaches emerge. But a shared scent can't tell a person which camp is theirs, so as a full replacement for the remembered place it would move people toward the water again. The combination that the tests support: keep the remembered place as where to go, apply the passable-step rule to every pull, and use a home scent (laid by people away from the water) to steer when the direct way is blocked.
+
+## A scent with a band's identity: smoke test (2026-11-16; prototype only)
+
+The user proposed giving the home scent a band identity, like a pheromone. Tested outside the simulation with `scripts/band-scent-smoke.ts` on the new defaults at year 20, seeds 1 / 2 / 3 (435 / 671 / 370 adults living 6 or more tiles from water; each climbs their scent from the shore tile their thirst walk reaches). No simulation file changed. A person's band is their root leader (`rootLeaderId`), or themselves if they follow nobody.
+
+**The identity itself.**
+
+| | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Bands (including people alone) | 235 | 205 | 258 |
+| Adults alone / in bands of 2-9 / 10-49 / 50 or more | 3 / 8 / 44 / 46% | 3 / 7 / 26 / 65% | 5 / 9 / 37 / 49% |
+| Adults who change band in a year | 7.0% | 8.6% | 7.2% |
+| Bands of 10+: members within 5 tiles of the band's densest spot (median) | 52% | 50% | 53% |
+| … within 15 tiles | 90% | 88% | 94% |
+
+Membership is stable enough to carry a scent. But a band is not a camp: half its members are more than 5 tiles from its densest spot.
+
+**Where the scent leads** (scent laid only by people 3 or more tiles from water; evaporation 0.005):
+
+| Scent | Back to own camp (within 3 tiles) | To bandmates elsewhere | To strangers | Nothing to follow | End off by (median tiles) |
+|---|---|---|---|---|---|
+| One shared scent | 32 / 31 / 31% | 59 / 64 / 55% | 10 / 6 / 15% | 0 | 7 / 8 / 8 |
+| One per band, exact (205 to 258 fields) | 43 / 32 / 34% | 57 / 68 / 66% | 0 | 0 | 5 / 7 / 7 |
+| 16 channels, bands hashed in | 38 / 30 / 30% | 60 / 68 / 66% | 2 / 2 / 4% | 0 | 6 / 7 / 8 |
+| 8 channels | 38 / 28 / 27% | 59 / 69 / 68% | 3 / 4 / 5% | 0 | 6 / 8 / 9 |
+| 4 channels | 34 / 27 / 27% | 58 / 68 / 66% | 7 / 5 / 8% | 0 | 6 / 8 / 9 |
+| One per family (mother, her mate, her children), counting the person's own scent | 81 / 79 / 80% | 18 / 21 / 20% | 1 / 0 / 1% | 0 | 0 / 0 / 0 |
+| One per family, the person's own scent left out | **15 / 12 / 11%** | 26 / 27 / 25% | | **59 / 60 / 64%** | 7 / 8 / 10 |
+
+With everyone laying it, bank dwellers included, the band scent still leads 46 / 39 / 34% of these adults to the bank (shared scent: 53 / 48 / 41%), because most bands have members there. No climb stepped on water in any case.
+
+- **Band identity does what a pheromone should:** nobody is led to another band's camp. It gains only 1 to 11 points on getting home, because the scent leads to the nearest bandmates, who are usually the ones nearer the water.
+- **A few channels are enough.** 16 hashed channels come within a few points of an exact field per band; 4 let strangers back in. (A first run of this test hashed every band into the same channel, because band ids vary mostly in their high bits; fixed with a full mix, and the numbers above are from the re-run.)
+- **A family scent cannot stand in for a remembered place.** The 80% is an artefact: the person tested was laying part of that scent. With their own share left out, 59 to 64% of inland adults have no family member inland to lay any, and of the rest about two thirds are led to family living somewhere else. Only 11 to 15% get home.
+- **Reading.** Scent is good at "which way are my people", and identity makes it mean one's own people. It is not good at "which is my hearth", at any grain tested: the only thing that marks one person's place is that person, and they are not there. So a band scent would add band ranges and approaches worn toward a band's ground, and the remembered place stays as the destination; the passable-step rule applies under both.
