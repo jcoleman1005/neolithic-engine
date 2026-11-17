@@ -52,6 +52,19 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
 
   // Feature Switches
   climbEnabled: true,
+  // Watchability W1a shore fix (2026-11-13, docs/findings.md "What keeps people at the bank"). Food scent
+  // drifts across water, so at a grazed-bare bank it pointed into the river and a hungry person stood
+  // facing it. On by default (user decision 2026-11-13); off reproduces the old world.
+  shoreScentEnabled: true, // the scent slope a person feels ignores water tiles
+  shoreSlideEnabled: true, // someone whose step is blocked by water steps sideways along the shore instead of standing
+  // Founders are placed only on land with a walkable route to fresh water (1 to 8% of land has none).
+  founderWaterReachEnabled: true,
+  // Watchability: the walk back after drinking. Thirst walks people straight to water; without this
+  // they wandered off at random afterwards, so everyone ended up living on the bank.
+  thirstReturnEnabled: true,
+  thirstReturnMinDist: 3, // remembers where they were only when at least this many tiles from water
+  thirstReturnHydration: 90, // drinks up to this before setting off back
+  thirstReturnTicks: 200, // gives up the walk back after this many ticks
   // Phase 4 fix: calmer movement. Stay and graze on a tile that is rich enough, and do not step
   // straight back unless the pull is strong (see docs/findings.md).
   calmMovementEnabled: true,

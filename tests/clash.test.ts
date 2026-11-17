@@ -214,6 +214,7 @@ describe('Phase 7 Foundations: Combat, Courage & Looting (Primitives 76 & 78)', 
       placeCostEnabled: false,
       exposureEnabled: false, directionalBuildEnabled: false, wallCrossingEnabled: false,
       fearWoundsEnabled: false,
+      shoreScentEnabled: false, shoreSlideEnabled: false, founderWaterReachEnabled: false, thirstReturnEnabled: false, // 2026-11-13 bank fixes off for baseline parity
       tendingEnabled: false,
       herdScentEnabled: false,
       huntCarryMeatEnabled: false,

@@ -130,15 +130,15 @@ Then work **one stage at a time, in this order: W0, W1a, W1b, W3, W2, W4**. Each
 **The target is in-model, since there's no real-world scale:** foragers in the ethnographic record move camp every few weeks.
 
 **Targets** (write these into `docs/findings.md` before tuning; a tick is a day):
-- `campStayMedian` falls from today's (W0 value; expected very long) to about **14 to 40 ticks** in the growing season.
+- `campStayTimeMedian` falls from today's (about 160 ticks at W0) to about **14 to 40 ticks**. (Changed 2026-11-13 after W0: `campStayMedian` is already 16 to 22 ticks, because it counts every short stop.)
 - `landFullPct` falls clearly below today's (expected about 0.95 or more), towards **0.5 to 0.7**. Grazed ground should be visibly patchy.
-- `harvestShare` rises well above today's.
+- `harvestOfMaxYield` rises well above today's (about 0.17 at W0, 30 years). (Changed 2026-11-13: `harvestShare` is 1.00 by construction.)
 - `stepsPerAdultYear` and `netDisplacePerAdultYear` rise; `nearWaterPct` falls.
 - **Guard rails:**
   - No die-out on any seed in 50 years.
   - Population at year 30 at least **1,500** on every seed, so the map stays lively and bands exist. Population is expected to fall; that's fine as long as it stays above this floor.
   - Hungry share no more than about double W0's.
-  - Herds and wolves survive 50 years on every seed (they eat the same grass).
+  - Herds survive 50 years on every seed (they eat the same grass). Wolves do no worse than the W0 baseline on each seed: they already die out on seed 1 by year 20 (changed 2026-11-13).
 
 **Levers** (all in `config.ts`; change as few as possible, log each in findings):
 - **`landRegrowthRate`** (0.05). The main lever, because regrowth, not standing stock, is what feeds a camp. Try 0.02, 0.015 and 0.01.

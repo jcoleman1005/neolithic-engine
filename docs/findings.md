@@ -1229,61 +1229,537 @@ Branch `phase-6b-weather`, switch `weatherEnabled` (off by default). Runs: seeds
 
 **6b-1 closed (2026-11-12).** The user accepted round 3 as is (the seed-2 drought ratio of 1.6 is the carry-over lag they asked for) and watched 12 years: the rain clouds read well, dry ground reads as dry. No fires were seen; spreading fire is 6b-2, and today's campfires last about 40 days.
 
-## Experiment: patchy wild food and scarce fish (2026-11-10)
+## Watchability W0: the watch probe, expectations (written 2026-11-13, before the runs)
 
-Branch `exp-patchy-food` at bc42565 (main plus the `wildPatchesEnabled` switch, off by default; `npm run fingerprint` gives 72742a7c2443591a). Six variants, seeds 1–3, 30 years each. All 36 runs exited 0.
+Branch `watch-w0-probe`. W0 is a measurement, not a mechanic, so there are no targets to meet; these are the plan's expectations (`docs/WATCHABILITY.md` section 1), to be confirmed or refuted by the baseline. Runs: default config, seeds 1 to 3, 50 years with a report at year 30 (the 30-year run is the first 30 years of the same seed), plus seed 1 with `weatherEnabled` for 30 years. Probe `scripts/watch-probe.ts`, measuring from year 5.
+- **E1, land stays full:** `landFullPct` about 0.95 or more while the population is still filling the map.
+- **E2, people sit still:** `campStayMedian` is very long (seasons or years, not weeks), and `netDisplacePerAdultYear` is a few tiles.
+- **E3, everyone is at the water:** `nearWaterPct` well above half.
+- **E4, production is mostly unused:** `harvestShare` well below 1.
+- **Checked before the runs:** the probe leaves `stateHash()` unchanged (test `tests/watch-probe.test.ts`; seed 42 at 1800 ticks gives `dbeaac54ed27afd8` with the probe attached), and its birth and kill counts from the event bits equal direct counts of `People.spawn` and `Herds.killed` (seed 42, years 5 to 7: 184.5 births and 13.5 kills a year both ways).
+- **Found while building, before the runs:** `harvestShare` as the plan defines it (plants eaten ÷ plants regrown) is about 1 by construction (1.007 on seed 42, years 5 to 7). Regrowth is logistic, so a full tile regrows nothing and the land only regrows what was eaten. E4 can't be tested with it. Added `harvestOfMaxYield`: plants eaten ÷ the most the land could regrow if every tile were held at half capacity (`landRegrowthRate` × capacity ÷ 4 per tile).
 
-| name | flags |
-|---|---|
-| `base` | (none) |
-| `fishlow` | `--fishCap 3 --fishRegrowRate 0.003` |
-| `patch20` | `--wildPatchesEnabled true --wildPatchShare 0.2` |
-| `patch10` | `--wildPatchesEnabled true --wildPatchShare 0.1` |
-| `patch20-fishlow` | patch20 plus fishlow |
-| `patch10-fishlow` | patch10 plus fishlow |
+## W0 baseline (2026-11-13, `main` 9f9163d, default config, `scripts/watch-probe.ts`, measured from year 5)
 
-Commands: `scripts/surplus-probe.ts -- --seed N --years 30 <flags>` (RESULT line) and `scripts/map-dump.ts -- --seed N --years 30 --every 30 --out scratch\exp\<name>-sN <flags>` (Year 30 and layout lines). Logs are in `logs\exp-<name>-s<N>-{probe,map}.log`. Hunger inside against outside settlements is `hungryInPct` / `hungryOutPct`. Flows count from year 10.
-### From the RESULT lines (mean [seed 1, 2, 3])
+All four runs finished, none died out. The 30-year column is the first 30 years of the 50-year run of that seed.
 
-| variant | popEnd | meanPop | diedOut | settlements10y | heapMealSharePct | berrySharePct | fishSharePct | hungryInPct | hungryOutPct | birthsPerHeadYear |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `base` | 5549 [5494, 5119, 6034] | 3137 [3062, 2937, 3411] | 0/3 [no, no, no] | 34.7 [33, 30, 41] | 5.4 [5.5, 5.4, 5.2] | 0.6 [0.6, 0.5, 0.7] | 1.1 [1.1, 1.1, 1.2] | 4.6 [4.2, 5, 4.7] | 7.6 [6.7, 8.2, 7.8] | 0.0825 [0.0806, 0.0834, 0.0836] |
-| `fishlow` | 5616 [5741, 5090, 6018] | 3145 [3069, 2966, 3400] | 0/3 [no, no, no] | 36 [30, 37, 41] | 5.4 [5.5, 5.4, 5.4] | 0.6 [0.6, 0.5, 0.7] | 0.3 [0.3, 0.3, 0.3] | 4.9 [4.4, 5.3, 5] | 6.5 [6, 7, 6.4] | 0.0826 [0.0803, 0.0841, 0.0833] |
-| `patch20` | 5294 [5434, 5141, 5308] | 3070 [3011, 3025, 3175] | 0/3 [no, no, no] | 33.3 [31, 32, 37] | 5.5 [5.4, 5.5, 5.5] | 0.6 [0.6, 0.5, 0.7] | 1.2 [1.2, 1.1, 1.2] | 4.7 [3.7, 5.8, 4.5] | 7.1 [7, 7.5, 6.8] | 0.0821 [0.0819, 0.0828, 0.0816] |
-| `patch10` | 5368 [5348, 5322, 5433] | 3080 [2990, 3119, 3131] | 0/3 [no, no, no] | 31.3 [28, 30, 36] | 5.6 [5.6, 5.5, 5.6] | 0.6 [0.6, 0.5, 0.6] | 1.1 [1.2, 1, 1.2] | 5.1 [4.6, 5.8, 4.9] | 6.9 [6.9, 7.3, 6.6] | 0.0821 [0.0811, 0.0828, 0.0825] |
-| `patch20-fishlow` | 5319 [5479, 5021, 5456] | 3083 [3037, 2996, 3216] | 0/3 [no, no, no] | 35 [32, 30, 43] | 5.5 [5.5, 5.5, 5.5] | 0.6 [0.6, 0.6, 0.7] | 0.3 [0.3, 0.3, 0.3] | 4.9 [3.8, 6.2, 4.7] | 7 [6.6, 7.7, 6.7] | 0.0821 [0.081, 0.0828, 0.0825] |
-| `patch10-fishlow` | 5094 [5059, 4815, 5407] | 2911 [2860, 2681, 3192] | 0/3 [no, no, no] | 29 [28, 25, 34] | 5.6 [5.7, 5.6, 5.5] | 0.6 [0.6, 0.5, 0.7] | 0.3 [0.3, 0.3, 0.3] | 5.2 [4.4, 6.5, 4.7] | 7 [7.1, 6.5, 7.3] | 0.0827 [0.0821, 0.0837, 0.0823] |
-
-### From the map logs, year 30 (mean [seed 1, 2, 3])
-
-| variant | villages | camps lasting 10y+ | adults outside camps % | built | alone % | in lines % | open tiles walled on 3+ sides |
+| Metric | S1 30y | S2 30y | S3 30y | S1 50y | S2 50y | S3 50y | S1 30y weather on |
 |---|---|---|---|---|---|---|---|
-| `base` | 4.7 [4, 3, 7] | 34.7 [33, 30, 41] | 26 [24, 30, 24] | 521 [478, 548, 537] | 29.3 [30, 24, 34] | 45.7 [45, 53, 39] | 21.7 [18, 33, 14] |
-| `fishlow` | 4 [5, 2, 5] | 36 [30, 37, 41] | 20.7 [22, 22, 18] | 544 [531, 548, 553] | 25.7 [25, 21, 31] | 49 [53, 52, 42] | 30 [28, 28, 34] |
-| `patch20` | 4.3 [5, 2, 6] | 33.3 [31, 32, 37] | 24.7 [25, 27, 22] | 534 [515, 564, 522] | 28 [30, 22, 32] | 46.3 [47, 51, 41] | 24.3 [27, 26, 20] |
-| `patch10` | 4.3 [5, 1, 7] | 31.3 [28, 30, 36] | 26 [26, 31, 21] | 555 [536, 562, 567] | 28.3 [30, 22, 33] | 46 [47, 54, 37] | 25.3 [24, 29, 23] |
-| `patch20-fishlow` | 3.7 [4, 2, 5] | 35 [32, 30, 43] | 24 [25, 28, 19] | 549 [543, 545, 560] | 27 [28, 24, 29] | 49.7 [52, 54, 43] | 24.3 [27, 30, 16] |
-| `patch10-fishlow` | 4 [5, 1, 6] | 29 [28, 25, 34] | 26.7 [26, 30, 24] | 508 [470, 540, 515] | 26.3 [30, 21, 28] | 48 [48, 53, 43] | 21.7 [18, 28, 19] |
+| `stepsPerAdultYear` | 95.6 | 87.7 | 103.9 | 100.1 | 94.9 | 101.2 | 98.8 |
+| `netDisplacePerAdultYear` (tiles) | 7.9 | 7.9 | 8.4 | 8.8 | 9.1 | 9.2 | 8.1 |
+| `nearWaterPct` | 65.6 | 62.4 | 66.9 | 62.7 | 59.2 | 62.8 | 65.9 |
+| `campStayMedian` (ticks) | 21 | 17 | 19 | 19 | 16 | 17 | 22 |
+| `campStayMedianGrowing` | 21 | 17 | 19 | 20 | 16 | 18 | 22 |
+| `campStayP90` | 141 | 131 | 125 | 135 | 121 | 127 | 137 |
+| `campStayTimeMedian` | 163 | 169 | 157 | 146 | 139 | 148 | 159 |
+| `landFullPct` | 0.953 | 0.959 | 0.944 | 0.930 | 0.939 | 0.920 | 0.903 |
+| `landNearFullPct` | 0.912 | 0.923 | 0.899 | 0.868 | 0.883 | 0.851 | 0.843 |
+| `harvestShare` (eaten ÷ regrown) | 1.004 | 1.003 | 1.005 | 1.003 | 1.002 | 1.002 | 0.999 |
+| of which herds | 0.036 | 0.036 | 0.032 | 0.026 | 0.026 | 0.025 | 0.035 |
+| `harvestOfMaxYield` | 0.167 | 0.151 | 0.198 | 0.230 | 0.212 | 0.263 | 0.167 |
+| `tilesPerPerson` (mean) | 10.7 | 11.8 | 9.0 | 8.3 | 9.2 | 7.2 | 10.7 |
+| `hungryPct` | 4.8 | 6.0 | 5.5 | 10.9 | 11.3 | 12.4 | 5.1 |
+| `migrationsPer10y` | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `bandDisplacePerYear` (tiles) | 4.4 | 4.1 | 4.3 | 4.9 | 4.6 | 5.0 | 4.8 |
+| Mean population | 3062 | 2937 | 3411 | 4284 | 4197 | 4592 | 3002 |
+| Population, years 10 / 30 / 50 | 2362 / 5494 | 2591 / 5119 | 2629 / 6034 | … / 6357 | … / 6700 | … / 5748 | 2421 / 5333 |
+| Herds, year 30 / 50 | 297 | 294 | 297 | 296 | 297 | 296 | 294 |
+| Wolves, year 30 / 50 | **0** | 50 | 47 | **0** | 18 | 18 | **0** |
+| Events a year: kills / births / fires / huts | 12 / 256 / 12 / 37 | 11 / 246 / 9 / 37 | 9 / 295 / 18 / 39 | 8 / 308 / 15 / 50 | 9 / 314 / 12 / 48 | 8 / 333 / 20 / 52 | 9 / 251 / 12 / 35 |
 
-**Reading.**
-- **No run died out.** Population barely moves. Mean population is within 2% of base in every variant except `patch10-fishlow` (2911 against 3137, −7%), which also has the fewest camps lasting 10 years or more (29 against 34.7). Seed spread is of the same order, so with 3 seeds this is a weak signal at best.
-- **Camps do not become food hubs.** Heaps supply 5.4–5.6% of meals in every variant. Wild plant food was already almost absent from the diet (`berrySharePct` 0.6% in base), so putting it on patches changes almost nothing. Fewer fish cut the fish share from 1.1% to 0.3% and had no visible effect on population or births.
-- **Hunger stays a little lower inside settlements than outside** (about 5% against 7%) in every variant. Patches did not widen the gap.
-- **Walls.** Open tiles walled on 3+ sides average 30 in `fishlow` against 21.7 in base, but per-seed values range from 14 to 34 and the combined fishlow variants don't repeat it (24.3 and 21.7). Treat it as noise for now. The other layout shares (alone, in lines) and the village counts are flat.
-- **Conclusion.** Within 30 years and these settings, patchy wild plant food and scarce fish do not push people to carry food home or cluster walls around camps. People live off grazing, the same finding as S4a. To test the idea properly, wild food (or grazing) has to carry a much larger share of the diet first.
-## Experiment: winter die-off (2026-11-10)
+Share of person-ticks by activity (30 years, seeds 1 / 2 / 3): grazing 35 / 35 / 34%, walking 24 / 23 / 26%, tending a heap 10 / 10 / 10%, resting 10 / 10 / 9%, idle 9 / 10 / 9%, gathering 6 / 7 / 6%, nursing 2.5 / 2.5 / 2.4%, fishing 0.9 / 1.3 / 1.1%, drinking 0.9%, giving way 0.5%, building 0.4%, eating 0.2%, fighting 0.02%, hunting and fleeing under 0.005%. At 50 years idle rises to about 13% and gathering falls to 4 to 5%.
 
-Branch `exp-winter` (22b1ed8): `winterDieOffEnabled` withers standing plant food 2% a day while the season's growth factor is below 0.5 (down to the grazing floor) and lets regrowth stop in deep winter. 60 years, seeds 4 to 6 run on Katie's laptop (`surplus-probe.ts`; map runs on seed 4); seeds 1 to 3 here were stopped after `base` because the laptop's result was already clear (base s1 to s3: heap meal share 4.3 / 4.4 / 4.0%, in line with s4 to s6). No run died out.
+**Reading, against the expectations:**
+- **E1 confirmed.** The land is 92 to 96% full, and 85 to 92% of productive tiles are above 0.9.
+- **E2 half refuted.** People hardly travel (8 to 9 tiles of net movement a year; bands' centres 4 to 5 tiles; no migration entry in any run), but `campStayMedian` is 16 to 22 ticks, not seasons. That median counts every completed stay equally, so it is ruled by short stops: an adult takes about 100 steps a year and makes about 4 "stays" a year by the 3-tile rule. Weighted by time, half of adult time is in stays of 140 to 170 ticks or more (`campStayTimeMedian`), and a tenth of stays last over 120 to 140 ticks.
+- **E3 confirmed.** 59 to 67% of adults are within 2 tiles of fresh water.
+- **E4 confirmed with the new measure.** People and herds eat 15 to 20% of the land's best possible yield at 30 years and 21 to 26% at 50. `harvestShare` as planned is 1.00 on every run and says nothing (see the note above). Herds take about 3% of what is eaten.
+- **Population does not fill the land by year 50:** 7 to 9 productive tiles per person, and hunger doubles between the 30- and 50-year windows (5 to 6% → 11 to 12%) while the land is still over 92% full.
+- **Wolves die out on seed 1** between years 10 and 20 with today's defaults (and with weather on). On seeds 2 and 3 they fall from about 50 to 18 by year 50.
+- **Weather on (seed 1, 30 years):** the land is a little emptier (0.903 against 0.953) and withering is about three times higher (9.3 against 3.3 food a tick); movement and stays are the same within noise.
 
-| Variant (mean of seeds 4 to 6) | People y60 | Meals from heaps | Food into heaps per head per year | Hungry in / out of camps | Camps lasting 10y+ | Settlements ringed by golden fields, y30 |
+**What this means for W1a's targets (for the user to decide; nothing was tuned):**
+- The `campStayMedian` target of 14 to 40 ticks is already met today, so it can't steer W1a. `campStayTimeMedian` (about 150 ticks today) or `campStayP90` (about 130) would.
+- The `harvestShare` target ("rises well above today's") can't move. `harvestOfMaxYield` (about 0.17 today at 30 years) can.
+- The guard rail "wolves survive 50 years on every seed" already fails on seed 1 before any change.
+
+## Watchability W1a: scarcer grazing, targets (written 2026-11-13, before the runs)
+
+Branch `watch-w1a-abundance`. Probe `scripts/watch-probe.ts`, measured from year 5. W0 values are the 30-year baseline above (seeds 1 / 2 / 3). Targets as changed by the user on 2026-11-13 (`docs/decisions.md`).
+- **H1, people stop sitting:** `campStayTimeMedian` falls from 163 / 169 / 157 ticks to about 14 to 40 on every seed.
+- **H2, the land is patchy:** `landFullPct` falls from 0.95 to between 0.5 and 0.7.
+- **H3, production is used:** `harvestOfMaxYield` at least doubles, from 0.17 / 0.15 / 0.20 to 0.35 or more.
+- **H4, people travel:** `stepsPerAdultYear` (96 / 88 / 104) and `netDisplacePerAdultYear` (7.9 / 7.9 / 8.4) rise by at least half; `nearWaterPct` (66 / 62 / 67) falls by at least 10 points.
+- **Guard rails (reported, not tuned toward):** no die-out in 50 years; population at year 30 at least 1,500 on every seed; `hungryPct` no more than about double W0's (4.8 / 6.0 / 5.5, so about 11); herds alive at year 50 on every seed; wolves alive at year 30 on seeds 2 and 3, where W0 has them (50 and 47).
+- **Round 1, a grid with no code change** (config overrides on the command line): `landRegrowthRate` 0.02, 0.015, 0.01 × `landFoodMax` 25, 18, 12, seeds 1 to 3, 30 years, 27 runs. Then the mildest setting that meets H1 to H4 inside the guard rails is confirmed at 50 years on 5 seeds. At most 8 rounds; misses are reported.
+
+**W1a round 1 (grid, 27 runs, seeds 1 to 3, 30 years, command-line overrides, no code change): the planned levers miss.** All 27 runs finished, none died out. Ranges over the three seeds:
+
+| `landRegrowthRate` | `landFoodMax` | Pop. year 30 | `campStayTimeMedian` | `landFullPct` | `harvestOfMaxYield` | `nearWaterPct` | `hungryPct` | Wolves year 30 |
+|---|---|---|---|---|---|---|---|---|
+| 0.05 (W0) | 25 | 5119 to 6034 | 157 to 169 | 0.94 to 0.96 | 0.15 to 0.20 | 62 to 67 | 4.8 to 6.0 | 0 / 50 / 47 |
+| 0.02 | 25 | 2624 to 2925 | 104 to 118 | 0.91 to 0.93 | 0.25 to 0.29 | 55 to 63 | 6.3 to 8.1 | 0 / 36 / 17 |
+| 0.02 | 18 | 1873 to 1976 | 85 to 103 | 0.92 | 0.26 to 0.28 | 57 to 64 | 8.4 to 10.2 | 0 |
+| 0.02 | 12 | 1084 to 1282 | 72 to 86 | 0.92 | 0.26 to 0.27 | 59 to 65 | 13.9 to 16.2 | 0 |
+| 0.015 | 25 | 1856 to 2173 | 103 to 117 | 0.92 | 0.26 to 0.29 | 57 to 64 | 6.4 to 8.0 | 0 / 0 / 23 |
+| 0.015 | 18 | 1255 to 1468 | 90 to 105 | 0.92 | 0.27 to 0.29 | 58 to 66 | 8.7 to 11.1 | 0 |
+| 0.015 | 12 | 800 to 1008 | 75 to 87 | 0.92 | 0.29 to 0.30 | 58 to 65 | 14.7 to 16.5 | 0 |
+| 0.01 | 25 | 1339 to 1566 | 94 to 120 | 0.90 to 0.91 | 0.31 to 0.34 | 53 to 64 | 6.9 to 8.2 | 0 |
+| 0.01 | 18 | 927 to 1076 | 88 to 99 | 0.91 | 0.31 to 0.33 | 56 to 63 | 8.8 to 10.3 | 0 |
+| 0.01 | 12 | 473 to 540 | 88 to 94 | 0.92 to 0.93 | 0.29 to 0.32 | 59 to 66 | 13.6 to 16.2 | 0 |
+
+- **H1 missed:** the shortest time-weighted stay is 72 to 86 ticks (target 14 to 40), and only where the population is near or under the 1,500 floor.
+- **H2 missed everywhere:** the land stays 90 to 93% full at every setting.
+- **H3 missed:** `harvestOfMaxYield` peaks at 0.31 to 0.34 (target 0.35), at populations under 1,600.
+- **H4 partly:** steps rise by up to 40% (0.02 × 12), net movement from 8 to 10 to 13 tiles a year; `nearWaterPct` hardly moves.
+- **Guard rails:** only 0.02 × 25, 0.02 × 18 and 0.015 × 25 keep every seed above 1,500 at year 30. Hunger passes about 11% at cap 12. Herds are unaffected (294 to 300). Wolves die out by year 30 in 23 of 27 runs, including seeds 2 and 3 where W0 keeps them.
+- **Reading:** scarcer grass gives fewer people, not people who move. The population shrinks to fit the same strip of land.
+
+**W1a round 2 (diagnosis, seed 1 unless noted, 30 years): the unused land is the land away from water.** The probe now splits productive land by distance to fresh water.
+
+| Tiles from fresh water | 0 to 2 | 3 to 5 | 6 to 10 | 11 to 20 | 21 or more |
+|---|---|---|---|---|---|
+| Share of productive land | 15% | 15% | 16% | 17% | 37% |
+| How full, W0 | 0.85 | 0.91 | 0.98 | 0.99 | 0.99 |
+| Share of adults, W0 | 66% | 21% | 6% | 3% | 4% |
+| How full, 0.02 × 18 | 0.76 | 0.82 | 0.96 | 0.97 | 0.98 |
+| Share of adults, 0.02 × 18 | 62% | 24% | 6% | 4% | 5% |
+| How full, 0.01 × 12 | 0.78 | 0.85 | 0.97 | 0.97 | 0.98 |
+| Share of adults, 0.01 × 12 | 66% | 21% | 7% | 4% | 3% |
+
+Seed 2 at W0 is the same (adults 62 / 18 / 7 / 5 / 8%; full 0.85 / 0.92 / 0.98 / 0.98 / 0.99). About 86% of adults live on the 30% of land within 5 tiles of water, and the other 70% of the land is 96 to 99% full whatever the grass does. What holds people is the water, not the food.
+
+**W1a round 3 (written before the runs): is it thirst?** Hypothesis H5: the tether is `thirstRate` (0.4 a tick, seek below 60, so a person turns back about every 100 ticks). If so, with a slower thirst the share of adults within 5 tiles falls well below 86%, land beyond 5 tiles falls clearly below 0.96 full, and population rises. Runs (seed 1, 30 years, read only): `thirstRate` 0.2; 0.1; `thirstEnabled false` as the upper bound; and `thirstRate` 0.2 with 0.02 × 18. `thirstRate` is not on the plan's lever list, so this is a measurement for the user's decision, not a re-tune.
+
+**W1a round 3 results (seed 1, 30 years): thirst is part of the tether, but removing it does not make people move.**
+
+| Run | Adults by distance band (0-2 / 3-5 / 6-10 / 11-20 / 21+) | Land full by band | Pop. year 30 | `campStayTimeMedian` | `landFullPct` | Steps / net tiles a year |
 |---|---|---|---|---|---|---|
-| base | 7155 | 4.2% | 6.3 | 13.3% / 16.9% | 70.3 | 73.7 |
-| `seasonAmplitude` 1.0 | 6759 (−5.5%) | 4.6% | 6.6 | 11.3% / 14.6% | 77.7 | 75.0 |
-| winter (1.0 + die-off) | 3699 (−48%) | 4.5% | 6.2 | 10.7% / 15.9% | 76.0 | 1.0 |
-| winter-mild (0.8 + die-off) | 4803 (−33%) | 4.4% | 6.2 | 12.1% / 17.4% | 75.0 | 0 |
-| winter + wild patches 20% | 3919 (−45%) | 4.5% | 6.4 | 10.1% / 14.8% | 76.7 | 0.7 |
+| W0 (`thirstRate` 0.4) | 66 / 21 / 6 / 3 / 4% | 0.85 / 0.91 / 0.98 / 0.99 / 0.99 | 5494 | 163 | 0.953 | 96 / 7.9 |
+| `thirstRate` 0.2 | 59 / 23 / 6 / 5 / 7% | 0.86 / 0.91 / 0.98 / 0.98 / 0.99 | 5754 | 162 | 0.953 | 92 / 8.3 |
+| `thirstRate` 0.1 | 54 / 24 / 7 / 7 / 9% | 0.85 / 0.90 / 0.97 / 0.97 / 0.98 | 6733 | 182 | 0.948 | 89 / 9.5 |
+| `thirstEnabled false` | 35 / 15 / 6 / 8 / 35% | 0.91 / 0.94 / 0.99 / 0.98 / 0.96 | 7558 | 280 | 0.954 | 62 / 6.5 |
+| `thirstRate` 0.2 with 0.02 × 18 | 57 / 24 / 7 / 6 / 7% | 0.77 / 0.83 / 0.96 / 0.96 / 0.98 | 2052 | 102 | 0.917 | 121 / 11.7 |
 
-Readings:
-- **A hard winter cuts population by a third to a half, and nobody stores more.** Meals from heaps stay at 4 to 5% in every variant and seed, and food put into heaps per head is unchanged (about 6.3 a year). Storing does not respond to the season, because nothing in a person's decision links autumn plenty to winter need: food is gathered by anyone fed with free hands and dropped where a crowd stands, and a heap is eaten from only by someone below half energy standing on or beside it.
-- **Golden fields disappear under die-off**: ripeness needs a tile at 70% of capacity, which withering prevents. Ripeness would need to be seasonal (ripen in late summer, harvested before winter) for golden crops and a dead season to coexist.
-- **The land does fill.** Base population peaks around year 40 (about 8,500 on seed 4) and then falls, with 43% hungry at year 60 on seed 4. The earlier estimate that the land carries three times what people take was wrong past year 40: 30-year runs end before the land fills, and 60-year runs do not.
+- **H5 half right.** Slower thirst spreads people a little (within 5 tiles: 87% → 82% → 77%), and with no thirst they live everywhere. But the land stays 95% full, stays get longer (280 ticks) and steps fall (62 a year). Thirst is what makes people walk today; it is not what keeps the land full.
+- **Scarce grass plus slow thirst** (last row) is hardly different from scarce grass alone (population 2052 against 1873; land 0.917 full).
+- **Reading after three rounds:** two things hold together. With today's grass, numbers are held by how fast people breed, not by food, so nobody needs to leave (7 to 12 productive tiles a head, 5% hungry). With scarce grass people are hungry (8 to 16%) beside land that is 96 to 98% full a few tiles further out, and still don't walk to it. So the missing piece is in how a hungry person finds and moves to food beyond their own neighbourhood (the step rule, the S1 stay check, far sight), not in how much the land gives. That is outside W1a's lever list.
+- **W1a stopped here (3 of 8 rounds used), nothing re-tuned, no switch added.** Reported to the user for a decision.
+
+**W1a round 4 (movement diagnosis, `scripts/move-probe.ts`, seeds 1 and 2, 20 years, counted from year 5): people are held by camps, not by grass.** The probe wraps `Rules.climb` (read only; seed 42 still gives `dbeaac54ed27afd8`) and tallies each adult decision. Seed 1 / seed 2:
+
+| | Today's land: fed | hungry | starving | 0.02 × 18: fed | hungry | starving |
+|---|---|---|---|---|---|---|
+| Share of adult time | 97 / 96% | 2.0 / 2.7% | 0.7 / 1.2% | 93 / 92% | 5.1 / 5.9% | 1.8 / 2.2% |
+| Stayed, stay check passed | 68 / 66% | 28 / 31% | 11 / 9% | 51 / 51% | 31 / 33% | 5 / 6% |
+| Stayed though the check failed | 8 / 7% | 13 / 13% | 23 / 33% | 12 / 10% | 16 / 15% | 43 / 38% |
+| Stepped | 17 / 17% | 49 / 40% | 55 / 44% | 30 / 28% | 45 / 45% | 42 / 48% |
+| Walking to water | 7 / 10% | 10 / 16% | 11 / 15% | 7 / 11% | 8 / 7% | 11 / 9% |
+| Own tile grazed bare | 48 / 48% | 63 / 61% | 69 / 69% | 57 / 55% | 73 / 74% | 77 / 78% |
+| People on their tile | 6.5 / 6.5 | 8.6 / 8.8 | 9.4 / 9.3 | 4.3 / 4.4 | 6.0 / 7.0 | 7.0 / 7.3 |
+| A richer block within far sight | 82 / 76% | 86 / 81% | 80 / 78% | 84 / 80% | 85 / 86% | 87 / 82% |
+| Has a leader | 61 / 63% | 77 / 79% | 79 / 77% | 59 / 60% | 71 / 78% | 71 / 73% |
+
+- **People live in clumps on bare ground.** A fed adult shares a tile with 6 others, and that tile is grazed to the floor half the time, yet the stay check passes two times in three. The S1 stay check counts the food heap in reach, so a camp with a store holds people on ground with no grass.
+- **The land-wide average hides this.** Camp tiles are bare; everything else is full. That's why `landFullPct` barely moves.
+- **A richer block is in sight about 80% of the time, for everyone.** Far sight only acts on hungry people whose 5 tiles average under `hungerSearchFood`, and it is one pull among several.
+- **Starving people stand still 23 to 43% of the time with the stay check failed.** Not explained yet: candidates are the no-reversal rule, opposing pulls cancelling (leader, scent, paths), and roaming being switched off when starving and not searching.
+- **Hungry and starving people more often have a leader** (71 to 79% against about 60%), and stand in bigger crowds.
+
+**W1a round 5 (written before the runs): which lever makes people travel?** One change each, today's land, seeds 1 and 2, 30 years, `watch-probe`. Read out: `netDisplacePerAdultYear` (7.9 / 7.9 today), `bandDisplacePerYear` (4.4 / 4.1), `migrationsPer10y` (0), share of adults beyond 5 tiles of water (13 / 19%), `landFullPct`, `campStayTimeMedian`, with population and hunger as the cost. Expectations:
+- **Camp holds (expected to matter most):** `stayValueEnabled false` (the heap no longer counts), `stockpilesEnabled false` (no heaps at all), `stayFoodFraction 0.9`, `calmMovementEnabled false`, `comfortableStayEnabled false`.
+- **Leaders:** `copyEnabled false`, `hungerLeaderPullMul 0`.
+- **Finding food further off:** `hungerSearchFood 12` with `hungerDriveThreshold 0.6`; `farSightPull 3` with `farSightMargin 0.05`; `scentFoodEmitRate 0.3`.
+- **Water and paths:** `thirstSeek 30`; `pathPull 0`.
+- **Pressure:** `reproductionThreshold 50` (faster breeding fills the land sooner).
+A lever "works" if net movement or band movement at least doubles on both seeds. No default is changed in this round.
+
+**W1a round 5 results (26 runs, all finished, none died out): no single lever makes people travel.** Seed 1 / seed 2, 30 years. "Works" was set as net or band movement at least doubling.
+
+| Change | Net tiles per adult a year | Band centre tiles a year | Steps per adult a year | `campStayTimeMedian` | Adults beyond 5 tiles of water | Pop. year 30 |
+|---|---|---|---|---|---|---|
+| Today | 7.9 / 7.9 | 4.4 / 4.1 | 96 / 88 | 163 / 169 | 13 / 19% | 5494 / 5119 |
+| `calmMovementEnabled false` | 10.4 / 11.5 | 6.7 / 7.0 | 222 / 217 | 68 / 64 | 18 / 25% | 2703 / 3805 |
+| `stayValueEnabled false` | 9.8 / 11.1 | 6.8 / 7.2 | 177 / 177 | 86 / 76 | 15 / 24% | 3210 / 3522 |
+| `comfortableStayEnabled false` | 9.6 / 10.0 | 6.4 / 6.4 | 168 / 156 | 91 / 96 | 16 / 22% | 3737 / 3712 |
+| `stayFoodFraction 0.9` | 9.1 / 9.8 | 5.6 / 5.6 | 149 / 147 | 117 / 110 | 12 / 19% | 4095 / 4248 |
+| `stockpilesEnabled false` | 8.9 / 8.7 | 6.1 / 5.8 | 113 / 107 | 135 / 156 | 17 / 20% | 4297 / 3284 |
+| `reproductionThreshold 50` | 8.3 / 9.2 | 4.7 / 4.6 | 99 / 103 | 155 / 129 | 14 / 21% | 6370 / 6213 |
+| `thirstSeek 30` | 8.3 / 8.8 | 4.4 / 4.2 | 93 / 87 | 165 / 167 | 16 / 23% | 5763 / 5304 |
+| `scentFoodEmitRate 0.3` | 8.0 / 8.3 | 3.9 / 4.0 | 105 / 99 | 152 / 148 | 13 / 18% | 5309 / 4801 |
+| `pathPull 0` | 8.0 / 8.1 | 4.3 / 4.1 | 92 / 85 | 169 / 179 | 13 / 19% | 5939 / 5415 |
+| `hungerLeaderPullMul 0` | 8.0 / 8.2 | 4.5 / 4.4 | 93 / 88 | 171 / 165 | 13 / 19% | 4974 / 4977 |
+| `farSightPull 3`, margin 0.05 | 7.9 / 7.8 | 4.5 / 3.8 | 95 / 86 | 164 / 180 | 13 / 19% | 5512 / 4396 |
+| `copyEnabled false` | 7.7 / 7.7 | 4.1 / 4.4 | 88 / 80 | 175 / 181 | 13 / 19% | 5876 / 5026 |
+| `hungerSearchFood 12`, drive at 0.6 | 7.5 / 8.1 | 3.6 / 3.5 | 85 / 82 | 190 / 172 | 13 / 21% | 6192 / 5693 |
+
+- **Nothing doubles movement; migration entries are 0 in all 26 runs; the land stays 95 to 96% full in all of them.**
+- **Loosening the camp** (calm off, stay value off, comfortable stay off) doubles the steps and halves the stays, but net movement rises only 25 to 45%: people shuffle more, they don't go anywhere. It costs a third to half of the population.
+- **Leaders, paths, far sight and thirst timing do nothing measurable.**
+- **Reading:** movement is a local random walk. Steps without a direction add up to about √steps, and the range from water matches that: a person takes about 30 steps between drinks, so they diffuse about 5 tiles, which is where 86% of adults are. Travel needs a pull with a direction that lasts.
+- **A candidate for why the existing pulls don't act:** the food-scent slope a person feels averages 4 to 8 (round 4), times a weight of 1 to 3.75, against 1.0 for far sight, 1.2 for search persistence and 0.2 to 1.6 for a leader. The scent term is 10 to 20 times bigger than every directed pull, and food heaps add to it (`storeScentEnabled`), so it points back at the camp.
+- **Wolves are too noisy to be a guard rail on two seeds:** they died out on one seed or both in 9 of the 13 arms, including arms that change nothing about food.
+
+**W1a round 6 (written before the runs): does a directed pull, freed from the scent, produce travel?** Seeds 1 and 2, 30 years. H6: with the scent weakened or far sight strengthened above it, hungry people on poor ground walk to richer blocks, so on scarce land the far land is used (`landFullPct` falls, more adults beyond 5 tiles, population above scarce-alone's 1873 / 1976) and net movement at least doubles. Arms:
+- today's land: `storeScentEnabled false`; `scentFoodEmitRate 0.01`; `farSightPull 15` with `hungerSearchPersist 6`.
+- scarce land (0.02 × 18) with: `farSightPull 15` and `hungerSearchPersist 6`; `scentFoodEmitRate 0.01`; `thirstEnabled false`; `stayValueEnabled false` plus the far-sight pair; `weatherEnabled true`.
+
+**W1a round 6 results (16 runs, all finished, none died out): H6 refuted; the one big effect is water.** Seed 1 / seed 2, 30 years.
+
+| Arm | Net tiles per adult a year | Band centre tiles a year | Adults beyond 5 tiles of water | `landFullPct` | `harvestOfMaxYield` | Pop. year 30 | `hungryPct` |
+|---|---|---|---|---|---|---|---|
+| Today | 7.9 / 7.9 | 4.4 / 4.1 | 13 / 19% | 0.953 / 0.959 | 0.17 / 0.15 | 5494 / 5119 | 4.8 / 6.0 |
+| `storeScentEnabled false` | 7.9 / 8.3 | 4.3 / 4.2 | 14 / 19% | 0.952 / 0.955 | 0.17 / 0.17 | 5667 / 5597 | 5.2 / 6.4 |
+| `scentFoodEmitRate 0.01` | 7.8 / 8.7 | 5.0 / 5.3 | 12 / 18% | 0.967 / 0.961 | 0.12 / 0.14 | 3784 / 5068 | 6.5 / 8.0 |
+| `farSightPull 15`, persist 6 | 8.0 / 8.1 | 4.3 / 4.1 | 13 / 19% | 0.950 / 0.958 | 0.18 / 0.16 | 6094 / 5428 | 4.8 / 6.0 |
+| Scarce (0.02 × 18) alone, round 1 | 11.0 / 11.9 | 6.7 / 7.1 | 14 / 20% | 0.917 / 0.924 | 0.27 / 0.26 | 1873 / 1976 | 8.9 / 10.2 |
+| Scarce + far sight 15, persist 6 | 10.9 / 12.1 | 6.7 / 6.8 | 13 / 23% | 0.910 / 0.900 | 0.29 / 0.32 | 1985 / 2491 | 8.9 / 10.9 |
+| Scarce + scent 0.01 | 10.2 / 11.4 | 8.7 / 9.0 | 14 / 20% | 0.946 / 0.953 | 0.18 / 0.15 | 1128 / 1126 | 15.4 / 17.5 |
+| Scarce + stay value off + far sight 15 | 12.9 / 13.9 | 8.7 / 9.0 | 17 / 27% | 0.910 / 0.909 | 0.27 / 0.28 | 1314 / 1752 | 8.0 / 8.4 |
+| Scarce + weather on | 10.1 / 11.6 | 6.2 / 6.9 | 13 / 22% | 0.889 / 0.875 | 0.22 / 0.24 | 1546 / 1821 | 8.2 / 9.8 |
+| **Scarce + thirst off** | 12.0 / 12.7 | 8.2 / 8.7 | **55 / 64%** | 0.884 / 0.890 | **0.39 / 0.39** | **3207 / 3652** | 8.3 / 8.5 |
+
+- **No arm doubles movement; migration entries are 0 in all 16.** Net movement tops out at 13 to 14 tiles a year.
+- **The food scent is not the blocker:** weakening it or the heaps' scent, or raising far sight 15 times, changes nothing on today's land. Weak scent makes people find less food (population down, hunger up).
+- **Far sight hardly ever switches on.** It needs a person under `hungerDriveThreshold` (0.35 of full energy) on poor ground, and adults are in that state 2 to 3% of the time today and 5 to 8% on scarce land. The population is held down earlier, by mothers falling under `reproductionThreshold` (65), so most people sit between "too thin to breed" and "hungry enough to search".
+- **Water is what unlocks the land.** On scarce land with thirst off, 55 to 64% of adults live beyond 5 tiles of water, the far land is grazed (0.86 full at 21 tiles or more), `harvestOfMaxYield` reaches 0.39 (W1a's target was 0.35) and the population is 70 to 85% higher than scarce land with thirst. This is the case for wells and carried water (W3).
+
+**W1a round 7 (written before the runs): search before starving.** H7: if the hunger drive starts where breeding stops (`hungerDriveThreshold 0.6`, close to `reproductionThreshold` 65 of 100) and the directed pulls are strong (`farSightPull 15`, `hungerSearchPersist 6`), people on poor ground walk to richer blocks: net movement at least doubles and the far land is used. Arms, seeds 1 and 2, 30 years: scarce land with the three changes; the same plus `thirstRate 0.2`; the same plus `stayValueEnabled false`; today's land with the three changes plus `hungerSearchFood 12`. Note: `hungryPct` in these arms counts people under 0.6, so it is not comparable with other rows.
+
+**W1a round 7 results (8 runs, all finished, none died out): H7 refuted.** Seed 1 / seed 2, 30 years.
+
+| Arm | Net tiles per adult a year | Band centre tiles a year | Steps per adult a year | Adults beyond 5 tiles of water | `landFullPct` | Pop. year 30 |
+|---|---|---|---|---|---|---|
+| Scarce alone (round 1) | 11.0 / 11.9 | 6.7 / 7.1 | 124 / 123 | 14 / 20% | 0.917 / 0.924 | 1873 / 1976 |
+| Scarce + drive at 0.6 + far sight 15, persist 6 | 9.3 / 10.2 | 4.7 / 5.0 | 90 / 91 | 15 / 24% | 0.918 / 0.923 | 2050 / 1898 |
+| … + `thirstRate 0.2` | 10.5 / 11.4 | 5.1 / 5.2 | 90 / 92 | 21 / 30% | 0.913 / 0.912 | 2280 / 2490 |
+| … + `stayValueEnabled false` | 11.5 / 14.0 | 6.9 / 8.1 | 172 / 181 | 16 / 30% | 0.924 / 0.898 | 1263 / 1753 |
+| Today's land + drive at 0.6, search 12, far sight 15, persist 6 | 6.8 / 7.2 | 3.0 / 3.2 | 65 / 67 | 14 / 21% | 0.953 / 0.957 | 6067 / 5755 |
+
+An earlier hunger drive makes people move less, not more: the drive also multiplies the food-scent weight by 2.5 (`hungerFoodWeightMul`) and cuts roaming, so they hold tighter to the nearest food. Migration entries are 0 in all 8 runs.
+
+**W1a summary after 7 of 8 rounds (89 read-only runs, no default changed, no simulation code touched).**
+1. **Scarcer grass does not make people move.** It makes fewer people (round 1).
+2. **People live in dense camps on bare ground near water** (6 to 9 to a tile, 86% within 5 tiles of water), fed from heaps; the rest of the map is 96 to 99% full (rounds 2 and 4).
+3. **No existing setting produces travel.** Across 25 levers and combinations the best net movement is 13 to 14 tiles a year against 8 today, and no run has a migration entry. Loosening the camp rules buys more steps, not more distance (rounds 5 to 7).
+4. **Movement is a random walk.** Every pull a person feels is local (the scent slope at their feet, the neighbouring blocks, a leader a few tiles off) and none lasts, so steps cancel out. Thirst then resets them to the bank about every 100 ticks.
+5. **Water reach is the one thing that changes where people live.** Thirst off on scarce land: 55 to 64% of adults beyond 5 tiles, far land grazed, `harvestOfMaxYield` 0.39, population up 70 to 85% (round 6).
+6. **Why hunger does not push people out:** the population is held by mothers falling under the breeding threshold long before adults are hungry enough to search, so the search rules act on 2 to 8% of adult time.
+
+**What this says about the plan:** migration needs something new with a direction that lasts and changes over time, which is what W1b (a ripening wave), W2 (herds to follow) and W3 (wells, so camps can leave the bank) add. Re-tuning grass alone (W1a as written) should not ship. The evidence favours doing water reach (W3's wells, or carried water going further) before or with W1b, because a wave of good grazing 20 tiles from the river can't be followed by people who diffuse 5 tiles between drinks.
+
+## Foraging-theory measurements (written 2026-11-13, before the runs)
+
+The user supplied a framework for when moving beats staying: Charnov's marginal value theorem with group size (depletion scales as N^α λ; Chapman's ecological constraints), Orians and Pearson's central place foraging for water (r_max = v (W_initial − W_min) / (2 ẇ)), risk pooling across patches with uncorrelated yields, and dynamic state variable models (energy and hydration as joint state). This round measures each term in today's world. Read only; probes `watch-probe` (trips, catchments), `move-probe` (crowd size), `variance-probe` (new). Runs: seeds 1 and 2, today's land and scarce land (0.02 × 18), 30 years; variance with weather on.
+- **P1 (central place): the water tether is behavioural, not physiological.** From the config, a person leaves the bank at hydration 100, loses 0.4 a tick and turns back at 60: 100 ticks outbound at up to 1 tile a tick, with 150 more ticks before hydration reaches 0. So r_max is of the order of 100 tiles. Prediction: the median trip reaches only a few tiles from water and its lowest hydration sits near 60, far from W_min.
+- **P2 (marginal value): people don't leave because the patch ran down.** Prediction: the 7 × 7 catchment is about as full when a stay ends as when it began, at every stay length.
+- **P3 (group size): the stay decision ignores N.** `Rules.worthStaying` compares plants plus heap with a need that doesn't divide by the people on the tile. Prediction: plants per head fall steeply with crowd size while the share passing the stay check does not.
+- **P4 (variance): places have their good and bad years together.** With weather off a block's growth is identical every year by construction (the season curve only). Prediction with weather on: mean correlation between blocks' yearly growth above 0.5, and year-to-year spread small against the seasonal swing.
+
+**Foraging-theory measurements, results (8 runs, all finished; today's-land hashes equal the W0 runs', so the new probes changed nothing).** Seed 1 / seed 2, 30 years unless noted.
+
+*P1, central place: confirmed, and stronger than predicted.* Trips are counted from stepping more than 1 tile from fresh water until back beside it.
+
+| | Today's land | Scarce (0.02 × 18) |
+|---|---|---|
+| Furthest point of a trip, median / 90th / 99th percentile (tiles) | 2 / 4 / 19 and 2 / 5 / 26 | 2 / 4 / 19 and 2 / 5 / 25 |
+| Mean trip length (ticks) | 20 / 24 | 16 / 19 |
+| Lowest hydration on a trip (mean; full is 100, people seek water at 60) | 91.5 / 89.7 | 93.1 / 91.8 |
+| Adult time spent more than 1 tile from water | 59 / 60% | 63 / 67% |
+
+The physiological reach is of the order of 100 tiles; the typical trip turns round at 2 tiles after 20 ticks with hydration still above 90. Thirst does not end a normal trip. Something else brings people back to the bank within 20 ticks (the candidates are what is there: richer riparian ground, fish, the heaps, and everybody else), and the thirst walk only matters for the few who live far out.
+
+*P2, marginal value: mostly confirmed.* Fullness of the 7 × 7 tiles around where a stay began:
+
+| Stay length (ticks) | under 10 | 10 to 39 | 40 to 119 | 120 or more |
+|---|---|---|---|---|
+| Share of stays, today | 26 / 35% | 42 / 37% | 19 / 17% | 12 / 11% |
+| On arrival → on leaving, today | 0.72 → 0.68 / 0.74 → 0.71 | 0.71 → 0.62 / 0.74 → 0.65 | 0.73 → 0.65 / 0.76 → 0.69 | 0.77 → 0.66 / 0.79 → 0.69 |
+| On arrival → on leaving, scarce | 0.67 → 0.64 / 0.67 → 0.64 | 0.69 → 0.58 / 0.71 → 0.60 | 0.71 → 0.59 / 0.74 → 0.62 | 0.72 → 0.62 / 0.75 → 0.66 |
+
+A stay takes a catchment down by 4 to 13 points and people leave it still 58 to 71% full; long stays deplete no more than short ones, so regrowth keeps pace. The patch is not what ends a stay.
+
+*P3, group size: half right.* Adults by how many people share their tile (seed 1, 20 years):
+
+| People on the tile | 1 | 2 to 3 | 4 to 7 | 8 or more |
+|---|---|---|---|---|
+| Share of adult time, today / scarce | 29 / 32% | 23 / 26% | 22 / 25% | 27 / 17% |
+| Plants per head on the tile, today / scarce | 13.7 / 5.6 | 3.8 / 1.3 | 0.66 / 0.25 | 0.09 / 0.03 |
+| Plants plus heap in reach per head | 18.2 / 7.5 | 7.6 / 2.8 | 4.4 / 1.9 | 1.8 / 1.0 |
+| Stay check passed | 91 / 69% | 79 / 51% | 70 / 49% | 53 / 40% |
+| Stepped | 8 / 25% | 15 / 36% | 22 / 37% | 29 / 29% |
+| Mean energy (breeding needs 65) | 86.5 / 78.9 | 80.1 / 70.8 | 70.2 / 65.6 | 64.6 / 60.1 |
+| Hungry | 2.1 / 5.5% | 2.2 / 6.3% | 2.6 / 6.2% | 3.7 / 11.2% |
+
+Crowding does lower the pass rate (the shared tile really is emptier), so the prediction that it wouldn't was wrong. But food per head falls 150 times from a lone forager to a crowd of 8, and the pass rate falls only from 91% to 53%: the check compares the tile and its heap with one person's need, not with the people sharing it. A quarter of adult time is spent in crowds of 8 or more with 0.09 plant food each, at a mean energy of 64.6, right on the breeding threshold. That is where the population is held.
+
+*P4, variance: confirmed.* Weather on, 25 measured years, blocks of 16 × 16:
+
+| | Seed 1 | Seed 2 |
+|---|---|---|
+| A block's year-to-year spread (CV) | 0.105 | 0.090 |
+| The whole map's year-to-year spread | 0.085 | 0.063 |
+| Mean correlation between blocks' yearly growth | 0.64 | 0.53 |
+| Fixed spread between blocks (climate) | 0.20 | 0.23 |
+| Growth by quarter of the year | 0.89, 1.44, 0.78, 0.23 | same |
+
+Years vary by about 10% and places share them (correlation 0.5 to 0.6), while the season swings growth six-fold for every tile at once. With weather off there is no year-to-year variation at all. Moving between patches pools no risk today.
+
+**The framework's terms, as measured:** λ at camp scale is small (P2); N raises depletion but the decision to stay doesn't feel it per head (P3); the water limit r_max is about 50 times looser than the range people use (P1); σ² is small and shared (P4). Each one sits on the side that favours staying.
+
+## What keeps people at the bank (2026-11-13; the user asked for tests and a check for glitches)
+
+**Correction to P1 above.** The trip figures (2 tiles, hydration above 90) are ruled by people who already live on the bank and step back and forth across the 1-tile line. They show the bank is crowded, not what brings people there. The tests below replace that reading.
+
+**Test 1, founders (`scripts/bank-probe.ts`, new, read only; seed 42 gives `dbeaac54ed27afd8`).** Founders are placed evenly over the land. Seed 42, share of people by tiles from fresh water (0-2 / 3-5 / 6-10 / 11-20 / 21+; land is 13 / 18 / 26 / 25 / 19%): year 0 11 / 18 / 26 / 25 / 20%; year 1 **67** / 22 / 6 / 2 / 3%; year 5 75 / 16 / 6 / 1 / 2%. The whole population is delivered to the bank inside one year.
+- **How: the thirst walk is a ratchet.** A thirsty adult's step is toward water every time (mean change in distance −1.00 a decision in every band out to 20 tiles). A step taken when not thirsty has no direction (+0.02 at the bank, −0.13 to +0.03 further out). Walking in is a straight line; walking out is a random walk with nothing to walk back to. Thirst comes round every 100 ticks, so everyone is collected.
+- **The bank is the worst place to be, not the best.** Years 0 to 5: births per 100 women a year are 61 at the bank against 113 and 121 at 3 to 10 tiles; deaths with energy at zero are 2.5 per 100 a year at the bank and 0 to 0.5 elsewhere. People aren't choosing the bank; they're stuck on it.
+
+**Test 2, land with no way to fresh water.** `waterDist` is a walk distance that does not cross water, so land cut off from any lake or river by the sea has none (255). Share of land: seed 1 5.6%, seed 2 8.3%, seed 3 0.7%, seed 42 4.0%. Founders placed there (38, 59, 4 and 22 of 700) never find water: on seed 42 the 21+ band, which includes them, has mean hydration 27, 64% of person-time below 30, and thirst deaths. A small glitch (about 5% of founders are doomed at the start), not the cause of the crowding.
+
+**Test 3, which exit of the step rule people take (a scratch patch tagging every `return` in `Rules.climb`; not committed). Seed 1, 20 years, adults from year 5, today's land / scarce land:**
+
+| Exit | Fed | Hungry | Starving |
+|---|---|---|---|
+| Stay check passed | 61 / 46% | 32 / 35% | 15 / 8% |
+| Stayed in shelter from the cold | 19 / 18% | 0 | 0 |
+| Stepped the way they wanted | 15 / 24% | 48 / 43% | 51 / 41% |
+| **Wanted to step into water, stood still** | 0.8 / 2.3% | **13 / 16%** | **23 / 43%** |
+| Thirst walk | 1.5 / 2.0% | 2.2 / 1.2% | 2.1 / 0.5% |
+
+- **This is a glitch.** A starving adult spends a quarter to nearly half of their decisions trying to walk into the water. All of those cases are on the bank; the person stood still the tick before in 99 to 100% of them; the food scent alone points at the water in 87 to 95%; and its pull (9 to 11) is ten times every other pull.
+- **Cause.** `ScentFields.step` spreads scent over every tile, water included, and `getFoodGradient` reads the four neighbours whether or not they can be walked on. A camp grazes its own ground bare (a tile at or under 1.0 food gives off no scent), so the scent lying over the river, fed by the far bank and by ungrazed shore, is stronger than the scent on land. The hungrier the person, the more the scent weighs (`hungerFoodWeightMul` 2.5), so the people who most need to leave are the ones held hardest.
+
+**Test 4 (written before the runs): does fixing the scent free people from the bank?** Two new switches, both off by default (off gives `dbeaac54ed27afd8`): `shoreScentEnabled` (the slope a person feels treats a water neighbour as their own tile) and `shoreSlideEnabled` (blocked by water both ways, step sideways along the shore). H8: with both on, the blocked exit falls to near zero for hungry and starving adults, hunger falls, adults beyond 5 tiles of water rise from 13 / 19%, and net movement rises. Also tried, because it is the existing way to live away from water: bigger carried-water stores (`waterCarryMax 80`, `waterFetchChance 0.5`, `waterEvaporation 0.005`). Arms, seeds 1 and 2, 30 years: scent only; slide only; both; both on scarce land (0.02 × 18); water stores only; both plus water stores.
+
+**Test 4 results (16 runs, all finished, none died out): the glitch is real and worth fixing, but it is not what holds people at the bank.** Seed 1 / seed 2, 30 years.
+
+| Arm | Stood still with the stay check failed: hungry / starving (seed 1, 20 years) | Pop. year 30 | Mean pop. | Adults within 5 tiles of water | Net tiles per adult a year | `hungryPct` |
+|---|---|---|---|---|---|---|
+| Today | 13% / 23% | 5494 / 5119 | 3062 / 2937 | 87 / 81% | 7.9 / 7.9 | 4.8 / 6.0 |
+| `shoreScentEnabled` | | 6442 / 6404 | 3546 / 3563 | 86 / 81% | 9.6 / 9.5 | 5.4 / 6.7 |
+| `shoreSlideEnabled` | | 5903 / 5455 | 3207 / 3037 | 86 / 80% | 8.5 / 8.5 | 5.6 / 6.5 |
+| Both | 1.7% / 5.2% | **6492 / 6649** | 3474 / 3673 | 86 / 80% | 9.2 / 10.1 | 5.3 / 6.7 |
+| Scarce (0.02 × 18), today | 16% / 43% | 1873 / 1976 | 1555 / 1568 | 86 / 80% | 11.0 / 11.9 | 8.9 / 10.2 |
+| Scarce, both | 1.0% / 3.0% | **2520 / 2727** | 1841 / 1991 | 83 / 76% | 13.0 / 13.1 | 10.3 / 11.4 |
+| Bigger water stores | | 6023 / 4905 | 3178 / 2942 | 87 / 81% | 8.1 / 8.2 | 5.1 / 6.1 |
+| Both + bigger water stores | | 7031 / 7236 | 3638 / 3691 | 86 / 80% | 9.5 / 9.9 | 5.5 / 6.5 |
+
+- **H8, the blocked exit: confirmed.** Starving adults standing still with nowhere worth staying fall from 23% to 5% of decisions on today's land and from 43% to 3% on scarce land; they step on 67% and 83% of decisions instead of 55% and 42%.
+- **H8, more people: confirmed.** Population at year 30 is 18 to 30% higher on today's land and 35 to 38% higher on scarce land, where `harvestOfMaxYield` reaches 0.34. The scent switch does most of it; the slide adds little on its own.
+- **H8, hunger falls: not seen.** `hungryPct` is unchanged or slightly up (5.3 / 6.7 against 4.8 / 6.0). The extra people fill the same ground.
+- **H8, people leave the bank: refuted.** 86 / 80% of adults are still within 5 tiles of water (87 / 81% before), and no run has a migration entry. Founders are still collected in the first year (seed 1 with both on: 56% within 2 tiles at year 1, 68% at year 20; without, 59% and 70%).
+- **Bigger water stores do nothing** to where people live.
+- **So the ratchet (test 1) is what holds people at the bank.** Removing thirst is the only change in any round that moved them (round 3: 51% within 5 tiles; round 6 on scarce land: 36 to 45%).
+
+**More from `bank-probe` (seed 1, years 5 to 20, by band 0-2 / 3-5 / 6-10 / 11-20 / 21+):**
+- Steps taken when not thirsty lean outward everywhere except 3 to 5 tiles, where they lean back in: growing half +0.05 / −0.16 / +0.08 / +0.12 / +0.16 tiles a decision. People do drift away from water between drinks; the thirst walk undoes it.
+- Births per 100 women a year: 53 / 84 / 68 / 89 / 41. Mean energy 79.5 / 74.2 / 72.9 / 70.6 / 65.1.
+- **Another oddity: thirst does not kill on its own.** In the 21+ band (which includes the land with no route to water) 13.6% are hungry, deaths with hydration at zero run at 7.9 per 100 a year, and yet women there still bear 41 children per 100 a year. At zero hydration a person loses `dehydrationDamage` 0.5 energy a tick, which a full bite of grass (1.0) more than covers, so someone on good grass can live without water indefinitely.
+
+**Summary of what holds people at the bank.**
+1. *The thirst ratchet* (design): straight in, random out, every 100 ticks. The main cause.
+2. *Scent over water* (glitch, fix built, off by default): holds the hungriest at the shore and costs 18 to 38% of the population.
+3. *Founders on land with no route to water* (small glitch, not fixed): 1 to 8% of land.
+4. *Thirst that food can outlast* (oddity, not fixed).
+None of this is people preferring the bank: births are lower and starvation higher there than a few tiles out.
+
+## The walk back after drinking: targets (written 2026-11-13, before the runs)
+
+User decisions of 2026-11-13 (`docs/decisions.md`): the shore fix is on by default, founders are placed only where fresh water can be walked to (`founderWaterReachEnabled`), and the walk back after drinking is built (`thirstReturnEnabled`; `thirstReturnMinDist` 3, `thirstReturnHydration` 90, `thirstReturnTicks` 200; per-person `homeX`, `homeY`, `homeState`, `homeTicks`, saved, save schema 5).
+- **Mechanism:** when thirst sends a person to water from 3 or more tiles out, they remember the tile. They drink up to 90, then walk straight back (larger gap first), giving up after 200 ticks or if water blocks both ways. Thirsty again on the way, they go to water and keep the same place.
+- **Switch check, done before the runs:** with all four switches off the fingerprints are the old ones (`dbeaac54ed27afd8`, `453f741794e836ee` with weather). New defaults: `bc2e5165908de31a`, `b50f6c93e5e62260` with weather.
+- **H9, the ratchet is the cause:** against the same world with only `thirstReturnEnabled false`, on seeds 1 to 3 at 30 years: adults within 5 tiles of water fall from about 86 / 80% to under 60%; the far land is grazed (`landFullPct` down, `harvestOfMaxYield` up); population at year 30 is higher.
+- **Guard rails (reported):** no die-out; `hungryPct` no more than about double; herds alive; perf at or under 15 µs.
+- **Not predicted, reported:** net movement and band movement (people who commute to water take many more steps; whether camps move is a separate question), and migration entries.
+- **Arms:** new defaults; return off; each also on scarce land (0.02 × 18, seeds 1 and 2); `bank-probe` and `move-probe` on seed 1 with the new defaults.
+
+**The walk back after drinking, results (12 runs, all finished, none died out): H9 mostly confirmed. The ratchet was the main thing holding people at the bank.** 30 years; both columns have the shore fix and the founders fix on, and differ only in `thirstReturnEnabled`.
+
+| Seed 1 / 2 / 3 | Return off | Return on (new default) |
+|---|---|---|
+| Adults within 5 tiles of water | 87 / 84 / 88% | **69 / 59 / 71%** |
+| Adults more than 10 tiles from water | 5.7 / 8.1 / 6.3% | **20.9 / 29.5 / 20.9%** |
+| Population at year 30 | 7301 / 7271 / 7164 | **9040 / 10330 / 8627** |
+| Mean population | 3866 / 3909 / 3858 | 4526 / 5054 / 4343 |
+| `landFullPct` | 0.935 / 0.941 / 0.933 | 0.920 / 0.916 / 0.922 |
+| Land 21+ tiles from water, how full | 0.995 / 0.994 / 0.993 | 0.975 / 0.961 / 0.971 |
+| `harvestOfMaxYield` | 0.215 / 0.200 / 0.231 | 0.253 / 0.264 / 0.260 |
+| `hungryPct` | 6.2 / 6.4 / 5.7 | 7.0 / 7.2 / 6.6 |
+| Net tiles per adult a year | 9.9 / 10.4 / 9.6 | 8.8 / 9.3 / 8.4 |
+| Band centre tiles a year | 5.3 / 5.6 / 5.2 | 4.3 / 4.0 / 4.2 |
+| `campStayTimeMedian` | 118 / 109 / 125 | 94 / 81 / 96 |
+| Births a year | 334 / 343 / 341 | 404 / 467 / 396 |
+| Wolves at year 30 | 48 / 0 / 49 | 50 / 47 / 42 |
+
+| Scarce land (0.02 × 18), seed 1 / 2 | Return off | Return on |
+|---|---|---|
+| Adults within 5 tiles of water | 85 / 79% | 64 / 54% |
+| Population at year 30 | 2639 / 2744 | 2868 / 3317 |
+| `landFullPct` | 0.885 / 0.888 | 0.849 / 0.834 |
+| `harvestOfMaxYield` | 0.34 / 0.34 | **0.43 / 0.47** |
+| `hungryPct` | 10.9 / 12.9 | 13.7 / 14.9 |
+
+- **People live away from the water now.** The share within 5 tiles falls by 17 to 25 points (the "under 60%" target is met on seed 2 only; 69 and 71% on seeds 1 and 3), and three to four times as many adults live more than 10 tiles out. Founders: 47.5% within 2 tiles after one year on seed 1, against 59% with the return off and 67% in the old world.
+- **More people, on the same land.** Population at year 30 is 20 to 42% above return-off, and 43 to 100% above the W0 baseline (5494 / 5119 / 6034).
+- **Far from water is now a good place to live** (`bank-probe`, seed 1, years 5 to 20, bands 0-2 / 3-5 / 6-10 / 11-20 / 21+): mean energy 79.6 / 74.9 / 74.4 / 80.1 / 80.4; births per 100 women 57 / 72 / 64 / 84 / 70; no deaths with hydration at zero in any band (7.9 per 100 a year at 21+ before).
+- **Guard rails:** hunger up by about one point (double was the limit); herds 294 to 297; wolves alive on all three seeds.
+- **It is not migration.** Net movement and band movement fall a little (people now have a place they go back to) and no run has a migration entry. This change fixes where people can live; it gives them no reason to move camp. That still needs something that changes over time and place (W1b, W2).
+- **Half of the adults are still within 2 tiles of water.** Not explained; candidates: people within 3 tiles remember nothing (`thirstReturnMinDist`), the walk back is given up when water blocks it, and children are born where their mothers are.
+- **Side effect on tests:** bands form later in the first two years (people gather more slowly), so two test setups that needed bands by tick 600 now run 1,200 ticks (`tests/bands.test.ts`, `tests/chronicle.test.ts`). Over 30 years there are more band-years, not fewer (2,614 to 2,712 against 2,346 to 2,566). The two off-switch parity tests list the four new switches as off and still give their old fingerprints.
+- **Visual baselines 02 to 08 regenerated on purpose** (people stand in different places; 07 and 08 follow a band). 01 unchanged.
+
+**50-year confirmation of the new defaults (seeds 1 to 3, all finished, none died out), against the W0 baseline at 50 years:**
+
+| Seed 1 / 2 / 3 | W0 (old world) | New defaults |
+|---|---|---|
+| Population at year 30 | 5494 / 5119 / 6034 | 9040 / 10330 / 8627 |
+| Population at year 50 | 6357 / 6700 / 5748 | 7930 / 8792 / 8820 |
+| Mean population | 4284 / 4197 / 4592 | 6219 / 7032 / 6337 |
+| `landFullPct` | 0.930 / 0.939 / 0.920 | 0.885 / 0.878 / 0.877 |
+| `harvestOfMaxYield` | 0.230 / 0.212 / 0.263 | **0.350 / 0.375 / 0.385** |
+| `tilesPerPerson` | 8.3 / 9.2 / 7.2 | 5.9 / 5.9 / 5.5 |
+| Adults within 5 tiles of water | (62.7 / 59.2 / 62.8% within 2) | 66 / 56 / 64% (43 / 36 / 43% within 2) |
+| `hungryPct` | 10.9 / 11.3 / 12.4 | 15.4 / 16.4 / 14.8 |
+| `campStayTimeMedian` | 146 / 139 / 148 | 88 / 74 / 85 |
+| Net tiles per adult a year | 8.8 / 9.1 / 9.2 | 9.7 / 10.3 / 9.7 |
+| Migration entries per 10 years | 0 | 0 |
+| Herds at year 50 | 296 / 297 / 296 | 296 / 298 / 295 |
+| Wolves at year 50 | 0 / 18 / 18 | 7 / 8 / 0 |
+
+- The population now peaks around year 30 and settles lower by year 50 (seeds 1 and 2), with the land 88% full and 5.5 to 5.9 productive tiles a head: the map is being filled, which it never was before.
+- `harvestOfMaxYield` reaches W1a's 0.35 target on every seed with no change to the grass.
+- Hunger is higher (15 to 16% against 11 to 12%), inside the "no more than double" guard rail. It is what a fuller map looks like.
+- Wolves end lower on seeds 2 and 3 and die out on seed 3 (they died out on seed 1 before). Still too noisy on three seeds to call.
+- **Checks on fd68bb1:** `VERIFY_VISUAL=1 npm run verify` exit 0; perf 3.522 µs per person per tick at 14,358 people (4.201 before; budget 15).
+
+## Observation of the new default world (2026-11-14; the user asked for more observational studies)
+
+Read only, nothing changed in the simulation. New probe `scripts/home-probe.ts` (seed 42 over 6 years gives the same hash as a plain run, `6c4bdfb1991066a5`). Questions, written before the runs:
+1. **Why are about half of adults still within 2 tiles of water?** Expectation: the bank is a sink. Anyone whose walk back fails (water in the way, or watered some other way) ends beside the water with no remembered place, and within 3 tiles nothing is remembered.
+2. **What does a water trip look like?** How far out people live, how long the round trip takes, how often the walk back succeeds.
+3. **Do people stay where they were born?**
+4. **Is there a yearly round?** Where adults are in each quarter.
+5. **Where are the settlements, and how big?**
+Runs: new defaults on seeds 1 to 3 for 30 years (counted from year 5), `home-probe`; seed 1 with `thirstReturnEnabled false` for comparison; `bank-probe` on seeds 2 and 3.
+
+**Observation results (6 runs, all finished). New defaults, seeds 1 / 2 / 3, 30 years counted from year 5; "off" is seed 1 with `thirstReturnEnabled false`.**
+
+*1. Water trips.*
+
+| | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Trips per adult a year (from 3 or more tiles out) | 5.6 | 6.9 | 5.3 |
+| Remembered place, tiles from water: median / 90th / 99th percentile | 11 / 28 / 52 | 14 / 33 / 49 | 12 / 30 / 41 |
+| Round trip, mean ticks | 26 | 32 | 27 |
+| Walk back: arrived | 90.0% | 87.5% | 89.4% |
+| Walk back: given up, water in the way | 10.0% | 12.5% | 10.6% |
+| Walk back: ran out of time | 0 | 0 | 0 |
+| Trip dropped before leaving the water | 3.3% | 2.7% | 3.7% |
+| Share of time on a trip, by band (0-2 / 3-5 / 6-10 / 11-20 / 21+) | 4 / 9 / 25 / 26 / 24% | 5 / 13 / 29 / 34 / 27% | 3 / 9 / 30 / 28 / 21% |
+
+People living 6 or more tiles out spend a quarter to a third of their time walking to water and back. One walk back in eight to ten fails, always because water is in the way (the walk is a straight line; the walk in followed the distance map round the bends).
+
+*2. Who is at the bank (within 2 tiles).* 95 to 97% of the adults there are living there, with no remembered place; 2 to 4% are drinking or arriving; about 1% are setting off back. So the half of adults at the bank are residents, not commuters caught passing through.
+
+*3. Where people born in each band live as adults* (share of adult time; people born during the run):
+
+| Born at | Lives at 0-2 | 3-5 | 6-10 | 11-20 | 21+ |
+|---|---|---|---|---|---|
+| 0-2, seeds 1 / 2 / 3 | 50 / 46 / 53% | 25 / 24 / 22 | 9 / 13 / 8 | 10 / 10 / 10 | 6 / 8 / 6 |
+| 6-10 | 35 / 32 / 45% | 21 / 19 / 21 | 14 / 15 / 10 | 18 / 18 / 13 | 12 / 16 / 10 |
+| 21+ | 23 / 17 / 34% | 15 / 12 / 21 | 14 / 14 / 9 | 22 / 24 / 16 | 26 / 35 / 20 |
+| 21+, return off (seed 1) | 57% | 23 | 9 | 8 | 3 |
+
+Nobody stays put: people born far out spend a sixth to a third of their adult life at the bank (the bank is 11 to 13% of the land), and people born at the bank spend half of theirs elsewhere. The pull to the bank is weaker than before (57% → 23% for those born 21+ tiles out on seed 1) but still there.
+
+- **Answer to question 1: the bank is a sink fed by failed walks back.** A commuter makes several trips a year and loses the walk back about one time in eight, so a typical commuter is dropped at the bank about once a year, with nothing remembered, and starts again from there by random walk. Within 3 tiles of water nothing is remembered at all.
+- **It is still draining.** Share of everyone within 2 tiles, year 5 → 10 → 20: seed 1 54 → 56 → 51%; seed 2 52 → 51 → 40%; seed 3 59 → 61 → 54%.
+
+*4. Living away from the bank is better* (`bank-probe`, years 5 to 20, seeds 2 / 3, bands 0-2 / 3-5 / 6-10 / 11-20 / 21+): births per 100 women a year 47 / 77 / 65 / 94 / 75 and 51 / 78 / 75 / 80 / 79; mean energy 78 / 76 / 78 / 82 / 83 and 79 / 75 / 78 / 79 / 82; deaths with energy at zero per 100 a year 0.64 / 0.58 / 0.12 / 0.08 / 0.03 and 1.01 / 0.80 / 0.28 / 0.35 / 0.21; no thirst deaths. A step taken when not thirsty leans outward beyond 5 tiles (+0.12 to +0.20 tiles a decision in the growing half).
+
+*5. A faint yearly round.* Share of adults within 2 tiles of water by quarter (spring / summer / autumn / winter): seed 1 43 / 48 / 52 / 47%; seed 2 37 / 42 / 44 / 36%; seed 3 46 / 50 / 54 / 53%. People are furthest out in spring and closest in by autumn, a swing of 7 to 9 points. With the return off the same swing is bigger (54 / 64 / 70 / 63%). Cause not studied.
+
+*6. Settlements* (tracked at each year end, by mean distance of their tiles from water):
+
+| | Seed 1 | Seed 2 | Seed 3 | Seed 1, return off |
+|---|---|---|---|---|
+| Settlements a year, 0-2 / 3-5 / 6-10 / 11-20 / 21+ | 23 / 13 / 12 / 11 / 8 | 18 / 11 / 21 / 11 / 17 | 36 / 9 / 7 / 10 / 10 | 31 / 14 / 10 / 3 / 0.4 |
+| Residents each | 58 / 31 / 31 / 28 / 27 | 49 / 39 / 34 / 34 / 26 | 44 / 50 / 31 / 22 / 21 | 55 / 36 / 29 / 12 / 8 |
+| Settlements with 20 or more residents | 41 | 48 | 48 | 36 |
+
+Settlements more than 10 tiles from water: about 19 to 28 a year against 3 with the return off, each with 21 to 34 residents. Bank settlements are still the biggest (44 to 58).
+
+*7. One measure that did not discriminate:* "reached water and got 6 or more tiles away during the year" is 54 to 69% of adults with the return on and 54% with it off, since a random walker gets that far once a year too. Not used.
+
+## Home scent and "can't walk on water": smoke tests before any implementation (2026-11-15)
+
+The user proposed replacing the remembered walk back with rules: people understand they can't walk on water, and a "home" scent that obstacles block, so the way back flows by least resistance. Tested as a prototype outside the simulation (`scripts/home-scent-proto.ts`: a scent that spreads over land only, a climb up it, and a step chosen among passable directions). No simulation file changed.
+
+**Mechanism smoke tests (`tests/home-scent-proto.test.ts`, 13 pass), on synthetic maps:**
+- The scent holds nothing on water and loses nothing into it; an enclosed island gets none.
+- Across a river the far bank gets under 1% of the near bank's scent (only what came round the end).
+- Climbing the scent from across a river walks round it, never through, arrives, and takes exactly the shortest land route.
+- Of two homes it leads to the one nearer over land, not as the crow flies.
+- The passable-step rule never returns a blocked direction and never steps straight away from the pull.
+- **A finding kept as a test:** the passable-step rule alone does not get round a lake. With a straight pull at a point behind an 11-tile lake the walker stays on the near shore. The same rule fed by the land-only scent walks round and arrives.
+
+**Smoke test on real worlds (`scripts/home-scent-smoke.ts`; new defaults at year 20; seeds 1 / 2 / 3; 435 / 671 / 370 adults living 6 or more tiles from water).** Each is put on the shore tile their thirst walk leads to and climbs a settled home scent. Evaporation 0.005 shown; 0.02 and 0.001 give the same picture.
+
+| Who lays the scent | Back to their own camp (within 3 tiles) | To the bank | To another inland camp | No slope to follow | End off by (median tiles) |
+|---|---|---|---|---|---|
+| Everyone | 10 / 7 / 14% | 53 / 48 / 41% | 13 / 1 / 10% | 24 / 43 / 35% | 9 / 11 / 11 |
+| People in shelter (hut, nest, fire, cave) | 25 / 19 / 18% | 29 / 39 / 34% | 30 / 10 / 21% | 16 / 31 / 27% | 9 / 11 / 12 |
+| People 3 or more tiles from water | 32 / 31 / 31% | 0 | 69 / 69 / 70% | 0 | 7 / 8 / 8 |
+
+- **The scent routes well and is cheap.** No climb stepped on water in any of the 27 cases. One field step costs about 0.4 ms (the tick is about 50 ms, and a scent steps every 4 ticks).
+- **The risk is real: a shared scent says "a camp", not "my camp".** If everyone lays it, about half of inland adults are led to the bank, where most people are. If only people 3 or more tiles out lay it, nobody is led to the bank, but only a third get back to their own camp; the rest stop at the first inland camp on the way, a median of 7 to 8 tiles short. Used alone, the far camps would drain into the camps nearest the water.
+- **Evaporation hardly matters** for where a climb ends; it sets how faint the slope is at the shore (in-shelter rule: 34% under the felt minimum of 0.05 at 0.02, 3% at 0.001).
+
+**A remembered place as the destination, three ways of walking to it (same adults, shore tile to home, 200-tick limit):**
+
+| | Arrived, seeds 1 / 2 / 3 | Gave up | Ran out of time |
+|---|---|---|---|
+| Straight line, give up when water blocks both wanted steps (today) | 97.0 / 97.3 / 100% | 3.0 / 2.7 / 0% | 0 |
+| Passable step, slide along the shore | 99.8 / 99.0 / 100% | 0 / 0.1 / 0% | 0.2 / 0.9 / 0% |
+| Straight line, follow the home scent while blocked | 99.8 / 98.7 / 100% | 0 / 0.4 / 0% | 0.2 / 0.9 / 0% |
+
+- Either rule removes nearly all the give-ups. Sliding along the shore does as well as the scent here, because real shores are mostly convex bends, not the lake-in-the-way case.
+- **Caveat:** these adults are the ones still living inland, so people whose way home is blocked are under-counted. In the running world 10 to 12% of walks back are given up, against 0 to 3% here.
+
+**Reading.** Both ideas have merit, for different jobs. "Can't walk on water" as a step rule is cheap, general, and fixes most blocked walks. The land-only scent is the right tool for finding a route, and it would make shared camps and worn approaches emerge. But a shared scent can't tell a person which camp is theirs, so as a full replacement for the remembered place it would move people toward the water again. The combination that the tests support: keep the remembered place as where to go, apply the passable-step rule to every pull, and use a home scent (laid by people away from the water) to steer when the direct way is blocked.
+
+## A scent with a band's identity: smoke test (2026-11-16; prototype only)
+
+The user proposed giving the home scent a band identity, like a pheromone. Tested outside the simulation with `scripts/band-scent-smoke.ts` on the new defaults at year 20, seeds 1 / 2 / 3 (435 / 671 / 370 adults living 6 or more tiles from water; each climbs their scent from the shore tile their thirst walk reaches). No simulation file changed. A person's band is their root leader (`rootLeaderId`), or themselves if they follow nobody.
+
+**The identity itself.**
+
+| | Seed 1 | Seed 2 | Seed 3 |
+|---|---|---|---|
+| Bands (including people alone) | 235 | 205 | 258 |
+| Adults alone / in bands of 2-9 / 10-49 / 50 or more | 3 / 8 / 44 / 46% | 3 / 7 / 26 / 65% | 5 / 9 / 37 / 49% |
+| Adults who change band in a year | 7.0% | 8.6% | 7.2% |
+| Bands of 10+: members within 5 tiles of the band's densest spot (median) | 52% | 50% | 53% |
+| … within 15 tiles | 90% | 88% | 94% |
+
+Membership is stable enough to carry a scent. But a band is not a camp: half its members are more than 5 tiles from its densest spot.
+
+**Where the scent leads** (scent laid only by people 3 or more tiles from water; evaporation 0.005):
+
+| Scent | Back to own camp (within 3 tiles) | To bandmates elsewhere | To strangers | Nothing to follow | End off by (median tiles) |
+|---|---|---|---|---|---|
+| One shared scent | 32 / 31 / 31% | 59 / 64 / 55% | 10 / 6 / 15% | 0 | 7 / 8 / 8 |
+| One per band, exact (205 to 258 fields) | 43 / 32 / 34% | 57 / 68 / 66% | 0 | 0 | 5 / 7 / 7 |
+| 16 channels, bands hashed in | 38 / 30 / 30% | 60 / 68 / 66% | 2 / 2 / 4% | 0 | 6 / 7 / 8 |
+| 8 channels | 38 / 28 / 27% | 59 / 69 / 68% | 3 / 4 / 5% | 0 | 6 / 8 / 9 |
+| 4 channels | 34 / 27 / 27% | 58 / 68 / 66% | 7 / 5 / 8% | 0 | 6 / 8 / 9 |
+| One per family (mother, her mate, her children), counting the person's own scent | 81 / 79 / 80% | 18 / 21 / 20% | 1 / 0 / 1% | 0 | 0 / 0 / 0 |
+| One per family, the person's own scent left out | **15 / 12 / 11%** | 26 / 27 / 25% | | **59 / 60 / 64%** | 7 / 8 / 10 |
+
+With everyone laying it, bank dwellers included, the band scent still leads 46 / 39 / 34% of these adults to the bank (shared scent: 53 / 48 / 41%), because most bands have members there. No climb stepped on water in any case.
+
+- **Band identity does what a pheromone should:** nobody is led to another band's camp. It gains only 1 to 11 points on getting home, because the scent leads to the nearest bandmates, who are usually the ones nearer the water.
+- **A few channels are enough.** 16 hashed channels come within a few points of an exact field per band; 4 let strangers back in. (A first run of this test hashed every band into the same channel, because band ids vary mostly in their high bits; fixed with a full mix, and the numbers above are from the re-run.)
+- **A family scent cannot stand in for a remembered place.** The 80% is an artefact: the person tested was laying part of that scent. With their own share left out, 59 to 64% of inland adults have no family member inland to lay any, and of the rest about two thirds are led to family living somewhere else. Only 11 to 15% get home.
+- **Reading.** Scent is good at "which way are my people", and identity makes it mean one's own people. It is not good at "which is my hearth", at any grain tested: the only thing that marks one person's place is that person, and they are not there. So a band scent would add band ranges and approaches worn toward a band's ground, and the remembered place stays as the destination; the passable-step rule applies under both.

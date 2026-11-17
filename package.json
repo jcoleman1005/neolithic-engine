@@ -25,6 +25,7 @@
     "map": "vite-node scripts/map-dump.ts --",
     "capture": "vite-node scripts/capture.ts --",
     "probe": "vite-node scripts/settle-probe.ts --",
+    "watch-probe": "vite-node scripts/watch-probe.ts --",
     "compare": "vite-node scripts/compare.ts --",
     "perf": "vite-node scripts/perf.ts",
     "visual": "vite-node scripts/visual-check.ts --",

@@ -72,6 +72,10 @@ export interface PackedPerson {
   readonly fearY?: number;
   readonly placeCost?: number;
   readonly costX?: number;
+  readonly homeX?: number;
+  readonly homeY?: number;
+  readonly homeState?: number;
+  readonly homeTicks?: number;
   readonly costY?: number;
   readonly restTicks?: number;
   readonly confidence?: number;
@@ -89,7 +93,7 @@ const PERSON_FIELDS: Record<keyof PackedPerson, true> = {
   prevDir: true, carry: true, carryKind: true, hydration: true, injury: true, fatigue: true,
   sick: true, rootLeaderId: true,
   // Settlements S3 (turmoil): fear from defeat, rest, and contest confidence.
-  fear: true, fearX: true, fearY: true, placeCost: true, costX: true, costY: true, restTicks: true, confidence: true, confTick: true,
+  fear: true, fearX: true, fearY: true, placeCost: true, costX: true, costY: true, homeX: true, homeY: true, homeState: true, homeTicks: true, restTicks: true, confidence: true, confTick: true,
 };
 
 /** Names older builds wrote that importState still reads. */
@@ -156,6 +160,15 @@ export class People {
   /** S3x place cost: net energy lost in one region (centre costX, costY), fading by 1 / costMemoryTicks a tick. */
   public placeCost: Float32Array;
   public costX: Uint8Array;
+  /**
+   * Watchability: the walk back after drinking. Where the person stood when thirst sent them to water
+   * (homeX, homeY), whether they are on the way to water (homeState 1) or walking back (2; 0 = none),
+   * and the ticks left to get back (homeTicks).
+   */
+  public homeX: Uint8Array;
+  public homeY: Uint8Array;
+  public homeState: Uint8Array;
+  public homeTicks: Uint8Array;
   public costY: Uint8Array;
   /** S3x residence: ticks standing still on the current tile, capped at 255; any step resets it. */
   public restTicks: Uint8Array;
@@ -198,6 +211,10 @@ export class People {
     this.fearY = new Uint8Array(this.capacity);
     this.placeCost = new Float32Array(this.capacity);
     this.costX = new Uint8Array(this.capacity);
+    this.homeX = new Uint8Array(this.capacity);
+    this.homeY = new Uint8Array(this.capacity);
+    this.homeState = new Uint8Array(this.capacity);
+    this.homeTicks = new Uint8Array(this.capacity);
     this.costY = new Uint8Array(this.capacity);
     this.restTicks = new Uint8Array(this.capacity);
     this.activity = new Uint8Array(this.capacity);
@@ -229,6 +246,10 @@ export class People {
       this.fearY[i] = 0;
       this.placeCost[i] = 0;
       this.costX[i] = 0;
+      this.homeX[i] = 0;
+      this.homeY[i] = 0;
+      this.homeState[i] = 0;
+      this.homeTicks[i] = 0;
       this.costY[i] = 0;
       this.restTicks[i] = 0;
       this.confidence[i] = 0;
@@ -302,6 +323,10 @@ export class People {
     this.fearY = copyU8(this.fearY);
     this.placeCost = copyF32(this.placeCost);
     this.costX = copyU8(this.costX);
+    this.homeX = copyU8(this.homeX);
+    this.homeY = copyU8(this.homeY);
+    this.homeState = copyU8(this.homeState);
+    this.homeTicks = copyU8(this.homeTicks);
     this.costY = copyU8(this.costY);
     this.restTicks = copyU8(this.restTicks);
     this.activity = copyU8(this.activity);
@@ -372,6 +397,10 @@ export class People {
     this.fearY[slot] = 0;
     this.placeCost[slot] = 0;
     this.costX[slot] = 0;
+    this.homeX[slot] = 0;
+    this.homeY[slot] = 0;
+    this.homeState[slot] = 0;
+    this.homeTicks[slot] = 0;
     this.costY[slot] = 0;
     this.restTicks[slot] = 0;
     this.activity[slot] = 0;
@@ -421,6 +450,10 @@ export class People {
     this.fearY[slot] = 0;
     this.placeCost[slot] = 0;
     this.costX[slot] = 0;
+    this.homeX[slot] = 0;
+    this.homeY[slot] = 0;
+    this.homeState[slot] = 0;
+    this.homeTicks[slot] = 0;
     this.costY[slot] = 0;
     this.restTicks[slot] = 0;
     this.activity[slot] = 0;
@@ -548,6 +581,10 @@ export class People {
           fearY: this.fearY[slot],
           placeCost: this.placeCost[slot],
           costX: this.costX[slot],
+          homeX: this.homeX[slot],
+          homeY: this.homeY[slot],
+          homeState: this.homeState[slot],
+          homeTicks: this.homeTicks[slot],
           costY: this.costY[slot],
           restTicks: this.restTicks[slot],
           confidence: this.confidence[slot],
@@ -620,6 +657,10 @@ export class People {
       this.fearY[slot] = p.fearY ?? 0;
       this.placeCost[slot] = p.placeCost ?? 0;
       this.costX[slot] = p.costX ?? 0;
+      this.homeX[slot] = p.homeX ?? 0;
+      this.homeY[slot] = p.homeY ?? 0;
+      this.homeState[slot] = p.homeState ?? 0;
+      this.homeTicks[slot] = p.homeTicks ?? 0;
       this.costY[slot] = p.costY ?? 0;
       this.restTicks[slot] = p.restTicks ?? 0;
       this.confidence[slot] = p.confidence ?? 0;
