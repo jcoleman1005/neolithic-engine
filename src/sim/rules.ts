@@ -458,6 +458,34 @@ export class Rules {
       else if (jDir === 3) vy -= 0.8;
     }
 
+    // Gentle hearth / campfire attraction: resting or idle individuals in camps lean towards nearby warmth/shelter
+    if (config.hearthGatheringEnabled !== false && !searching && !afraid) {
+      const here = (py << 8) | px;
+      if (Rules.shelterOutweighsCost(slot, here, people, land, config)) {
+        const hd = land.warmDist[here];
+        if (hd > 0 && hd <= (config.hearthGatherRadius ?? 6)) {
+          let bestDir = -1;
+          let bestD = hd;
+          for (let d = 0; d < 4; d++) {
+            const nx = d === 0 ? (px + 1) & 0xff : d === 1 ? (px - 1) & 0xff : px;
+            const ny = d === 2 ? (py + 1) & 0xff : d === 3 ? (py - 1) & 0xff : py;
+            const nd = land.warmDist[(ny << 8) | nx];
+            if (nd < bestD && Rules.canStep(px, py, d, land)) {
+              bestD = nd;
+              bestDir = d;
+            }
+          }
+          if (bestDir !== -1) {
+            const pull = config.hearthGatherPull ?? 0.35;
+            if (bestDir === 0) vx += pull;
+            else if (bestDir === 1) vx -= pull;
+            else if (bestDir === 2) vy += pull;
+            else if (bestDir === 3) vy -= pull;
+          }
+        }
+      }
+    }
+
     // If movement desire is negligible, stay
     if (Math.abs(vx) < 0.05 && Math.abs(vy) < 0.05) {
       return 4; // Stay

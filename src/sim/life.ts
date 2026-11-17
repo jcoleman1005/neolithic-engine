@@ -929,6 +929,10 @@ export class LifeSystem {
         if (foundMateSlot !== -1) {
           pregnant[slot] = 0;
           mateId[slot] = people.idOf(foundMateSlot);
+          if (actOn) {
+            people.activity[slot] |= EV_BIRTH;
+            people.activity[foundMateSlot] |= EV_BIRTH;
+          }
         }
       }
     }

@@ -57,6 +57,8 @@ const TABLE = [
   { key: 'farSightEnabled', group: 'Movement', label: 'Far sight', help: 'A searching person can see which nearby block of land holds the most plant food and heads that way.', when: L, requires: ['hungerSearchEnabled'] },
   { key: 'stayValueEnabled', group: 'Movement', label: 'Honest stay check', help: 'Deciding whether to stay counts the food heap underfoot and the real upkeep of the tile.', when: L },
   { key: 'comfortableStayEnabled', group: 'Movement', label: 'Content people stay put', help: 'Someone whose tile passes the stay check resists a leader pulling them away.', when: L },
+  { key: 'hearthGatheringEnabled', group: 'Movement', label: 'Hearth gathering', help: 'Idle or resting people in camp steer gently toward nearby hearths, fires and shelters.', when: L },
+  { key: 'mourningEnabled', group: 'Body and health', label: 'Mourning kin', help: 'Nearby kin pause respectfully when an elder or relative passes away in camp.', when: L },
   { key: 'copyEnabled', group: 'Movement', label: 'Follow a leader', help: 'Every few ticks people look at their neighbours and choose someone to follow.', when: L },
   { key: 'wallCrossingEnabled', group: 'Movement', label: 'Climbing over walls', help: 'Stepping onto a wall costs extra energy and wears it down, so nobody is sealed in and busy crossings open into gaps.', when: L },
   { key: 'jitterEnabled', group: 'Movement', label: 'Persistent wandering', help: 'Wandering keeps its heading with occasional straight dashes; the wiring was taken out because it measured as a no-op.', when: L, inert: true },

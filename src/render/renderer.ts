@@ -115,7 +115,7 @@ const SETTLEMENT_LABEL_OUTLINE = '#1a1208';
 const SETTLEMENT_ICON = '#e8dcc4';
 const SETTLEMENT_ICON_CAMP = '#c9a26b';
 // #3b event pops: ring size, colours and 5 x 5 icons (0 empty, else an index into POP_COLOURS).
-const POP_CAP = 256;
+const POP_CAP = 512;
 const POP_OUTLINE = 'rgba(20, 24, 36, 0.75)';
 const POP_MEAT = '#dc2626';
 const POP_HEART = '#f472b6';

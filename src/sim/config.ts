@@ -160,6 +160,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   stayRefFood: 10.0, // food a tile with no plant capacity (rock, a hut on a hill) is measured against
   roamStayWeight: 0.2, // roaming and curious people need this much more (at the top of the range) to stay (S1 tuning: was 0.5)
   comfortableStayEnabled: true, // someone whose tile passes the stay check resists a leader's pull
+  hearthGatheringEnabled: true, // resting/idle people in camps lean towards warm hearths and shelter
+  hearthGatherRadius: 6, // maximum distance (in steps) a resting camper will steer towards warmth
+  hearthGatherPull: 0.35, // gentle pull weight towards hearth/shelter
+  mourningEnabled: true, // nearby kin pause with respectful mourning when a relative dies
   tileCrowdingEnabled: true, // a hut or nest's upkeep discount is shared among those on the tile
   hutCapacity: 4, // people a hut shelters in full
   nestCapacity: 3, // people a nest shelters in full
