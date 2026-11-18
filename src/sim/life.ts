@@ -511,7 +511,8 @@ export class LifeSystem {
             }
             if (herds!.roll() < effChance) {
               const meatAmt = herds!.energy[prey] * meatFactor;
-              land.dropFood(hx, hy, meatAmt, config);
+              // Spill onto neighbors if the kill tile hits pileCap; any remainder when all 9 tiles are full is lost.
+              land.dropFoodSpill(hx, hy, meatAmt, config);
               herds!.kill(prey);
               herds!.killed++;
               if (actOn) activity[slot] |= EV_KILL;
@@ -698,9 +699,9 @@ export class LifeSystem {
         const here = spatial.cellStarts[c + 1] - spatial.cellStarts[c];
         const atStore = storeUnloadOn && land.pile[c] > 1.0;
         if (here >= dropCrowd || atStore || (dropWhenFull && people.carry[slot] >= foodCarryMax - 0.01)) {
-          land.dropFood(px[slot], py[slot], people.carry[slot], config);
-          people.carry[slot] = 0;
-          carryKind[slot] = CARRY_NONE;
+          const left = land.dropFoodSpill(px[slot], py[slot], people.carry[slot], config);
+          if (left <= 1e-3) { people.carry[slot] = 0; carryKind[slot] = CARRY_NONE; }
+          else people.carry[slot] = left;
         }
       }
 

@@ -90,3 +90,78 @@ describe('Patch 1: carry-kind guards', () => {
     expect(w.people.carryKind[slot]).toBe(CARRY_WATER);
   });
 });
+
+describe('Patch 2: dropFood & dropFoodSpill', () => {
+  it('dropFood returns how much was stored when hitting pileCap', () => {
+    const w = quietWorld({ pileCap: 200 });
+    const cell = findDryLandCell(w);
+    const x = cell & 255;
+    const y = cell >> 8;
+    w.land.pile[cell] = 195;
+    const stored = w.land.dropFood(x, y, 20, w.config);
+    expect(stored).toBe(5);
+    expect(w.land.pile[cell]).toBe(200);
+  });
+
+  it('dropFoodSpill overflows onto neighbors and conserves total pile mass', () => {
+    const w = quietWorld({ pileCap: 200 });
+    let center = -1;
+    for (let y = 10; y < 245 && center < 0; y++) {
+      for (let x = 10; x < 245 && center < 0; x++) {
+        let allLand = true;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (w.land.isWater[((y + dy) << 8) | (x + dx)] === 1) allLand = false;
+          }
+        }
+        if (allLand) center = (y << 8) | x;
+      }
+    }
+    expect(center).toBeGreaterThanOrEqual(0);
+    const x = center & 255;
+    const y = center >> 8;
+    w.land.pile[center] = 200;
+
+    const before = totalPileMass(w);
+    const left = w.land.dropFoodSpill(x, y, 35, w.config);
+    expect(left).toBe(0);
+    expect(totalPileMass(w) - before).toBe(35);
+  });
+
+  it('carrier unload keeps remainder when all 9 tiles in reach are full', () => {
+    const w = quietWorld({ pileCap: 200, stockpilesEnabled: true, dropWhenFull: true });
+    let center = -1;
+    for (let y = 10; y < 245 && center < 0; y++) {
+      for (let x = 10; x < 245 && center < 0; x++) {
+        let allLand = true;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (w.land.isWater[((y + dy) << 8) | (x + dx)] === 1) allLand = false;
+          }
+        }
+        if (allLand) center = (y << 8) | x;
+      }
+    }
+    const x = center & 255;
+    const y = center >> 8;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        w.land.pile[((y + dy) << 8) | (x + dx)] = 200;
+      }
+    }
+    const slot = slotFromId(
+      w.people.spawn(x, y, 80, 0, 0, 0, 0, new Uint8Array(8), new Uint8Array(8), 0)
+    );
+    w.people.carryKind[slot] = CARRY_FOOD;
+    w.people.carry[slot] = 15;
+    w.people.hydration[slot] = w.config.thirstMax ?? 100;
+    // Force dir === 4 (stay still) by keeping hunger below search and energy healthy; prevDir = 4
+    w.people.prevDir[slot] = 4;
+
+    const before = totalPileMass(w);
+    w.step();
+    expect(w.people.carryKind[slot]).toBe(CARRY_FOOD);
+    expect(w.people.carry[slot]).toBeGreaterThan(0);
+    expect(totalPileMass(w)).toBe(before);
+  });
+});

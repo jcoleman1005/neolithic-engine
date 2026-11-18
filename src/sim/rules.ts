@@ -1505,7 +1505,7 @@ export class Rules {
             }
           } else {
             if (people.carryKind[loserSlot] === CARRY_FOOD && people.carry[loserSlot] > 0) {
-              land.dropFood(px, py, people.carry[loserSlot], config);
+              land.dropFoodSpill(px, py, people.carry[loserSlot], config);
             }
           }
           fields.depositDanger(px, py, config.scentDangerDeath ?? 10.0);
@@ -1529,7 +1529,7 @@ export class Rules {
   ): void {
     if (amount <= 0) return;
     if (kind === CARRY_FOOD) {
-      land.dropFood(px, py, amount, config);
+      land.dropFoodSpill(px, py, amount, config);
     } else if (kind === CARRY_SEED) {
       land.dropSeeds(px, py, amount, config);
     } else if (kind === CARRY_BRUSH) {

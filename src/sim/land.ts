@@ -483,11 +483,23 @@ export class Land {
     }
   }
 
-  /** Heaps food on a cell (a carrier unloading). */
-  public dropFood(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): void {
+  /** Heaps food on a cell. Returns how much was stored (the pile cap can refuse some). */
+  public dropFood(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): number {
     const i = ((y & COORD_MASK) << 8) | (x & COORD_MASK);
-    if (this.isWater[i] === 1) return;
-    this.pile[i] = Math.min(config.pileCap ?? 200, this.pile[i] + amount);
+    if (this.isWater[i] === 1 || amount <= 0) return 0;
+    const room = (config.pileCap ?? 200) - this.pile[i];
+    const put = room <= 0 ? 0 : amount < room ? amount : room;
+    this.pile[i] += put;
+    return put;
+  }
+
+  /** Heaps food on this tile, then the 8 around it in the fixed REACH order. Returns what fit nowhere. */
+  public dropFoodSpill(x: number, y: number, amount: number, config: Readonly<SimulationConfig>): number {
+    let left = amount;
+    for (let k = 0; k < 9 && left > 0; k++) {
+      left -= this.dropFood(x + Land.REACH_DX[k], y + Land.REACH_DY[k], left, config);
+    }
+    return left > 1e-6 ? left : 0;
   }
 
   /** Fish stocks, and the distance to fresh water (lakes and rivers above sea level; the sea is salt). */
