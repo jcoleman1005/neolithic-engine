@@ -141,9 +141,9 @@ export class People {
   public rootLeaderId: Uint32Array;
   /** Last step taken: 0 E, 1 W, 2 S, 3 N, 4 none. Used to damp 180 degree reversals. */
   public prevDir: Uint8Array;
-  /** Amount carried: seeds (up to seedCarryMax, not energy) or food (up to foodCarryMax). */
+  /** Amount carried (one kind at a time): seeds, food, brush, stone, earth, or water. */
   public carry: Float32Array;
-  /** CARRY_NONE, CARRY_SEED or CARRY_FOOD. */
+  /** CARRY_NONE, CARRY_SEED, CARRY_FOOD, CARRY_BRUSH, CARRY_STONE, CARRY_EARTH, or CARRY_WATER (one kind at a time). */
   public carryKind: Uint8Array;
   /** Water in the body, 0 to thirstMax: falls each tick, refilled beside fresh water. */
   public hydration: Float32Array;

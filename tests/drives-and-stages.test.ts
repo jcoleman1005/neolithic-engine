@@ -194,8 +194,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         wOff.step();
         if (t % 100 === 0) await new Promise(r => setImmediate(r));
       }
-      // Baseline fingerprint updated for hillside cliff-face cave generation fix
-      expect(wOff.stateHash()).toBe('665525a4ed984acf');
+      // Baseline fingerprint updated for Patch 1 carry-kind guards
+      expect(wOff.stateHash()).toBe('f80ef486195e8cfa');
     });
   });
 });

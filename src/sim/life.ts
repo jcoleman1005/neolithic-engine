@@ -472,7 +472,7 @@ export class LifeSystem {
           const before = eaten;
           eaten += land.graze(px[slot], py[slot], Math.min(fb, maxEnergy - curE) - eaten, config, people.prevDir[slot] === 4);
           if (actOn && eaten > before) act(activity, slot, ACT_GRAZE);
-          if (eaten > 0 && farmOn && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
+          if (eaten > 0 && farmOn && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_SEED)) {
             const c = people.carry[slot] + seedPickup;
             people.carry[slot] = c > seedCarryMax ? seedCarryMax : c;
             carryKind[slot] = CARRY_SEED;
@@ -539,7 +539,7 @@ export class LifeSystem {
           ledger.plantMeal += eaten;
         }
       }
-      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCap && carryKind[slot] !== CARRY_BRUSH && carryKind[slot] !== CARRY_STONE) {
+      if (stockOn && energy[slot] >= hoardAbove && people.carry[slot] < foodCap && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_FOOD || carryKind[slot] === CARRY_SEED)) {
         // Well fed and standing on plenty: gather a little surplus to carry. Hands are full of
         // one thing at a time, so any seeds are set down on the spot first.
         const cell = (py[slot] << 8) | px[slot];
@@ -559,13 +559,14 @@ export class LifeSystem {
       }
       if (
         nestsOn && stockOn && energy[slot] >= brushAbove && people.carry[slot] < brushCap &&
-        land.wooded[(py[slot] << 8) | px[slot]] === 1 && carryKind[slot] !== CARRY_FOOD && carryKind[slot] !== CARRY_STONE
+        land.wooded[(py[slot] << 8) | px[slot]] === 1 && (carryKind[slot] === CARRY_NONE || carryKind[slot] === CARRY_SEED || carryKind[slot] === CARRY_BRUSH)
       ) {
         // Well fed and passing through woodland: pick up brush. Hands hold one thing at a time,
         // so any seeds are set down first.
         if (carryKind[slot] === CARRY_SEED) {
           land.dropSeeds(px[slot], py[slot], people.carry[slot], config);
           people.carry[slot] = 0;
+          carryKind[slot] = CARRY_NONE;
         }
         const cut = land.cutBrush(px[slot], py[slot], stageHarvestOn ? brushBite * cm : brushBite, config);
         if (cut > 0) {
