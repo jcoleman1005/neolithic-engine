@@ -194,8 +194,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         wOff.step();
         if (t % 100 === 0) await new Promise(r => setImmediate(r));
       }
-      // Baseline fingerprint updated for Patch 4 killWithCargo
-      expect(wOff.stateHash()).toBe('664536039b08107d');
+      // Baseline fingerprint updated for Patch 6 inclusive nextInt fixes
+      expect(wOff.stateHash()).toBe('58d83a5afc957f27');
     });
   });
 });

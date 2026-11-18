@@ -649,8 +649,8 @@ export class Rules {
     let bestCandidateSlot = -1;
 
     // Remove directional bias: start scan at a randomized offset within the search square
-    const startY = prng.nextInt(0, side);
-    const startX = prng.nextInt(0, side);
+    const startY = prng.nextInt(0, side - 1);
+    const startX = prng.nextInt(0, side - 1);
 
     const cellStarts = spatial.cellStarts;
     const cellPeople = spatial.cellPeople;

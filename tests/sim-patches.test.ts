@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { Rules } from '../src/sim/rules';
+import { Land } from '../src/sim/land';
+import { PRNG } from '../src/sim/prng';
+import { DEFAULT_CONFIG } from '../src/sim/config';
 import {
   CARRY_EARTH,
   CARRY_FOOD,
@@ -247,5 +250,40 @@ describe('Patch 4: cargo drops when someone dies', () => {
     w.step();
     expect(w.people.alive[slot]).toBe(0);
     expect(totalPileMass(w)).toBeGreaterThan(pileBefore + 10);
+  });
+});
+
+describe('Patch 6: inclusive nextInt fixes', () => {
+  it('initCaves produces valid, unique caveCells in 0..65535 for seeds 1..50', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const land = new Land({ ...DEFAULT_CONFIG, seed });
+      const seen = new Set<number>();
+      for (const cell of land.caveCells) {
+        expect(cell).toBeDefined();
+        expect(Number.isInteger(cell)).toBe(true);
+        expect(cell).toBeGreaterThanOrEqual(0);
+        expect(cell).toBeLessThanOrEqual(65535);
+        expect(seen.has(cell)).toBe(false);
+        seen.add(cell);
+      }
+    }
+  });
+
+  it('copy start offset nextInt(0, side - 1) hits each offset with roughly equal frequency', () => {
+    const side = 2 * 6 + 1; // 13
+    const counts = new Int32Array(side);
+    const prng = new PRNG(42);
+    const draws = 10000;
+    for (let i = 0; i < draws; i++) {
+      const v = prng.nextInt(0, side - 1);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(side);
+      counts[v]++;
+    }
+    const expected = draws / side;
+    for (let k = 0; k < side; k++) {
+      expect(counts[k]).toBeGreaterThan(expected * 0.75);
+      expect(counts[k]).toBeLessThan(expected * 1.25);
+    }
   });
 });

@@ -571,7 +571,7 @@ export class Land {
     }
     const rng = new PRNG(((config.seed ?? 0) ^ 0x5ca5e) >>> 0);
     for (let k = cands.length - 1; k > 0; k--) {
-      const j = rng.nextInt(0, k + 1);
+      const j = rng.nextInt(0, k);
       const t = cands[k]; cands[k] = cands[j]; cands[j] = t;
     }
     const want = config.caveCount ?? 40;
