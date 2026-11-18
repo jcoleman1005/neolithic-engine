@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createWorldBoxSpriteAtlas, hexToABGR, type SpriteKey } from '../src/render/sprites';
+import { createWorldBoxSpriteAtlas, hexToABGR, PERSON_FRAMES, type SpriteKey } from '../src/render/sprites';
 
 describe('WorldBox Sprite Atlas', () => {
   it('converts hex colors to 32-bit little-endian ABGR integers', () => {
@@ -41,7 +41,13 @@ describe('WorldBox Sprite Atlas', () => {
       'tree_pine',
       'tree_fruit',
       'selector_chevron',
+      'star_leader',
     ];
+    for (const type of ['male', 'female', 'pregnant', 'child', 'elder', 'starving'] as const) {
+      for (const frame of PERSON_FRAMES) {
+        requiredKeys.push(`person_${type}_${frame}` as SpriteKey);
+      }
+    }
 
     for (const key of requiredKeys) {
       const rect = atlas.getSprite(key);

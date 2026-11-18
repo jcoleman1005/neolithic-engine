@@ -11,11 +11,12 @@ import {
   LOOK_STAGE_ELDER,
   LOOK_ENERGY_MASK,
 } from '../sim/protocol';
-import { ACT_FLEE, ACT_MASK, EV_BIRTH, EV_BUILT, EV_FIRE, EV_KILL, EV_MASK } from '../sim/activity';
+import { ACT_FIGHT, ACT_FLEE, ACT_HUNT, ACT_MASK, EV_BIRTH, EV_BUILT, EV_FIRE, EV_KILL, EV_MASK } from '../sim/activity';
 import { holdPose, poseFor, popShape, POP_MS } from './poses';
 import { BAND_COLOURS, LIMITED, limitCanvasColours, quantizeImage, quantizeOver } from './limited-palette';
 import {
   PERSON_FRAMES,
+  POSE_STRIKE,
   createWorldBoxSpriteAtlas,
   hexToABGR,
   type SpriteAtlas,
@@ -81,8 +82,8 @@ const COLOR_SEEDS_RGB = 0x28c8f0; // rgb(240, 200, 40), alpha added per cell
 const COLOR_HEAP_RGB = 0x2896f0; // rgb(240, 150, 40), bright orange so a food heap never reads as brown
 // Carry marks by kind: none, seed, food, brush, stone, earth, water.
 // Carry kinds, as in src/sim/people.ts (CARRY_SEED ... CARRY_WATER); the viewer keeps its own copy.
-const CARRY_KIND_SEED = 1, CARRY_KIND_BRUSH = 3, CARRY_KIND_STONE = 4, CARRY_KIND_EARTH = 5, CARRY_KIND_WATER = 6;
-const CARRY_MARK_COLOURS = ['', '#e9c86a', '#e8863a', '#9a6a35', '#a4a7ad', '#6b4a2e', '#3f8ff0', ''];
+const CARRY_KIND_SEED = 1, CARRY_KIND_FOOD = 2, CARRY_KIND_BRUSH = 3, CARRY_KIND_STONE = 4, CARRY_KIND_EARTH = 5, CARRY_KIND_WATER = 6;
+const CARRY_MARK_COLOURS = ['', '#e9c86a', '#d03838', '#9a6a35', '#a4a7ad', '#6b4a2e', '#3f8ff0', ''];
 const COLOR_WATERSTORE_RGB = 0xd68f4f; // rgb(79, 143, 214), stored water
 const COLOR_PATH_RGB = 0x3f5f80; // rgb(128, 95, 63), trodden earth on worn paths
 // 6b-1 weather channel: dryness in bits 0 and 1 (see Land.packWeather).
@@ -116,7 +117,7 @@ const SETTLEMENT_ICON = '#e8dcc4';
 const SETTLEMENT_ICON_CAMP = '#c9a26b';
 // #3b event pops: ring size, colours and 5 x 5 icons (0 empty, else an index into POP_COLOURS).
 const POP_CAP = 512;
-const POP_OUTLINE = 'rgba(20, 24, 36, 0.75)';
+const POP_OUTLINE = '#101828';
 const POP_MEAT = '#dc2626';
 const POP_HEART = '#f472b6';
 const POP_COLOURS = ['', '#b91c1c', '#ef4444', '#f8fafc', '#f472b6', '#fbbf24', '#f97316', '#a16207', '#d6b48a', '#3b2a1c'];
@@ -251,8 +252,8 @@ export class CanvasRenderer {
   private insets: ViewInsets = { top: 0, bottom: 0, left: 0, right: 0 };
 
   // Integer scale zoom and pan
-  private zoomIndex = 2; // Default scale: ZOOM_STEPS[2] = 3
-  public cellSize: number = ZOOM_STEPS[2];
+  private zoomIndex = 6; // Default scale: ZOOM_STEPS[6] = 8 (sprites, poses, and huts visible on launch)
+  public cellSize: number = ZOOM_STEPS[6];
   private gotoTarget: { x: number; y: number } | null = null;
   /** False: single bounded world view, no viewport tiling. */
   private wrapX = false;
@@ -2062,8 +2063,13 @@ export class CanvasRenderer {
       }
 
       const isMoving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01;
+      const act = this.activityBytes[slot] & ACT_MASK;
       let frame: number;
-      if (isMoving) {
+      if (act === ACT_HUNT || act === ACT_FIGHT) {
+        // Hunters chasing prey and fighters closing in keep their spear raised even while moving.
+        frame = POSE_STRIKE;
+        this.shownPose[slot] = 0;
+      } else if (isMoving) {
         frame = (Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2;
         this.shownPose[slot] = 0;
       } else {
@@ -2170,12 +2176,15 @@ export class CanvasRenderer {
       );
     }
 
-    // What they carry: an outlined load at the hip, its shape and colour by kind.
+    // What they carry: an outlined load held in front of the body, its shape and colour by kind.
     const carriedKind = this.carryBytes[slot] & 7;
-    if (carriedKind !== 0) this.drawCarry(Math.round(fx + 1.5 * ap), Math.round(fy - 5.5 * ap), carriedKind);
+    if (carriedKind !== 0) {
+      const carryX = Math.round(fx + (facing === 0 ? -4.5 : 1.5) * ap);
+      this.drawCarry(carryX, Math.round(fy - 5.5 * ap), carriedKind);
+    }
 
     // #3b: someone fleeing where they were beaten shows a small white alarm mark above the head.
-    if ((this.activityBytes[slot] & ACT_MASK) === ACT_FLEE && this.cellSize >= 10) {
+    if ((this.activityBytes[slot] & ACT_MASK) === ACT_FLEE && this.cellSize >= 8) {
       const u = Math.max(1, Math.round(ap));
       const mx = Math.round(fx + 3 * ap);
       const my = Math.round(fy - spr.anchorY * ap - 3 * u);
@@ -2213,13 +2222,13 @@ export class CanvasRenderer {
    */
   private drawCarry(x: number, y: number, kind: number): void {
     const ctx = this.ctx;
-    if (this.cellSize < 10) {
-      // Small figures: a plain 2 px mark, as before; an outline would turn a crowd into a dark blob.
+    if (this.cellSize < 8) {
+      // Small figures: a plain 2 px mark; an outline would turn a crowd into a dark blob.
       ctx.fillStyle = CARRY_MARK_COLOURS[kind];
       ctx.fillRect(x, y, 2, 2);
       return;
     }
-    const s = Math.max(1, Math.floor(this.ap * 0.8)); // a touch under the figure's own pixel, so the load never outweighs the body
+    const s = Math.max(1, Math.floor(this.ap * 0.85)); // a touch under the figure's own pixel, so the load never outweighs the body
     // w, h in art pixels; one screen-pixel dark outline around the whole load.
     const w = kind === CARRY_KIND_SEED ? 2 : kind === CARRY_KIND_BRUSH ? 4 : kind === CARRY_KIND_WATER ? 2 : 3;
     const h = kind === CARRY_KIND_WATER ? 3 : kind === CARRY_KIND_STONE ? 3 : 2;
@@ -2227,7 +2236,11 @@ export class CanvasRenderer {
     ctx.fillRect(x - 1, y - 1, w * s + 2, h * s + 2);
     ctx.fillStyle = CARRY_MARK_COLOURS[kind];
     ctx.fillRect(x, y, w * s, h * s);
-    if (kind === CARRY_KIND_BRUSH) {
+    if (kind === CARRY_KIND_FOOD) {
+      // Meat haunch / food bundle with a pale bone tip on the end
+      ctx.fillStyle = '#f8f8d0';
+      ctx.fillRect(x + 2 * s, y + s, s, s);
+    } else if (kind === CARRY_KIND_BRUSH) {
       // Two sticks, the lower one offset: a bundle, not a block.
       ctx.fillStyle = '#5a3a1a';
       ctx.fillRect(x, y + s, s, s);
@@ -2761,66 +2774,78 @@ export class CanvasRenderer {
     this.R(x0, y0, face ? u : 8 - u - w, v, w, h, c);
   }
 
-  /** A herd animal in side view, standing: lit back, shaded belly and rump, shadow to the south-east. */
+  /** A herd animal in side view, standing or trotting: outlined silhouette, lit back, white tail, bright antlers. */
   private drawDeer(x0: number, y0: number, face: boolean, frame: number): void {
     const M = (u: number, v: number, w: number, h: number, c: string): void => this.M(x0, y0, face, u, v, w, h, c);
-    M(1.6, 6.9, 6.0, 0.9, SHADOW);
+    M(1.4, 6.9, 6.2, 0.9, SHADOW);
+
+    // Crisp dark navy outline backing behind body, neck, and head
+    M(0.8, 2.7, 6.1, 2.7, '#101828');
+    M(5.9, 1.9, 2.2, 2.3, '#101828');
 
     // Trotting gait or standing
     if (frame === 1) {
-      M(1.2, 5, 0.6, 2, '#6b4220');
-      M(3.0, 5, 0.6, 2, '#6b4220');
-      M(4.0, 5, 0.6, 2, '#6b4220');
-      M(5.8, 5, 0.6, 2, '#6b4220');
+      M(1.2, 5, 0.7, 2, '#482018');
+      M(3.0, 5, 0.7, 2, '#482018');
+      M(4.0, 5, 0.7, 2, '#482018');
+      M(5.8, 5, 0.7, 2, '#482018');
     } else if (frame === 2) {
-      M(2.0, 5, 0.6, 2, '#6b4220');
-      M(2.2, 5, 0.6, 2, '#6b4220');
-      M(4.8, 5, 0.6, 2, '#6b4220');
-      M(5.0, 5, 0.6, 2, '#6b4220');
+      M(2.0, 5, 0.7, 2, '#482018');
+      M(2.2, 5, 0.7, 2, '#482018');
+      M(4.8, 5, 0.7, 2, '#482018');
+      M(5.0, 5, 0.7, 2, '#482018');
     } else {
-      for (const lx of [1.6, 2.6, 4.4, 5.4]) M(lx, 5, 0.6, 2, '#6b4220'); // legs
+      for (const lx of [1.6, 2.6, 4.4, 5.4]) M(lx, 5, 0.7, 2, '#482018'); // legs
     }
 
-    M(1.2, 3, 5.4, 2.2, '#b8793c'); // body
-    M(1.2, 4.6, 5.4, 0.6, '#8f5a2a'); // shaded belly
-    M(5.6, 3.4, 1.0, 1.8, '#9a6030'); // shaded haunch on the far side from the light
+    M(1.2, 3, 5.4, 2.1, '#b8793c'); // body
+    M(1.2, 4.5, 5.4, 0.6, '#8f5a2a'); // shaded belly
+    M(5.6, 3.4, 1.0, 1.7, '#9a6030'); // shaded haunch
     M(1.2, 3, 5.4, 0.7, '#d9a35c'); // lit back
-    M(6.2, 2.2, 1.6, 1.8, '#9a6030'); // head and neck
-    M(6.8, 1.2, 0.5, 1.1, '#e8d8b0'); // antler tines
-    M(7.2, 2.8, 0.4, 0.4, '#1c1008'); // eye
+    M(0.6, 2.9, 0.8, 0.8, '#f8f8f8'); // bright white tail flash
+    M(6.2, 2.2, 1.6, 1.7, '#9a6030'); // head and neck
+    M(6.8, 1.0, 0.5, 1.3, '#f8f8d0'); // bright cream antler tines
+    M(7.3, 1.3, 0.4, 0.6, '#f8f8d0');
+    M(7.2, 2.7, 0.4, 0.4, '#101828'); // eye
   }
 
-  /** A wolf in side view: lean, ears up, tail out. */
+  /** A wolf in side view: outlined lean silhouette, ears up, pale snout, amber eye, tail out. */
   private drawWolf(x0: number, y0: number, face: boolean, frame: number): void {
     const M = (u: number, v: number, w: number, h: number, c: string): void => this.M(x0, y0, face, u, v, w, h, c);
-    M(1.4, 6.9, 6.0, 0.9, SHADOW);
+    M(1.2, 6.9, 6.2, 0.9, SHADOW);
+
+    // Crisp dark navy outline backing behind body, head, and ears
+    M(0.7, 2.7, 5.8, 2.7, '#101828');
+    M(5.7, 2.1, 2.6, 2.1, '#101828');
+    M(6.0, 1.3, 1.8, 1.1, '#101828');
 
     // Trotting leg pairs or standing
     if (frame === 1) {
-      M(1.0, 5, 0.6, 2, '#3a3a44');
-      M(2.8, 5, 0.6, 2, '#3a3a44');
-      M(4.2, 5, 0.6, 2, '#3a3a44');
-      M(6.0, 5, 0.6, 2, '#3a3a44');
+      M(1.0, 5, 0.7, 2, '#101828');
+      M(2.8, 5, 0.7, 2, '#101828');
+      M(4.2, 5, 0.7, 2, '#101828');
+      M(6.0, 5, 0.7, 2, '#101828');
     } else if (frame === 2) {
-      M(1.8, 5, 0.6, 2, '#3a3a44');
-      M(2.0, 5, 0.6, 2, '#3a3a44');
-      M(5.0, 5, 0.6, 2, '#3a3a44');
-      M(5.2, 5, 0.6, 2, '#3a3a44');
+      M(1.8, 5, 0.7, 2, '#101828');
+      M(2.0, 5, 0.7, 2, '#101828');
+      M(5.0, 5, 0.7, 2, '#101828');
+      M(5.2, 5, 0.7, 2, '#101828');
     } else {
-      for (const lx of [1.4, 2.4, 4.6, 5.6]) M(lx, 5, 0.6, 2, '#3a3a44'); // standing
+      for (const lx of [1.4, 2.4, 4.6, 5.6]) M(lx, 5, 0.7, 2, '#101828'); // standing
     }
 
-    M(1.0, 3, 5.2, 2.2, '#7c7c88'); // lean body
-    M(1.0, 4.6, 5.2, 0.6, '#5c5c68'); // shaded belly
-    M(1.0, 3, 5.2, 0.6, '#a4a4b0'); // back light
-    M(6.0, 2.4, 2, 1.6, '#5c5c68'); // head and snout
-    M(7.4, 3.2, 0.8, 0.8, '#5c5c68');
-    M(6.2, 1.6, 0.6, 0.9, '#3a3a44'); // ears
-    M(7.0, 1.6, 0.6, 0.9, '#3a3a44');
+    M(1.0, 3, 5.2, 2.1, '#586078'); // lean dark slate-grey body
+    M(1.0, 4.5, 5.2, 0.6, '#303048'); // shaded belly
+    M(1.0, 3, 5.2, 0.6, '#8890a8'); // back light
+    M(6.0, 2.4, 2, 1.5, '#586078'); // head and snout
+    M(7.4, 3.2, 0.8, 0.7, '#8890a8'); // pale muzzle
+    M(6.2, 1.5, 0.6, 1.0, '#303048'); // ears
+    M(7.0, 1.5, 0.6, 1.0, '#303048');
 
     const tailY = frame === 1 ? 2.3 : frame === 2 ? 2.8 : 2.6;
-    M(0, tailY, 1.2, 0.7, '#7c7c88'); // tail
-    M(7.0, 2.7, 0.4, 0.4, '#e8c020'); // eye
+    M(-0.1, tailY - 0.2, 1.4, 1.0, '#101828'); // tail outline
+    M(0, tailY, 1.2, 0.7, '#8890a8'); // tail
+    M(7.0, 2.7, 0.5, 0.5, '#f8e090'); // bright amber eye
   }
 
   /** A fresh kill: a dead animal on its back, legs in the air, with blood on the ground. */

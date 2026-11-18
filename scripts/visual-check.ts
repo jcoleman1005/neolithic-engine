@@ -408,7 +408,7 @@ async function scenario(c: Check, page: Page, snap: SplitSnapshot, seed: number,
   c.begin('01-world-overview');
   const s0 = await c.state();
   c.note(`seed ${s0.seed}, tick ${s0.tick}, ${s0.population} people, ${lm.waterCells} water cells and ${lm.cliffCells} cliff cells in the world`);
-  c.expect((await c.view()).cellSize === 3, `expected the default cell size 3, got ${(await c.view()).cellSize}`);
+  c.expect((await c.view()).cellSize === 8, `expected the default cell size 8, got ${(await c.view()).cellSize}`);
   // The world is smaller than the window at this zoom, so a fifth of the picture is void by design.
   await c.capture({ ...DEFAULT_BLANK_LIMITS, maxDominantFraction: 0.5 });
 
