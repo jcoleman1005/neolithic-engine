@@ -160,6 +160,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   stayRefFood: 10.0, // food a tile with no plant capacity (rock, a hut on a hill) is measured against
   roamStayWeight: 0.2, // roaming and curious people need this much more (at the top of the range) to stay (S1 tuning: was 0.5)
   comfortableStayEnabled: true, // someone whose tile passes the stay check resists a leader's pull
+  hearthGatheringEnabled: true, // resting/idle people in camps lean towards warm hearths and shelter
+  hearthGatherRadius: 6, // maximum distance (in steps) a resting camper will steer towards warmth
+  hearthGatherPull: 0.35, // gentle pull weight towards hearth/shelter
+  mourningEnabled: true, // nearby kin pause with respectful mourning when a relative dies
   tileCrowdingEnabled: true, // a hut or nest's upkeep discount is shared among those on the tile
   hutCapacity: 4, // people a hut shelters in full
   nestCapacity: 3, // people a nest shelters in full
@@ -290,6 +294,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   huntScalingEnabled: true, // weapon and strength scaling for hunting strikes
   huntStrengthBonus: 0.2, // bonus strike chance for high-strength hunters (up to +0.20)
   huntStoneBonus: 0.15, // bonus strike chance when carrying a stone weapon
+  pursuitHuntEnabled: true, // hungry hunters spot game within range and chase them down
+  huntSenseRadius: 5, // line-of-sight radius for hunters to spot and commit to quarry
+  huntMaxChaseTicks: 25, // maximum ticks to pursue quarry before giving up
+  huntSprintCost: 0.1, // extra energy cost per sprint step in pursuit (booked to ledger.move)
   herdScentEnabled: true, // herds emit prey food scent so hungry climbers can track them
   herdScentEmitRate: 0.2, // prey scent emitted per unit of herd body energy
   carcassTicks: 120, // how long the dead-animal graphic stays (viewer only), if the meat lasts

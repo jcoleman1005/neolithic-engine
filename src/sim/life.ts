@@ -525,6 +525,10 @@ export class LifeSystem {
                   const took = land.takePile(hx, hy, canTake);
                   people.carry[slot] += took;
                   carryKind[slot] = CARRY_FOOD;
+                  if (config.pursuitHuntEnabled !== false && people.homeX[slot] === 0 && people.homeY[slot] === 0) {
+                    people.homeX[slot] = hx;
+                    people.homeY[slot] = hy;
+                  }
                 }
               }
             }
@@ -929,6 +933,10 @@ export class LifeSystem {
         if (foundMateSlot !== -1) {
           pregnant[slot] = 0;
           mateId[slot] = people.idOf(foundMateSlot);
+          if (actOn) {
+            people.activity[slot] |= EV_BIRTH;
+            people.activity[foundMateSlot] |= EV_BIRTH;
+          }
         }
       }
     }

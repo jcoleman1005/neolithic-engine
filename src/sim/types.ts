@@ -203,6 +203,12 @@ export interface SimulationConfig {
   stayRefFood: number;
   roamStayWeight: number;
   comfortableStayEnabled: boolean;
+  /** Rest / idle individuals lean towards warm hearths and shelters when resting. */
+  hearthGatheringEnabled: boolean;
+  hearthGatherRadius?: number;
+  hearthGatherPull?: number;
+  /** Nearby kin and partners pause with a moment of respect when a person dies. */
+  mourningEnabled: boolean;
   tileCrowdingEnabled: boolean;
   hutCapacity: number;
   nestCapacity: number;
@@ -369,6 +375,10 @@ export interface SimulationConfig {
   huntScalingEnabled?: boolean;
   huntStrengthBonus?: number;
   huntStoneBonus?: number;
+  pursuitHuntEnabled?: boolean;
+  huntSenseRadius?: number;
+  huntMaxChaseTicks?: number;
+  huntSprintCost?: number;
   herdScentEnabled?: boolean;
   herdScentEmitRate?: number;
   carcassTicks: number;

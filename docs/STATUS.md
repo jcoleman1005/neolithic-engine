@@ -1,6 +1,28 @@
 # Neolithic Engine — Status
 
-## Handoff (2026-11-12): read this first
+## Handoff (2026-11-17): read this first
+- **2026-11-17, watchability: Phase 2 Activity Pillars built on branch `watch-activity-pillars` (off `watch-emotional-pillars`)**:
+  - Built:
+    - **Pursuit Hunting & Meat Haul Return Trip** (`pursuitHuntEnabled`): When hunters successfully butcher fresh meat (`carryKind === CARRY_FOOD`), they retain their home camp coordinates and steer home with meat loads.
+    - **Feature Switches & UI**: `pursuitHuntEnabled` added to configuration and UI feature switch table (`Animals and hunting`).
+    - **Cross-seed 50-year validation**: Seeds 1 to 3 ran 50 years; stable populations (8,000–9,100), herds sustained at carrying capacity (~298/300), 0 die-outs.
+  - **Checks**:
+    - All 63 test files and 456 tests passed (`vitest`).
+    - Baseline parity check with new mechanics switched off reproduces exact baseline fingerprints (`bc2e5165908de31a`).
+    - New default fingerprint at 1800 ticks: `ab896aa9714520d7`.
+    - Perf: **2.278 µs / person / tick** at 14,459 people (well under the 15.0 µs budget).
+- **2026-11-17, watchability: merged bank fixes to main, emotional pillars built on branch `watch-emotional-pillars`**:
+  - `watch-w1a-abundance` merged to `main` (commit `defae66`) and pushed to origin.
+  - Built emotional pillars:
+    - **Camp Hearth Gathering** (`hearthGatheringEnabled`): Resting and idle campers steer gently towards nearby warmth/hearths (`hearthGatherRadius: 6`, `hearthGatherPull: 0.35`), weighing place cost.
+    - **Courtship & Pair-Bonding Heart Pops**: When two individuals pair-bond / conceive (`mateId` assigned), heart pops (`EV_BIRTH` / `POP_ICON_HEART`) trigger over both parents.
+    - **Mourning** (`mourningEnabled`): Setting and switch wired for respectful kin response.
+    - **Pop Buffer**: Expanded `POP_CAP` from 256 to 512 so simultaneous social events don't drop emblems.
+  - **Checks**:
+    - All 63 test files and 456 tests passed (`vitest`).
+    - Parity check with switches off matches baseline fingerprint (`bc2e5165908de31a`).
+    - New default fingerprint at 1800 ticks: `f22630f4aca597ba`.
+    - Perf: **2.431 µs / person / tick** at 14,462 people (well under the 15.0 µs budget).
 - **2026-11-16, band-identified scent: smoke-tested as a prototype, not implemented; waits for the user's choice** (`scripts/band-scent-smoke.ts`; `docs/findings.md`, "A scent with a band's identity"). Band identity keeps people from being led to strangers and is stable (7 to 9% of adults change band a year), but a band is spread over about 15 tiles, so it gets only 32 to 43% home against 31% for a shared scent. 16 hashed channels approximate a field per band. A family scent gets 11 to 15% home once the person's own scent is left out. Conclusion: band scent for "my people are this way", the remembered place for "my camp".
 - **2026-11-15, home scent and "can't walk on water": smoke-tested as a prototype, not implemented; waits for the user's choice.** The user proposed them in place of the remembered walk back. Prototype `scripts/home-scent-proto.ts`, mechanism tests `tests/home-scent-proto.test.ts` (13 pass), real-world smoke test `scripts/home-scent-smoke.ts`; tables in `docs/findings.md` ("Home scent and can't walk on water"). No simulation file changed; `VERIFY_VISUAL=1 npm run verify` exit 0.
   - **Holds up:** a land-only scent never leads onto water, follows the shortest land route, and costs about 0.4 ms a field step.
