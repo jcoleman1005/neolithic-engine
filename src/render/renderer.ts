@@ -12,7 +12,7 @@ import {
   LOOK_ENERGY_MASK,
 } from '../sim/protocol';
 import { ACT_FIGHT, ACT_FLEE, ACT_HUNT, ACT_MASK, EV_BIRTH, EV_BUILT, EV_FIRE, EV_KILL, EV_MASK } from '../sim/activity';
-import { holdPose, poseFor, popShape, POP_MS } from './poses';
+import { bendGlyphFor, holdPose, poseFor, popShape, POP_MS, type BendGlyph } from './poses';
 import { BAND_COLOURS, LIMITED, limitCanvasColours, quantizeImage, quantizeOver } from './limited-palette';
 import {
   PERSON_FRAMES,
@@ -327,6 +327,7 @@ export class CanvasRenderer {
   /** Watchability #3b: what each person is doing (see sim/activity.ts), and the pose on screen with when its hold ends. */
   private readonly activityBytes = new Uint8Array(65536);
   private readonly shownPose = new Uint8Array(65536);
+  private readonly shownAct = new Uint8Array(65536);
   private readonly poseUntil = new Float64Array(65536);
   /** Event pops (kills, births, fires, finished huts): a ring of cell, kind and wall-clock start. */
   private readonly popX = new Float32Array(POP_CAP);
@@ -2072,12 +2073,14 @@ export class CanvasRenderer {
         // Hunters chasing prey and fighters closing in keep their spear raised even while moving.
         frame = POSE_STRIKE;
         this.shownPose[slot] = 0;
+        this.shownAct[slot] = 0;
       } else if (isMoving) {
         frame = (Math.floor(rx * 2 + ry * 2) & 1) === 0 ? 1 : 2;
         this.shownPose[slot] = 0;
+        this.shownAct[slot] = 0;
       } else {
         // #3b: a standing person shows what they are doing; a short action holds for about a second.
-        frame = holdPose(this.shownPose, this.poseUntil, slot, poseFor(this.activityBytes[slot]), now);
+        frame = holdPose(this.shownPose, this.poseUntil, slot, poseFor(this.activityBytes[slot]), now, this.shownAct, act);
       }
       this.emitAt(D_PERSON, baseX, baseY, slot, frame | (facing << 3), 0, screenW, screenH, worldPxW, worldPxH);
     }
@@ -2188,6 +2191,17 @@ export class CanvasRenderer {
       this.drawCarry(Math.round(fx + carryOffsetX * ap), Math.round(fy + carryOffsetY * ap), carriedKind);
     }
 
+    // When zoomed in, show a tiny glyph by the lowered head explaining why they are bent over.
+    if (frame === POSE_BEND && this.cellSize >= 12) {
+      const glyph = bendGlyphFor(this.shownAct[slot] || (this.activityBytes[slot] & ACT_MASK), carriedKind);
+      if (glyph !== 0) {
+        const u = Math.max(1, Math.round(ap * 0.7));
+        const gx = Math.round(fx + (facing === 0 ? -6.5 : 3.5) * ap);
+        const gy = Math.round(fy - spr.anchorY * ap - u);
+        this.drawBendGlyph(gx, gy, glyph, u);
+      }
+    }
+
     // #3b: someone fleeing where they were beaten shows a small white alarm mark above the head.
     if ((this.activityBytes[slot] & ACT_MASK) === ACT_FLEE && this.cellSize >= 8) {
       const u = Math.max(1, Math.round(ap));
@@ -2264,6 +2278,69 @@ export class CanvasRenderer {
     } else if (kind === CARRY_KIND_WATER) {
       ctx.fillStyle = '#c8e8ff';
       ctx.fillRect(x, y, s, s);
+    }
+  }
+
+  /** Tiny outlined glyph by a bent-over person's head (zoomed-in view only) showing activity or cargo. */
+  private drawBendGlyph(x: number, y: number, glyph: BendGlyph, u: number): void {
+    const ctx = this.ctx;
+    const w = glyph === 'brush' || glyph === 'build' ? 4 : glyph === 'water' ? 2 : 3;
+    const h = 3;
+    ctx.fillStyle = POP_OUTLINE;
+    ctx.fillRect(x - 1, y - 1, w * u + 2, h * u + 2);
+    if (glyph === 'seed') {
+      // Golden seeds with a green sprout tip
+      ctx.fillStyle = '#e9c86a';
+      ctx.fillRect(x, y + u, 3 * u, 2 * u);
+      ctx.fillStyle = '#74c454';
+      ctx.fillRect(x + u, y, u, u);
+    } else if (glyph === 'food') {
+      // Berry/meat bundle with a pale highlight
+      ctx.fillStyle = '#d03838';
+      ctx.fillRect(x, y, 3 * u, 3 * u);
+      ctx.fillStyle = '#f8f8d0';
+      ctx.fillRect(x + 2 * u, y + u, u, u);
+    } else if (glyph === 'stone') {
+      // Faceted grey stone
+      ctx.fillStyle = '#a4a7ad';
+      ctx.fillRect(x, y, 3 * u, 3 * u);
+      ctx.fillStyle = '#d4d6da';
+      ctx.fillRect(x, y, 2 * u, u);
+      ctx.fillStyle = '#5f6268';
+      ctx.fillRect(x + 2 * u, y + 2 * u, u, u);
+    } else if (glyph === 'brush') {
+      // Crossed sticks with a twig fleck
+      ctx.fillStyle = '#9a6a35';
+      ctx.fillRect(x, y + u, 4 * u, u);
+      ctx.fillRect(x + u, y, 2 * u, 3 * u);
+      ctx.fillStyle = '#7fa04a';
+      ctx.fillRect(x + 3 * u, y, u, u);
+    } else if (glyph === 'earth') {
+      ctx.fillStyle = '#6b4a2e';
+      ctx.fillRect(x, y + u, 3 * u, 2 * u);
+      ctx.fillStyle = '#b08050';
+      ctx.fillRect(x + u, y, u, u);
+    } else if (glyph === 'water') {
+      ctx.fillStyle = '#3f8ff0';
+      ctx.fillRect(x, y, 2 * u, 3 * u);
+      ctx.fillStyle = '#c8e8ff';
+      ctx.fillRect(x, y, u, u);
+    } else if (glyph === 'tend') {
+      // Downward tamp mallet/arrow pressing onto a heap
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(x + u, y, u, 2 * u);
+      ctx.fillRect(x, y + u, 3 * u, u);
+      ctx.fillStyle = '#fde68a';
+      ctx.fillRect(x, y + 2 * u, 3 * u, u);
+    } else if (glyph === 'build') {
+      // Two staggered wall courses
+      ctx.fillStyle = '#8f949d';
+      ctx.fillRect(x, y, 4 * u, 3 * u);
+      ctx.fillStyle = '#d4d6da';
+      ctx.fillRect(x, y, 2 * u, u);
+      ctx.fillRect(x + 2 * u, y + 2 * u, 2 * u, u);
+      ctx.fillStyle = '#3c4048';
+      ctx.fillRect(x, y + u, 4 * u, u);
     }
   }
 
