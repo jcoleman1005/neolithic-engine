@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
+import { Rules } from '../src/sim/rules';
 import {
   CARRY_EARTH,
   CARRY_FOOD,
   CARRY_WATER,
+  HABIT_GENEROSITY,
   slotFromId,
 } from '../src/sim/people';
 
@@ -163,5 +165,54 @@ describe('Patch 2: dropFood & dropFoodSpill', () => {
     expect(w.people.carryKind[slot]).toBe(CARRY_FOOD);
     expect(w.people.carry[slot]).toBeGreaterThan(0);
     expect(totalPileMass(w)).toBe(before);
+  });
+});
+
+describe('Patch 3: donor controls sharing', () => {
+  it('non-allied pair does not transfer when donor generosity is 100 and recipient generosity is 200', () => {
+    const w = quietWorld({ resourceClashEnabled: false });
+    const cell = findDryLandCell(w);
+    const x = cell & 255;
+    const y = cell >> 8;
+    const donor = slotFromId(w.people.spawn(x, y, 90, 0, 1, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    const recip = slotFromId(w.people.spawn(x, y, 20, 0, 2, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    w.people.habits[donor * 8 + HABIT_GENEROSITY] = 100;
+    w.people.habits[recip * 8 + HABIT_GENEROSITY] = 200;
+
+    Rules.touch(donor, recip, w.people, w.land, w.fields, w.config, w.prng, w.ledger);
+    expect(w.people.energy[donor]).toBe(90);
+    expect(w.people.energy[recip]).toBe(20);
+  });
+
+  it('non-allied pair transfers when donor generosity is 200', () => {
+    const w = quietWorld({ resourceClashEnabled: false });
+    const cell = findDryLandCell(w);
+    const x = cell & 255;
+    const y = cell >> 8;
+    const donor = slotFromId(w.people.spawn(x, y, 90, 0, 1, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    const recip = slotFromId(w.people.spawn(x, y, 20, 0, 2, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    w.people.habits[donor * 8 + HABIT_GENEROSITY] = 200;
+    w.people.habits[recip * 8 + HABIT_GENEROSITY] = 50;
+
+    Rules.touch(donor, recip, w.people, w.land, w.fields, w.config, w.prng, w.ledger);
+    expect(w.people.energy[donor]).toBeLessThan(90);
+    expect(w.people.energy[recip]).toBeGreaterThan(20);
+  });
+
+  it('allied pair transfers regardless of generosity', () => {
+    const w = quietWorld({ resourceClashEnabled: false });
+    const cell = findDryLandCell(w);
+    const x = cell & 255;
+    const y = cell >> 8;
+    const donor = slotFromId(w.people.spawn(x, y, 90, 0, 1, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    const recip = slotFromId(w.people.spawn(x, y, 20, 0, 1, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    w.people.rootLeaderId[donor] = 1;
+    w.people.rootLeaderId[recip] = 1;
+    w.people.habits[donor * 8 + HABIT_GENEROSITY] = 0;
+    w.people.habits[recip * 8 + HABIT_GENEROSITY] = 0;
+
+    Rules.touch(donor, recip, w.people, w.land, w.fields, w.config, w.prng, w.ledger);
+    expect(w.people.energy[donor]).toBeLessThan(90);
+    expect(w.people.energy[recip]).toBeGreaterThan(20);
   });
 });

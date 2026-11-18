@@ -1154,35 +1154,31 @@ export class Rules {
     const shareAmt = config.shareEnergyAmount ?? 5.0;
     const reproThreshold = config.reproductionThreshold ?? 65.0;
 
-    // 1. Sharing
-    if (allied || generosityA > 160 || generosityB > 160) {
-      // Check if A can give to hungry B
-      if (people.energy[slotA] > reproThreshold && people.energy[slotB] < reproThreshold * 0.5) {
-        const gift = Math.min(shareAmt, people.energy[slotA] - minSurplus);
-        if (gift > 0) {
-          people.energy[slotA] -= gift;
-          people.energy[slotB] += gift;
-          if (config.experienceHabitsEnabled ?? true) {
-            const hs = config.habitHelpStep ?? 3;
-            Rules.nudgeHabit(people, slotB, HABIT_GENEROSITY, hs);
-            Rules.nudgeHabit(people, slotB, HABIT_LOYALTY, hs);
-          }
-          return;
+    // 1. Sharing: a donor gives to a hungry partner if allied, or if the donor is generous.
+    if ((allied || generosityA > 160) && people.energy[slotA] > reproThreshold && people.energy[slotB] < reproThreshold * 0.5) {
+      const gift = Math.min(shareAmt, people.energy[slotA] - minSurplus);
+      if (gift > 0) {
+        people.energy[slotA] -= gift;
+        people.energy[slotB] += gift;
+        if (config.experienceHabitsEnabled ?? true) {
+          const hs = config.habitHelpStep ?? 3;
+          Rules.nudgeHabit(people, slotB, HABIT_GENEROSITY, hs);
+          Rules.nudgeHabit(people, slotB, HABIT_LOYALTY, hs);
         }
+        return;
       }
-      // Check if B can give to hungry A
-      if (people.energy[slotB] > reproThreshold && people.energy[slotA] < reproThreshold * 0.5) {
-        const gift = Math.min(shareAmt, people.energy[slotB] - minSurplus);
-        if (gift > 0) {
-          people.energy[slotB] -= gift;
-          people.energy[slotA] += gift;
-          if (config.experienceHabitsEnabled ?? true) {
-            const hs = config.habitHelpStep ?? 3;
-            Rules.nudgeHabit(people, slotA, HABIT_GENEROSITY, hs);
-            Rules.nudgeHabit(people, slotA, HABIT_LOYALTY, hs);
-          }
-          return;
+    }
+    if ((allied || generosityB > 160) && people.energy[slotB] > reproThreshold && people.energy[slotA] < reproThreshold * 0.5) {
+      const gift = Math.min(shareAmt, people.energy[slotB] - minSurplus);
+      if (gift > 0) {
+        people.energy[slotB] -= gift;
+        people.energy[slotA] += gift;
+        if (config.experienceHabitsEnabled ?? true) {
+          const hs = config.habitHelpStep ?? 3;
+          Rules.nudgeHabit(people, slotA, HABIT_GENEROSITY, hs);
+          Rules.nudgeHabit(people, slotA, HABIT_LOYALTY, hs);
         }
+        return;
       }
     }
 
