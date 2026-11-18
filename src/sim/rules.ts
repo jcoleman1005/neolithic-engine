@@ -486,6 +486,17 @@ export class Rules {
       }
     }
 
+    // Hunters or meat carriers with food heading home: steer back to remembered home camp / hearth
+    if (config.pursuitHuntEnabled !== false && people.carryKind[slot] === CARRY_FOOD && people.carry[slot] > 0 && people.homeX[slot] !== 0 && people.homeY[slot] !== 0) {
+      const dx = wrapDiff(people.homeX[slot], px);
+      const dy = wrapDiff(people.homeY[slot], py);
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        const pull = 0.5;
+        if (dx > 0) vx += pull; else if (dx < 0) vx -= pull;
+        if (dy > 0) vy += pull; else if (dy < 0) vy -= pull;
+      }
+    }
+
     // If movement desire is negligible, stay
     if (Math.abs(vx) < 0.05 && Math.abs(vy) < 0.05) {
       return 4; // Stay

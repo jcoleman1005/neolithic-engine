@@ -173,6 +173,7 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         goldenCropsEnabled: false,
         shoreScentEnabled: false, shoreSlideEnabled: false, founderWaterReachEnabled: false, thirstReturnEnabled: false, // 2026-11-13 bank fixes off for baseline parity
         hearthGatheringEnabled: false, mourningEnabled: false,
+        pursuitHuntEnabled: false,
         // Phase 6a mechanics off for baseline parity
         herdScentEnabled: false,
         huntCarryMeatEnabled: false,

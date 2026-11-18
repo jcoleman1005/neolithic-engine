@@ -375,6 +375,10 @@ export interface SimulationConfig {
   huntScalingEnabled?: boolean;
   huntStrengthBonus?: number;
   huntStoneBonus?: number;
+  pursuitHuntEnabled?: boolean;
+  huntSenseRadius?: number;
+  huntMaxChaseTicks?: number;
+  huntSprintCost?: number;
   herdScentEnabled?: boolean;
   herdScentEmitRate?: number;
   carcassTicks: number;

@@ -294,6 +294,10 @@ export const DEFAULT_CONFIG: Readonly<SimulationConfig> = {
   huntScalingEnabled: true, // weapon and strength scaling for hunting strikes
   huntStrengthBonus: 0.2, // bonus strike chance for high-strength hunters (up to +0.20)
   huntStoneBonus: 0.15, // bonus strike chance when carrying a stone weapon
+  pursuitHuntEnabled: true, // hungry hunters spot game within range and chase them down
+  huntSenseRadius: 5, // line-of-sight radius for hunters to spot and commit to quarry
+  huntMaxChaseTicks: 25, // maximum ticks to pursue quarry before giving up
+  huntSprintCost: 0.1, // extra energy cost per sprint step in pursuit (booked to ledger.move)
   herdScentEnabled: true, // herds emit prey food scent so hungry climbers can track them
   herdScentEmitRate: 0.2, // prey scent emitted per unit of herd body energy
   carcassTicks: 120, // how long the dead-animal graphic stays (viewer only), if the meat lasts

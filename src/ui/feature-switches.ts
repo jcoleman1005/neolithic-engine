@@ -109,6 +109,7 @@ const TABLE = [
   { key: 'herdsEnabled', group: 'Animals and hunting', label: 'Herds', help: 'Grazing animals that drift to richer ground, flee people, breed when fed and die of hunger or age; off stops them at once, but they are only placed when a world is made.', when: L },
   { key: 'herdScentEnabled', group: 'Animals and hunting', label: 'Herds leave a scent', help: 'Herds give off a food scent, so hungry people can track them.', when: L, requires: ['herdsEnabled'] },
   { key: 'huntingEnabled', group: 'Animals and hunting', label: 'Hunting', help: 'People strike at herd animals beside them; a kill leaves meat.', when: L, requires: ['herdsEnabled', 'stockpilesEnabled'] },
+  { key: 'pursuitHuntEnabled', group: 'Animals and hunting', label: 'Pursuit hunting', help: 'Hungry people actively chase spotted game instead of relying solely on adjacent wandering.', when: L, requires: ['huntingEnabled'] },
   { key: 'huntScalingEnabled', group: 'Animals and hunting', label: 'Strength and weapons in hunts', help: 'Strong hunters and those carrying stone strike more often.', when: L, requires: ['huntingEnabled'] },
   { key: 'huntCarryMeatEnabled', group: 'Animals and hunting', label: 'Carry meat home', help: 'The hunter butchers the kill and carries fresh meat.', when: L, requires: ['huntingEnabled'] },
   { key: 'wolvesEnabled', group: 'Animals and hunting', label: 'Wolves', help: 'Wolves chase and kill herd animals, breed when fed, and may kill a lone person; off stops them at once, but they are only placed when a world is made.', when: L },

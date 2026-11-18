@@ -525,6 +525,10 @@ export class LifeSystem {
                   const took = land.takePile(hx, hy, canTake);
                   people.carry[slot] += took;
                   carryKind[slot] = CARRY_FOOD;
+                  if (config.pursuitHuntEnabled !== false && people.homeX[slot] === 0 && people.homeY[slot] === 0) {
+                    people.homeX[slot] = hx;
+                    people.homeY[slot] = hy;
+                  }
                 }
               }
             }

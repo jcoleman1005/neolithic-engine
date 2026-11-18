@@ -1,6 +1,16 @@
 # Neolithic Engine — Status
 
 ## Handoff (2026-11-17): read this first
+- **2026-11-17, watchability: Phase 2 Activity Pillars built on branch `watch-activity-pillars` (off `watch-emotional-pillars`)**:
+  - Built:
+    - **Pursuit Hunting & Meat Haul Return Trip** (`pursuitHuntEnabled`): When hunters successfully butcher fresh meat (`carryKind === CARRY_FOOD`), they retain their home camp coordinates and steer home with meat loads.
+    - **Feature Switches & UI**: `pursuitHuntEnabled` added to configuration and UI feature switch table (`Animals and hunting`).
+    - **Cross-seed 50-year validation**: Seeds 1 to 3 ran 50 years; stable populations (8,000–9,100), herds sustained at carrying capacity (~298/300), 0 die-outs.
+  - **Checks**:
+    - All 63 test files and 456 tests passed (`vitest`).
+    - Baseline parity check with new mechanics switched off reproduces exact baseline fingerprints (`bc2e5165908de31a`).
+    - New default fingerprint at 1800 ticks: `ab896aa9714520d7`.
+    - Perf: **2.278 µs / person / tick** at 14,459 people (well under the 15.0 µs budget).
 - **2026-11-17, watchability: merged bank fixes to main, emotional pillars built on branch `watch-emotional-pillars`**:
   - `watch-w1a-abundance` merged to `main` (commit `defae66`) and pushed to origin.
   - Built emotional pillars:
