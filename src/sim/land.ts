@@ -350,6 +350,7 @@ export class Land {
     const hKeepComp = config.nestKeepCompaction ?? 0.5;
 
     const fertChange = config.fertilityChangeEnabled !== false;
+    const stoneBarren = config.stoneBarrenEnabled !== false;
     const fertMax = config.fertilityMax ?? 1.5;
     const fertPassive = config.fertilityPassiveGain ?? 0.00005;
     const fertCompost = config.fertilityCompostGain ?? 0.0005;
@@ -368,7 +369,7 @@ export class Land {
         if (br < 0.05) br = 0;
         this.pile[i] = pl;
         this.brush[i] = br;
-        if (fertChange && oldPl > pl && this.isWater[i] === 0) {
+        if (fertChange && oldPl > pl && this.isWater[i] === 0 && !(stoneBarren && this.stone[i] > 0)) {
           const spoiled = oldPl - pl;
           if (spoiled > 0.01) {
             const curF = this.fertility[i];

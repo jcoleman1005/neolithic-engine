@@ -287,3 +287,22 @@ describe('Patch 6: inclusive nextInt fixes', () => {
     }
   });
 });
+
+describe('Patch 9: no compost fertility on stone tiles', () => {
+  it('stone tile with pile does not gain fertility, maxFood, or food after 100 Land.step calls', () => {
+    const w = quietWorld();
+    const cell = findDryLandCell(w);
+    w.land.stone[cell] = 1;
+    w.land.fertility[cell] = 0;
+    w.land.maxFood[cell] = 0;
+    w.land.food[cell] = 0;
+    w.land.pile[cell] = 20;
+
+    for (let t = 0; t < 100; t++) {
+      w.land.step(w.config);
+    }
+    expect(w.land.fertility[cell]).toBe(0);
+    expect(w.land.maxFood[cell]).toBe(0);
+    expect(w.land.food[cell]).toBe(0);
+  });
+});

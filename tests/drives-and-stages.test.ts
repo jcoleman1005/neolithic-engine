@@ -194,8 +194,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         wOff.step();
         if (t % 100 === 0) await new Promise(r => setImmediate(r));
       }
-      // Baseline fingerprint updated for Patch 6 inclusive nextInt fixes
-      expect(wOff.stateHash()).toBe('58d83a5afc957f27');
+      // Baseline fingerprint updated for Patch 9 no compost fertility on stone tiles
+      expect(wOff.stateHash()).toBe('cd147c71a047243a');
     });
   });
 });
