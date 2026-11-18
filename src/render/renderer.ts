@@ -16,6 +16,9 @@ import { holdPose, poseFor, popShape, POP_MS } from './poses';
 import { BAND_COLOURS, LIMITED, limitCanvasColours, quantizeImage, quantizeOver } from './limited-palette';
 import {
   PERSON_FRAMES,
+  POSE_BEND,
+  POSE_KNEEL,
+  POSE_SIT,
   POSE_STRIKE,
   createWorldBoxSpriteAtlas,
   hexToABGR,
@@ -2176,11 +2179,13 @@ export class CanvasRenderer {
       );
     }
 
-    // What they carry: an outlined load held in front of the body, its shape and colour by kind.
+    // What they carry: an outlined load held at the waist/hands, shifted below/ahead of lowered heads.
     const carriedKind = this.carryBytes[slot] & 7;
     if (carriedKind !== 0) {
-      const carryX = Math.round(fx + (facing === 0 ? -4.5 : 1.5) * ap);
-      this.drawCarry(carryX, Math.round(fy - 5.5 * ap), carriedKind);
+      const lowered = frame === POSE_BEND || frame === POSE_KNEEL || frame === POSE_SIT;
+      const carryOffsetX = frame === POSE_BEND ? (facing === 0 ? -6.5 : 4.5) : (facing === 0 ? -4.5 : 2.0);
+      const carryOffsetY = lowered ? -2.5 : stage === LOOK_STAGE_CHILD ? -3.0 : -4.5;
+      this.drawCarry(Math.round(fx + carryOffsetX * ap), Math.round(fy + carryOffsetY * ap), carriedKind);
     }
 
     // #3b: someone fleeing where they were beaten shows a small white alarm mark above the head.
