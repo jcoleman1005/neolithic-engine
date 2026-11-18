@@ -337,7 +337,7 @@ export class LifeSystem {
         }
         fields.depositDanger(px[slot], py[slot], dangerDeath);
         if (injury[slot] > 0 || sick[slot] > 0) land.markDeath(px[slot], py[slot], graveTicks);
-        people.kill(slot);
+        Rules.killWithCargo(slot, people, land, config);
         continue;
       }
 
@@ -345,7 +345,7 @@ export class LifeSystem {
       if (age[slot] >= maxAge) {
         ledger.deathFat += energy[slot];
         fields.depositDanger(px[slot], py[slot], dangerDeath);
-        people.kill(slot);
+        Rules.killWithCargo(slot, people, land, config);
         continue;
       }
     }
@@ -767,7 +767,7 @@ export class LifeSystem {
             }
             fields.depositDanger(nx, ny, dangerDeath);
             if (injury[slot] > 0 || sick[slot] > 0) land.markDeath(nx, ny, graveTicks);
-            people.kill(slot);
+            Rules.killWithCargo(slot, people, land, config);
             continue;
           }
         }

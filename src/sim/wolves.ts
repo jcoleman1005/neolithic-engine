@@ -219,7 +219,7 @@ export class Wolves {
               fields.depositDanger(nbX[k], nbY[k], dangerDeath);
               if (people.energy[s] <= 0) {
                 land.markDeath(nbX[k], nbY[k], config.graveTicks ?? 150);
-                people.kill(s);
+                Rules.killWithCargo(s, people, land, config);
                 here[c] = 0;
                 personAt[c] = -1;
                 e = Math.min(maxE, e + (config.wolfPersonMeal ?? 20));

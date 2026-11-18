@@ -216,3 +216,36 @@ describe('Patch 3: donor controls sharing', () => {
     expect(w.people.energy[recip]).toBeGreaterThan(20);
   });
 });
+
+describe('Patch 4: cargo drops when someone dies', () => {
+  it('killWithCargo drops carried food onto the tile', () => {
+    const w = quietWorld();
+    const cell = findDryLandCell(w);
+    const x = cell & 255;
+    const y = cell >> 8;
+    const slot = slotFromId(w.people.spawn(x, y, 50, 0, 1, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    w.people.carryKind[slot] = CARRY_FOOD;
+    w.people.carry[slot] = 12;
+    const pileBefore = w.land.pile[cell];
+
+    Rules.killWithCargo(slot, w.people, w.land, w.config);
+    expect(w.people.alive[slot]).toBe(0);
+    expect(w.land.pile[cell] - pileBefore).toBeCloseTo(12, 6);
+  });
+
+  it('old-age death during step drops carried food into a pile', () => {
+    const w = quietWorld({ maxAge: 100 });
+    const cell = findDryLandCell(w);
+    const x = cell & 255;
+    const y = cell >> 8;
+    const slot = slotFromId(w.people.spawn(x, y, 50, 0, 1, 0, 0, new Uint8Array(8), new Uint8Array(8), 0));
+    w.people.carryKind[slot] = CARRY_FOOD;
+    w.people.carry[slot] = 12;
+    w.people.age[slot] = 100;
+    const pileBefore = totalPileMass(w);
+
+    w.step();
+    expect(w.people.alive[slot]).toBe(0);
+    expect(totalPileMass(w)).toBeGreaterThan(pileBefore + 10);
+  });
+});

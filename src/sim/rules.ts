@@ -1515,6 +1515,16 @@ export class Rules {
     }
   }
 
+  /** Kills a person, setting down whatever they carried where they stood (as clash deaths already do). */
+  public static killWithCargo(slot: number, people: People, land: Land, config: Readonly<SimulationConfig>): void {
+    const kind = people.carryKind[slot];
+    const amt = people.carry[slot];
+    if (kind !== CARRY_NONE && amt > 0) {
+      Rules.dropCarriedToLand(kind, amt, people.x[slot], people.y[slot], land, config);
+    }
+    people.kill(slot);
+  }
+
   public static dropCarriedToLand(
     kind: number,
     amount: number,

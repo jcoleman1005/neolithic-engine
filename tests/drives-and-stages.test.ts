@@ -194,8 +194,8 @@ describe('Primitives 18, 24, 28: Drives, Life Stages & Strength Scaling', () => 
         wOff.step();
         if (t % 100 === 0) await new Promise(r => setImmediate(r));
       }
-      // Baseline fingerprint updated for Patch 3 donor-controlled sharing
-      expect(wOff.stateHash()).toBe('6144f6789f40a261');
+      // Baseline fingerprint updated for Patch 4 killWithCargo
+      expect(wOff.stateHash()).toBe('664536039b08107d');
     });
   });
 });
